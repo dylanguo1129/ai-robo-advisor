@@ -28,6 +28,7 @@ test:  ## Python tests
 
 test-web:  ## browser-engine tests (node)
 	node web/test_parse.mjs
+	node web/test_assistant.mjs
 	node web/test_engine.mjs
 	node web/test_robokit.mjs
 

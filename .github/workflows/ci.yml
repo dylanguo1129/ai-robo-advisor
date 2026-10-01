@@ -62,5 +62,6 @@ jobs:
       - name: Syntax check every ES module
         run: for f in web/*.js; do node --input-type=module --check < "$f" || exit 1; done
       - run: node web/test_parse.mjs
+      - run: node web/test_assistant.mjs
       - run: node web/test_engine.mjs
       - run: node web/test_robokit.mjs

@@ -3,6 +3,11 @@
  * Nothing here computes a number: tools call the engine in robokit.js / the worker. */
 import { checkReply, REWRITE } from './validate.js';
 
+// Tools that add a card to the thread. Within one turn each runs once per input: the rewrite pass (and a
+// model that repeats itself) calls them again, and every run would add the same card a second time.
+const SHOWS_CARD = new Set(['search_etfs', 'etf_profile', 'compare_etfs', 'market_context', 'explain_term', 'backtest_summary']);
+const canon = (v) => (Array.isArray(v) ? v.map(canon).sort() : v && typeof v === 'object' ? Object.keys(v).sort().map(k => [k, canon(v[k])]) : typeof v === 'string' ? v.trim().toUpperCase() : v);
+
 export const RULES = `You are the Robo-Kit guide, an AI (Claude) inside a do-it-yourself ETF portfolio lab for Canadian (CAD) and US-listed ETFs. You explain; Robo-Kit's code decides every number; the person decides what to do.
 
 HARD RULES
@@ -35,6 +40,7 @@ export class Assistant {
     this.toolsOk = false;
     this.turns = [];
     this.log = [];  // recent tool results, for the provenance check
+    this.shown = new Map();  // this turn's card-showing calls: call key -> result
     this.first = true;
   }
 
@@ -52,7 +58,13 @@ export class Assistant {
 
   tools() {
     const A = this.app;
-    const wrap = (name, fn) => async (input) => { const out = await fn(input || {}); this.log.push({ tool: name, out }); if (this.log.length > 14) this.log.shift(); return out; };
+    const once = (name, input, fn) => {
+      if (!SHOWS_CARD.has(name)) return fn(input);
+      const key = JSON.stringify([A.st.market, name, canon(input)]);
+      if (!this.shown.has(key)) this.shown.set(key, Promise.resolve().then(() => fn(input)).catch((e) => { this.shown.delete(key); throw e; }));
+      return this.shown.get(key);
+    };
+    const wrap = (name, fn) => async (input) => { const out = await once(name, input || {}, fn); this.log.push({ tool: name, out }); if (this.log.length > 14) this.log.shift(); return out; };
     return [
       { name: 'search_etfs', description: 'Search the fund list of the current market with neutral filters. Returns up to 8 funds with fee, size, history and eligibility. Also shows them to the person as a card.',
         inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'name, ticker, issuer or theme words' }, asset_class: { type: 'string', enum: ['Equity', 'Fixed income', 'Cash', 'Real estate', 'Commodity', 'Multi-asset', 'Alternative', 'Crypto'] }, region: { type: 'string' }, max_mer: { type: 'number', description: 'fraction, 0.002 = 0.20%' }, sort_by: { type: 'string', enum: ['mer', 'aum', 'history', 'name'] }, include_excluded: { type: 'boolean' } } },
@@ -101,6 +113,7 @@ export class Assistant {
     // evidence is this turn's tool results only (plus page state and the person's own words): an earlier turn's
     // numbers may describe a mix that has since changed, and a large pool lets invented figures match by chance
     this.log = [];
+    this.shown = new Map();
     this.turns.push({ role: 'user', content: text });
     while (JSON.stringify(this.turns).length > 30000 && this.turns.length > 2) this.turns.splice(0, 2);
     const head = { role: 'user', content: `${RULES}\n\n${this.pageState()}\n\n${this.first ? 'This is the first message of the session: begin your reply with one line saying you are an AI (Claude), not a person or a registered advisor, that numbers come from Robo-Kit\'s code, and that this is education, not personal advice.' : 'Do not repeat the AI disclosure.'}` };

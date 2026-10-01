@@ -223,6 +223,7 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 | Python tests | `python -m pytest -q` | 120 passed with the local data cache; on a fresh clone and in CI 103 pass and 17 are skipped (16 engine tests need `data/v2/`, one v1 test needs `data/prices_daily_adjclose.csv`) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 13 reference portfolios, 400 self-check answer sets, one-fund and resampled checks all match |
 | Input parser | `node web/test_parse.mjs` | 25 cases |
+| Chat layer | `node web/test_assistant.mjs` | 7 cases, with a scripted model: each card appears once per turn, including across the rewrite pass |
 | v1 browser engine | `node web/test_engine.mjs` | 11 checks |
 | Lint / format | `ruff check .`, `ruff format --check .` | clean |
 
