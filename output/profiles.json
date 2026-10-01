@@ -1,0 +1,570 @@
+{
+ "low": {
+  "profile": "low",
+  "risk_aversion": 1.5,
+  "weights": {
+   "CGL.TO": 0.0,
+   "PSA.TO": 0.0,
+   "VFV.TO": 0.182639,
+   "XAW.TO": 0.071142,
+   "XBB.TO": 0.0,
+   "XDV.TO": 0.0,
+   "XEC.TO": 0.070418,
+   "XEF.TO": 0.075474,
+   "XHY.TO": 0.0,
+   "XIC.TO": 0.224894,
+   "XIU.TO": 0.055951,
+   "XRE.TO": 0.067888,
+   "XSB.TO": 0.0,
+   "XSP.TO": 0.207063,
+   "ZAG.TO": 0.0,
+   "ZCS.TO": 0.0,
+   "ZEB.TO": 0.041593,
+   "ZFL.TO": 0.000503,
+   "ZLB.TO": 0.0,
+   "ZLU.TO": 0.002436
+  },
+  "exp_return": 0.049359,
+  "exp_vol": 0.117114,
+  "sharpe": 0.2293,
+  "risk_contributions": {
+   "CGL.TO": 0.0,
+   "PSA.TO": 0.0,
+   "VFV.TO": 0.17502,
+   "XAW.TO": 0.064288,
+   "XBB.TO": 0.0,
+   "XDV.TO": 0.0,
+   "XEC.TO": 0.057347,
+   "XEF.TO": 0.061586,
+   "XHY.TO": 0.0,
+   "XIC.TO": 0.223176,
+   "XIU.TO": 0.052328,
+   "XRE.TO": 0.072849,
+   "XSB.TO": 0.0,
+   "XSP.TO": 0.246187,
+   "ZAG.TO": 0.0,
+   "ZCS.TO": 0.0,
+   "ZEB.TO": 0.045732,
+   "ZFL.TO": 0.000196,
+   "ZLB.TO": 0.0,
+   "ZLU.TO": 0.001291
+  },
+  "effective_n": 6.579,
+  "notes": [
+   "XSP.TO contributes the largest share of portfolio risk (25%); weights and risk shares differ because risk depends on volatility and correlation, not only on the dollar amount."
+  ],
+  "diagnostics": {
+   "lam": 1.5,
+   "n_assets": 20,
+   "resampled": true,
+   "naive_blend": 0.0,
+   "resample_method": "stationary",
+   "block_length": 6,
+   "n_boot": 500,
+   "point_estimate_weights": {
+    "CGL.TO": 0.0,
+    "PSA.TO": 0.0,
+    "VFV.TO": 0.189953,
+    "XAW.TO": 0.072433,
+    "XBB.TO": 0.0,
+    "XDV.TO": 0.0,
+    "XEC.TO": 0.07548,
+    "XEF.TO": 0.064693,
+    "XHY.TO": 0.0,
+    "XIC.TO": 0.236926,
+    "XIU.TO": 0.044053,
+    "XRE.TO": 0.071348,
+    "XSB.TO": 0.0,
+    "XSP.TO": 0.20193,
+    "ZAG.TO": 0.0,
+    "ZCS.TO": 0.0,
+    "ZEB.TO": 0.043184,
+    "ZFL.TO": 0.0,
+    "ZLB.TO": 0.0,
+    "ZLU.TO": 0.0
+   },
+   "mean_abs_change_vs_point": 0.003074946058328415
+  },
+  "weight_band": {
+   "CGL.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "PSA.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "VFV.TO": {
+    "std": 0.046274,
+    "q05": 0.100564,
+    "q95": 0.258071
+   },
+   "XAW.TO": {
+    "std": 0.038086,
+    "q05": 4.7e-05,
+    "q95": 0.136043
+   },
+   "XBB.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "XDV.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "XEC.TO": {
+    "std": 0.037431,
+    "q05": 0.011402,
+    "q95": 0.133921
+   },
+   "XEF.TO": {
+    "std": 0.060274,
+    "q05": 0.0,
+    "q95": 0.189506
+   },
+   "XHY.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "XIC.TO": {
+    "std": 0.065118,
+    "q05": 0.095408,
+    "q95": 0.317197
+   },
+   "XIU.TO": {
+    "std": 0.04444,
+    "q05": 0.0,
+    "q95": 0.136915
+   },
+   "XRE.TO": {
+    "std": 0.033472,
+    "q05": 0.004496,
+    "q95": 0.118245
+   },
+   "XSB.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "XSP.TO": {
+    "std": 0.058441,
+    "q05": 0.114526,
+    "q95": 0.30684
+   },
+   "ZAG.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "ZCS.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "ZEB.TO": {
+    "std": 0.027325,
+    "q05": 0.0,
+    "q95": 0.091312
+   },
+   "ZFL.TO": {
+    "std": 0.003676,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "ZLB.TO": {
+    "std": 0.0,
+    "q05": 0.0,
+    "q95": 0.0
+   },
+   "ZLU.TO": {
+    "std": 0.01058,
+    "q05": 0.0,
+    "q95": 0.016868
+   }
+  }
+ },
+ "mid": {
+  "profile": "mid",
+  "risk_aversion": 2.5,
+  "weights": {
+   "CGL.TO": 0.012316,
+   "PSA.TO": 0.016569,
+   "VFV.TO": 0.140782,
+   "XAW.TO": 0.077173,
+   "XBB.TO": 0.042427,
+   "XDV.TO": 0.010388,
+   "XEC.TO": 0.077173,
+   "XEF.TO": 0.095545,
+   "XHY.TO": 0.004643,
+   "XIC.TO": 0.137497,
+   "XIU.TO": 0.090013,
+   "XRE.TO": 0.004429,
+   "XSB.TO": 0.017962,
+   "XSP.TO": 0.064332,
+   "ZAG.TO": 0.053106,
+   "ZCS.TO": 0.01879,
+   "ZEB.TO": 0.029989,
+   "ZFL.TO": 0.005196,
+   "ZLB.TO": 0.024498,
+   "ZLU.TO": 0.077173
+  },
+  "exp_return": 0.044068,
+  "exp_vol": 0.092884,
+  "sharpe": 0.2322,
+  "risk_contributions": {
+   "CGL.TO": 0.005055,
+   "PSA.TO": 9.3e-05,
+   "VFV.TO": 0.169789,
+   "XAW.TO": 0.088981,
+   "XBB.TO": 0.015384,
+   "XDV.TO": 0.011421,
+   "XEC.TO": 0.082597,
+   "XEF.TO": 0.101941,
+   "XHY.TO": 0.003275,
+   "XIC.TO": 0.170367,
+   "XIU.TO": 0.106391,
+   "XRE.TO": 0.005832,
+   "XSB.TO": 0.001992,
+   "XSP.TO": 0.09166,
+   "ZAG.TO": 0.018425,
+   "ZCS.TO": 0.003722,
+   "ZEB.TO": 0.040222,
+   "ZFL.TO": 0.002943,
+   "ZLB.TO": 0.021851,
+   "ZLU.TO": 0.058059
+  },
+  "effective_n": 11.715,
+  "notes": [
+   "XIC.TO contributes the largest share of portfolio risk (17%); weights and risk shares differ because risk depends on volatility and correlation, not only on the dollar amount."
+  ],
+  "diagnostics": {
+   "lam": 2.5,
+   "n_assets": 20,
+   "resampled": true,
+   "naive_blend": 0.0,
+   "resample_method": "stationary",
+   "block_length": 6,
+   "n_boot": 500,
+   "point_estimate_weights": {
+    "CGL.TO": 0.012316,
+    "PSA.TO": 0.016569,
+    "VFV.TO": 0.140782,
+    "XAW.TO": 0.077173,
+    "XBB.TO": 0.042427,
+    "XDV.TO": 0.010388,
+    "XEC.TO": 0.077173,
+    "XEF.TO": 0.095545,
+    "XHY.TO": 0.004643,
+    "XIC.TO": 0.137497,
+    "XIU.TO": 0.090013,
+    "XRE.TO": 0.004429,
+    "XSB.TO": 0.017962,
+    "XSP.TO": 0.064332,
+    "ZAG.TO": 0.053106,
+    "ZCS.TO": 0.01879,
+    "ZEB.TO": 0.029989,
+    "ZFL.TO": 0.005196,
+    "ZLB.TO": 0.024498,
+    "ZLU.TO": 0.077173
+   },
+   "mean_abs_change_vs_point": 4.925170945992846e-10
+  },
+  "weight_band": {
+   "CGL.TO": {
+    "std": 0.0,
+    "q05": 0.012316,
+    "q95": 0.012316
+   },
+   "PSA.TO": {
+    "std": 0.0,
+    "q05": 0.016569,
+    "q95": 0.016569
+   },
+   "VFV.TO": {
+    "std": 0.0,
+    "q05": 0.140782,
+    "q95": 0.140782
+   },
+   "XAW.TO": {
+    "std": 0.0,
+    "q05": 0.077173,
+    "q95": 0.077173
+   },
+   "XBB.TO": {
+    "std": 0.0,
+    "q05": 0.042427,
+    "q95": 0.042427
+   },
+   "XDV.TO": {
+    "std": 0.0,
+    "q05": 0.010388,
+    "q95": 0.010388
+   },
+   "XEC.TO": {
+    "std": 0.0,
+    "q05": 0.077173,
+    "q95": 0.077173
+   },
+   "XEF.TO": {
+    "std": 0.0,
+    "q05": 0.095545,
+    "q95": 0.095545
+   },
+   "XHY.TO": {
+    "std": 0.0,
+    "q05": 0.004643,
+    "q95": 0.004643
+   },
+   "XIC.TO": {
+    "std": 0.0,
+    "q05": 0.137497,
+    "q95": 0.137497
+   },
+   "XIU.TO": {
+    "std": 0.0,
+    "q05": 0.090013,
+    "q95": 0.090013
+   },
+   "XRE.TO": {
+    "std": 0.0,
+    "q05": 0.004429,
+    "q95": 0.004429
+   },
+   "XSB.TO": {
+    "std": 0.0,
+    "q05": 0.017962,
+    "q95": 0.017962
+   },
+   "XSP.TO": {
+    "std": 0.0,
+    "q05": 0.064332,
+    "q95": 0.064332
+   },
+   "ZAG.TO": {
+    "std": 0.0,
+    "q05": 0.053106,
+    "q95": 0.053106
+   },
+   "ZCS.TO": {
+    "std": 0.0,
+    "q05": 0.01879,
+    "q95": 0.01879
+   },
+   "ZEB.TO": {
+    "std": 0.0,
+    "q05": 0.029989,
+    "q95": 0.029989
+   },
+   "ZFL.TO": {
+    "std": 0.0,
+    "q05": 0.005196,
+    "q95": 0.005196
+   },
+   "ZLB.TO": {
+    "std": 0.0,
+    "q05": 0.024498,
+    "q95": 0.024498
+   },
+   "ZLU.TO": {
+    "std": 0.0,
+    "q05": 0.077173,
+    "q95": 0.077173
+   }
+  }
+ },
+ "high": {
+  "profile": "high",
+  "risk_aversion": 6.25,
+  "weights": {
+   "CGL.TO": 0.001965,
+   "PSA.TO": 0.606526,
+   "VFV.TO": 0.052938,
+   "XAW.TO": 0.029378,
+   "XBB.TO": 0.01467,
+   "XDV.TO": 0.004096,
+   "XEC.TO": 0.033164,
+   "XEF.TO": 0.034581,
+   "XHY.TO": 0.002898,
+   "XIC.TO": 0.056284,
+   "XIU.TO": 0.037537,
+   "XRE.TO": 0.003706,
+   "XSB.TO": 0.015227,
+   "XSP.TO": 0.026477,
+   "ZAG.TO": 0.022592,
+   "ZCS.TO": 0.003496,
+   "ZEB.TO": 0.011709,
+   "ZFL.TO": 0.000654,
+   "ZLB.TO": 0.008337,
+   "ZLU.TO": 0.033765
+  },
+  "exp_return": 0.031171,
+  "exp_vol": 0.037428,
+  "sharpe": 0.2317,
+  "risk_contributions": {
+   "CGL.TO": 0.00201,
+   "PSA.TO": 0.013029,
+   "VFV.TO": 0.157941,
+   "XAW.TO": 0.083821,
+   "XBB.TO": 0.013253,
+   "XDV.TO": 0.011152,
+   "XEC.TO": 0.087938,
+   "XEF.TO": 0.091324,
+   "XHY.TO": 0.005074,
+   "XIC.TO": 0.172558,
+   "XIU.TO": 0.109783,
+   "XRE.TO": 0.012085,
+   "XSB.TO": 0.004291,
+   "XSP.TO": 0.093274,
+   "ZAG.TO": 0.019541,
+   "ZCS.TO": 0.00174,
+   "ZEB.TO": 0.038865,
+   "ZFL.TO": 0.000921,
+   "ZLB.TO": 0.018423,
+   "ZLU.TO": 0.062977
+  },
+  "effective_n": 2.621,
+  "notes": [
+   "61% sits in the cash-like ETF: at this risk aversion the model prefers safety over the small extra return of the other funds.",
+   "XIC.TO contributes the largest share of portfolio risk (17%); weights and risk shares differ because risk depends on volatility and correlation, not only on the dollar amount."
+  ],
+  "diagnostics": {
+   "lam": 6.25,
+   "n_assets": 20,
+   "resampled": true,
+   "naive_blend": 0.0,
+   "resample_method": "stationary",
+   "block_length": 6,
+   "n_boot": 500,
+   "point_estimate_weights": {
+    "CGL.TO": 0.001902,
+    "PSA.TO": 0.609026,
+    "VFV.TO": 0.052809,
+    "XAW.TO": 0.029265,
+    "XBB.TO": 0.016181,
+    "XDV.TO": 0.003956,
+    "XEC.TO": 0.032877,
+    "XEF.TO": 0.034837,
+    "XHY.TO": 0.001821,
+    "XIC.TO": 0.056492,
+    "XIU.TO": 0.037789,
+    "XRE.TO": 0.003532,
+    "XSB.TO": 0.015936,
+    "XSP.TO": 0.026989,
+    "ZAG.TO": 0.02314,
+    "ZCS.TO": 0.0,
+    "ZEB.TO": 0.011535,
+    "ZFL.TO": 0.0,
+    "ZLB.TO": 0.00837,
+    "ZLU.TO": 0.033543
+   },
+   "mean_abs_change_vs_point": 0.0006529353550481102
+  },
+  "weight_band": {
+   "CGL.TO": {
+    "std": 0.001157,
+    "q05": 0.0,
+    "q95": 0.003708
+   },
+   "PSA.TO": {
+    "std": 0.014096,
+    "q05": 0.581027,
+    "q95": 0.626238
+   },
+   "VFV.TO": {
+    "std": 0.001707,
+    "q05": 0.049998,
+    "q95": 0.055449
+   },
+   "XAW.TO": {
+    "std": 0.001242,
+    "q05": 0.027067,
+    "q95": 0.031157
+   },
+   "XBB.TO": {
+    "std": 0.003661,
+    "q05": 0.007716,
+    "q95": 0.019723
+   },
+   "XDV.TO": {
+    "std": 0.002196,
+    "q05": 0.000553,
+    "q95": 0.007969
+   },
+   "XEC.TO": {
+    "std": 0.001784,
+    "q05": 0.030644,
+    "q95": 0.036396
+   },
+   "XEF.TO": {
+    "std": 0.003122,
+    "q05": 0.028945,
+    "q95": 0.039167
+   },
+   "XHY.TO": {
+    "std": 0.002933,
+    "q05": 0.0,
+    "q95": 0.007963
+   },
+   "XIC.TO": {
+    "std": 0.001572,
+    "q05": 0.053888,
+    "q95": 0.058654
+   },
+   "XIU.TO": {
+    "std": 0.001565,
+    "q05": 0.034973,
+    "q95": 0.040125
+   },
+   "XRE.TO": {
+    "std": 0.001909,
+    "q05": 0.000879,
+    "q95": 0.007321
+   },
+   "XSB.TO": {
+    "std": 0.014399,
+    "q05": 0.0,
+    "q95": 0.042911
+   },
+   "XSP.TO": {
+    "std": 0.001895,
+    "q05": 0.022871,
+    "q95": 0.029198
+   },
+   "ZAG.TO": {
+    "std": 0.003175,
+    "q05": 0.017535,
+    "q95": 0.027508
+   },
+   "ZCS.TO": {
+    "std": 0.005052,
+    "q05": 0.0,
+    "q95": 0.014481
+   },
+   "ZEB.TO": {
+    "std": 0.001691,
+    "q05": 0.009164,
+    "q95": 0.014939
+   },
+   "ZFL.TO": {
+    "std": 0.001199,
+    "q05": 0.0,
+    "q95": 0.003264
+   },
+   "ZLB.TO": {
+    "std": 0.002217,
+    "q05": 0.00465,
+    "q95": 0.01184
+   },
+   "ZLU.TO": {
+    "std": 0.002454,
+    "q05": 0.029796,
+    "q95": 0.0382
+   }
+  }
+ }
+}

@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robokit"
+dynamic = ["version"]
+description = "Robo-Kit: a do-it-yourself ETF portfolio lab for Canadian and US ETFs, with an MCP server for Claude"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+# Loose ranges here; the exact, tested versions are pinned in requirements.txt / requirements-dev.txt (`make lock`).
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "scipy>=1.11",
+  "yfinance>=1.0",
+  "requests>=2.31",
+  "openpyxl>=3.1",
+  "xlrd>=2.0",
+  "mcp>=1.10,<2",  # mcp 2.x removed mcp.server.fastmcp, which robokit/mcp_server.py uses
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "scikit-learn>=1.3",  # reference Ledoit-Wolf in tests/test_estimators.py
+  "matplotlib>=3.8",    # charts written by scripts/run_prototype.py
+  "ruff==0.16.9",
+  "pre-commit>=4.0",
+]
+
+[project.scripts]
+robokit = "robokit.__main__:main"
+
+[tool.setuptools]
+# Run from a clone with `pip install -e .`: AGENT.md and web/data/ live at the repo root, outside the packages.
+packages = ["robokit", "robokit.data", "optimizer"]
+
+[tool.setuptools.dynamic]
+version = {attr = "robokit.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+extend-exclude = ["web", "docs", "output", "data"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+ignore = [
+  "E731",  # small lambdas assigned to names are used deliberately for formulas
+  "B905",  # zip() without strict= is fine where lengths are equal by construction
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["robokit", "optimizer"]

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "robokit": {
+      "command": "python",
+      "args": ["-m", "robokit.mcp_server"]
+    }
+  }
+}

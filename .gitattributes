@@ -1,0 +1,17 @@
+# Normalise line endings in the repository to LF on every platform.
+* text=auto eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.xls binary
+*.xlsx binary
+*.docx binary
+*.pkl binary
+*.parquet binary
+
+# Generated data snapshot and test fixtures: collapse them in diffs and language stats
+web/data/*.json linguist-generated=true
+web/test_profiles.json linguist-generated=true

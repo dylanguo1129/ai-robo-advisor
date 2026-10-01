@@ -1,0 +1,391 @@
+config,period,method,profile,ann_return,ann_vol,sharpe,max_dd,n_months
+base_2016_w60,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.0439,0.13175,0.16241,-0.16423,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.03459,0.09935,0.12167,-0.12938,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.02453,0.04375,0.04651,-0.05161,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.02514,0.1296,0.02037,-0.15508,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.04281,0.09543,0.21285,-0.11176,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.02872,0.04648,0.13393,-0.05138,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",minvar,low,-0.03775,0.03831,-1.57272,-0.07983,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",minvar,mid,-0.03775,0.03831,-1.57272,-0.07983,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",minvar,high,-0.03775,0.03831,-1.57272,-0.07983,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01709,0.09057,-0.05974,-0.13105,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01709,0.09057,-0.05974,-0.13105,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01709,0.09057,-0.05974,-0.13105,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",prior,low,0.03495,0.10744,0.11589,-0.14053,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",prior,mid,0.03495,0.10744,0.11589,-0.14053,23
+base_2016_w60,"2021-2022 (inflation, rate shock)",prior,high,0.03495,0.10744,0.11589,-0.14053,23
+base_2016_w60,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.18789,0.09049,1.82773,-0.0593,44
+base_2016_w60,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.15415,0.07044,1.86883,-0.04139,44
+base_2016_w60,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08852,0.03141,2.10216,-0.01661,44
+base_2016_w60,"2023-2026 (AI rally, easing)",sample_mvo,low,0.22238,0.09402,2.12592,-0.06238,44
+base_2016_w60,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.20462,0.08295,2.19541,-0.05955,44
+base_2016_w60,"2023-2026 (AI rally, easing)",sample_mvo,high,0.09309,0.03779,1.8682,-0.02577,44
+base_2016_w60,"2023-2026 (AI rally, easing)",minvar,low,0.05481,0.03287,0.98285,-0.02908,44
+base_2016_w60,"2023-2026 (AI rally, easing)",minvar,mid,0.05481,0.03287,0.98285,-0.02908,44
+base_2016_w60,"2023-2026 (AI rally, easing)",minvar,high,0.05481,0.03287,0.98285,-0.02908,44
+base_2016_w60,"2023-2026 (AI rally, easing)",equal_weight,low,0.13892,0.07197,1.6175,-0.05426,44
+base_2016_w60,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13892,0.07197,1.6175,-0.05426,44
+base_2016_w60,"2023-2026 (AI rally, easing)",equal_weight,high,0.13892,0.07197,1.6175,-0.05426,44
+base_2016_w60,"2023-2026 (AI rally, easing)",prior,low,0.17623,0.08206,1.87339,-0.05514,44
+base_2016_w60,"2023-2026 (AI rally, easing)",prior,mid,0.17623,0.08206,1.87339,-0.05514,44
+base_2016_w60,"2023-2026 (AI rally, easing)",prior,high,0.17623,0.08206,1.87339,-0.05514,44
+long_2014_w48,2018-2019 (late cycle),equilibrium_mvo,low,0.0578,0.10041,0.35152,-0.07529,23
+long_2014_w48,2018-2019 (late cycle),equilibrium_mvo,mid,0.0561,0.09507,0.35338,-0.07759,23
+long_2014_w48,2018-2019 (late cycle),equilibrium_mvo,high,0.04777,0.05191,0.48686,-0.04716,23
+long_2014_w48,2018-2019 (late cycle),sample_mvo,low,0.09955,0.10599,0.72695,-0.07568,23
+long_2014_w48,2018-2019 (late cycle),sample_mvo,mid,0.09791,0.09587,0.78661,-0.07568,23
+long_2014_w48,2018-2019 (late cycle),sample_mvo,high,0.05862,0.05178,0.69754,-0.03417,23
+long_2014_w48,2018-2019 (late cycle),minvar,low,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48,2018-2019 (late cycle),minvar,mid,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48,2018-2019 (late cycle),minvar,high,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48,2018-2019 (late cycle),equal_weight,low,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48,2018-2019 (late cycle),equal_weight,mid,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48,2018-2019 (late cycle),equal_weight,high,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48,2018-2019 (late cycle),prior,low,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48,2018-2019 (late cycle),prior,mid,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48,2018-2019 (late cycle),prior,high,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48,2020 (COVID crash + rebound),equilibrium_mvo,low,0.10238,0.23564,0.33901,-0.19238,12
+long_2014_w48,2020 (COVID crash + rebound),equilibrium_mvo,mid,0.13625,0.21909,0.51919,-0.17796,12
+long_2014_w48,2020 (COVID crash + rebound),equilibrium_mvo,high,0.06263,0.11739,0.34187,-0.10026,12
+long_2014_w48,2020 (COVID crash + rebound),sample_mvo,low,0.03894,0.25791,0.06374,-0.21927,12
+long_2014_w48,2020 (COVID crash + rebound),sample_mvo,mid,0.05183,0.25854,0.11344,-0.21951,12
+long_2014_w48,2020 (COVID crash + rebound),sample_mvo,high,0.0495,0.14214,0.18999,-0.12208,12
+long_2014_w48,2020 (COVID crash + rebound),minvar,low,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48,2020 (COVID crash + rebound),minvar,mid,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48,2020 (COVID crash + rebound),minvar,high,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48,2020 (COVID crash + rebound),equal_weight,low,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48,2020 (COVID crash + rebound),equal_weight,mid,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48,2020 (COVID crash + rebound),equal_weight,high,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48,2020 (COVID crash + rebound),prior,low,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48,2020 (COVID crash + rebound),prior,mid,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48,2020 (COVID crash + rebound),prior,high,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.04143,0.11809,0.16028,-0.14924,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.03299,0.08881,0.11815,-0.11665,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.02188,0.03907,-0.01586,-0.04592,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.0376,0.1104,0.13678,-0.1281,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.02461,0.09094,0.0232,-0.10569,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.01904,0.04364,-0.0793,-0.04585,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",minvar,low,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",minvar,mid,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",minvar,high,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",prior,low,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",prior,mid,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48,"2021-2022 (inflation, rate shock)",prior,high,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.18283,0.0887,1.80757,-0.05722,44
+long_2014_w48,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.15413,0.06931,1.8992,-0.04036,44
+long_2014_w48,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08805,0.03108,2.10936,-0.01649,44
+long_2014_w48,"2023-2026 (AI rally, easing)",sample_mvo,low,0.1947,0.09931,1.73406,-0.06347,44
+long_2014_w48,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.15767,0.08196,1.6492,-0.05865,44
+long_2014_w48,"2023-2026 (AI rally, easing)",sample_mvo,high,0.0775,0.04074,1.34991,-0.03643,44
+long_2014_w48,"2023-2026 (AI rally, easing)",minvar,low,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48,"2023-2026 (AI rally, easing)",minvar,mid,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48,"2023-2026 (AI rally, easing)",minvar,high,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48,"2023-2026 (AI rally, easing)",equal_weight,low,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48,"2023-2026 (AI rally, easing)",equal_weight,high,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48,"2023-2026 (AI rally, easing)",prior,low,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48,"2023-2026 (AI rally, easing)",prior,mid,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48,"2023-2026 (AI rally, easing)",prior,high,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w60,2018-2019 (late cycle),equilibrium_mvo,low,0.1618,0.10085,1.38128,-0.0602,11
+long_2014_w60,2018-2019 (late cycle),equilibrium_mvo,mid,0.16286,0.09321,1.50587,-0.05526,11
+long_2014_w60,2018-2019 (late cycle),equilibrium_mvo,high,0.0943,0.03595,1.99742,-0.01812,11
+long_2014_w60,2018-2019 (late cycle),sample_mvo,low,0.16792,0.08165,1.78105,-0.03994,11
+long_2014_w60,2018-2019 (late cycle),sample_mvo,mid,0.16792,0.08165,1.78105,-0.03994,11
+long_2014_w60,2018-2019 (late cycle),sample_mvo,high,0.10097,0.03365,2.33195,-0.01074,11
+long_2014_w60,2018-2019 (late cycle),minvar,low,0.04539,0.01394,1.64259,-0.00236,11
+long_2014_w60,2018-2019 (late cycle),minvar,mid,0.04539,0.01394,1.64259,-0.00236,11
+long_2014_w60,2018-2019 (late cycle),minvar,high,0.04539,0.01394,1.64259,-0.00236,11
+long_2014_w60,2018-2019 (late cycle),equal_weight,low,0.11496,0.03529,2.61978,-0.01458,11
+long_2014_w60,2018-2019 (late cycle),equal_weight,mid,0.11496,0.03529,2.61978,-0.01458,11
+long_2014_w60,2018-2019 (late cycle),equal_weight,high,0.11496,0.03529,2.61978,-0.01458,11
+long_2014_w60,2018-2019 (late cycle),prior,low,0.13988,0.05796,2.02538,-0.0303,11
+long_2014_w60,2018-2019 (late cycle),prior,mid,0.13988,0.05796,2.02538,-0.0303,11
+long_2014_w60,2018-2019 (late cycle),prior,high,0.13988,0.05796,2.02538,-0.0303,11
+long_2014_w60,2020 (COVID crash + rebound),equilibrium_mvo,low,0.15287,0.21244,0.61366,-0.16863,12
+long_2014_w60,2020 (COVID crash + rebound),equilibrium_mvo,mid,0.11173,0.21451,0.41598,-0.17426,12
+long_2014_w60,2020 (COVID crash + rebound),equilibrium_mvo,high,0.06042,0.1089,0.34821,-0.09297,12
+long_2014_w60,2020 (COVID crash + rebound),sample_mvo,low,0.11149,0.19941,0.44629,-0.1617,12
+long_2014_w60,2020 (COVID crash + rebound),sample_mvo,mid,0.09239,0.1939,0.36046,-0.16492,12
+long_2014_w60,2020 (COVID crash + rebound),sample_mvo,high,0.06144,0.1057,0.36839,-0.09409,12
+long_2014_w60,2020 (COVID crash + rebound),minvar,low,0.06324,0.05676,0.71773,-0.03616,12
+long_2014_w60,2020 (COVID crash + rebound),minvar,mid,0.06324,0.05676,0.71773,-0.03616,12
+long_2014_w60,2020 (COVID crash + rebound),minvar,high,0.06324,0.05676,0.71773,-0.03616,12
+long_2014_w60,2020 (COVID crash + rebound),equal_weight,low,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w60,2020 (COVID crash + rebound),equal_weight,mid,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w60,2020 (COVID crash + rebound),equal_weight,high,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w60,2020 (COVID crash + rebound),prior,low,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w60,2020 (COVID crash + rebound),prior,mid,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w60,2020 (COVID crash + rebound),prior,high,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w60,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.04747,0.12775,0.19549,-0.16002,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.03398,0.09667,0.11872,-0.12749,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.02325,0.04261,0.0177,-0.05056,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.01817,0.12712,-0.03407,-0.15508,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.0362,0.09378,0.14605,-0.11176,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.02309,0.04609,0.01288,-0.05138,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",minvar,low,-0.03734,0.03749,-1.59627,-0.0818,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",minvar,mid,-0.03734,0.03749,-1.59627,-0.0818,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",minvar,high,-0.03734,0.03749,-1.59627,-0.0818,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",prior,low,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",prior,mid,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w60,"2021-2022 (inflation, rate shock)",prior,high,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w60,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.18654,0.09003,1.82211,-0.06075,44
+long_2014_w60,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.15317,0.07051,1.85308,-0.04241,44
+long_2014_w60,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08805,0.03143,2.08542,-0.01677,44
+long_2014_w60,"2023-2026 (AI rally, easing)",sample_mvo,low,0.2428,0.09315,2.36485,-0.06238,44
+long_2014_w60,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.20618,0.08292,2.2151,-0.05955,44
+long_2014_w60,"2023-2026 (AI rally, easing)",sample_mvo,high,0.09309,0.03779,1.8682,-0.02577,44
+long_2014_w60,"2023-2026 (AI rally, easing)",minvar,low,0.05477,0.03289,0.98144,-0.0291,44
+long_2014_w60,"2023-2026 (AI rally, easing)",minvar,mid,0.05477,0.03289,0.98144,-0.0291,44
+long_2014_w60,"2023-2026 (AI rally, easing)",minvar,high,0.05477,0.03289,0.98144,-0.0291,44
+long_2014_w60,"2023-2026 (AI rally, easing)",equal_weight,low,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w60,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w60,"2023-2026 (AI rally, easing)",equal_weight,high,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w60,"2023-2026 (AI rally, easing)",prior,low,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w60,"2023-2026 (AI rally, easing)",prior,mid,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w60,"2023-2026 (AI rally, easing)",prior,high,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_policyprior,2018-2019 (late cycle),equilibrium_mvo,low,0.0578,0.10041,0.35152,-0.07529,23
+long_2014_w48_policyprior,2018-2019 (late cycle),equilibrium_mvo,mid,0.05967,0.09068,0.40987,-0.06942,23
+long_2014_w48_policyprior,2018-2019 (late cycle),equilibrium_mvo,high,0.0514,0.04863,0.59417,-0.04187,23
+long_2014_w48_policyprior,2018-2019 (late cycle),sample_mvo,low,0.09955,0.10599,0.72695,-0.07568,23
+long_2014_w48_policyprior,2018-2019 (late cycle),sample_mvo,mid,0.09791,0.09587,0.78661,-0.07568,23
+long_2014_w48_policyprior,2018-2019 (late cycle),sample_mvo,high,0.05862,0.05178,0.69754,-0.03417,23
+long_2014_w48_policyprior,2018-2019 (late cycle),minvar,low,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48_policyprior,2018-2019 (late cycle),minvar,mid,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48_policyprior,2018-2019 (late cycle),minvar,high,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48_policyprior,2018-2019 (late cycle),equal_weight,low,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_policyprior,2018-2019 (late cycle),equal_weight,mid,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_policyprior,2018-2019 (late cycle),equal_weight,high,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_policyprior,2018-2019 (late cycle),prior,low,0.06202,0.05733,0.68934,-0.04822,23
+long_2014_w48_policyprior,2018-2019 (late cycle),prior,mid,0.06202,0.05733,0.68934,-0.04822,23
+long_2014_w48_policyprior,2018-2019 (late cycle),prior,high,0.06202,0.05733,0.68934,-0.04822,23
+long_2014_w48_policyprior,2020 (COVID crash + rebound),equilibrium_mvo,low,0.15524,0.21221,0.62551,-0.16858,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),equilibrium_mvo,mid,0.14587,0.21627,0.57044,-0.17341,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),equilibrium_mvo,high,0.07486,0.12192,0.42948,-0.10084,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),sample_mvo,low,0.03894,0.25791,0.06374,-0.21927,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),sample_mvo,mid,0.05183,0.25854,0.11344,-0.21951,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),sample_mvo,high,0.0495,0.14214,0.18999,-0.12208,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),minvar,low,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),minvar,mid,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),minvar,high,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),equal_weight,low,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),equal_weight,mid,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),equal_weight,high,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),prior,low,0.0879,0.14429,0.45327,-0.11898,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),prior,mid,0.0879,0.14429,0.45327,-0.11898,12
+long_2014_w48_policyprior,2020 (COVID crash + rebound),prior,high,0.0879,0.14429,0.45327,-0.11898,12
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.03787,0.12151,0.12653,-0.15809,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.01392,0.09308,-0.09217,-0.13632,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.01167,0.04099,-0.2643,-0.05583,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.0376,0.1104,0.13678,-0.1281,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.02461,0.09094,0.0232,-0.10569,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.01904,0.04364,-0.0793,-0.04585,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",minvar,low,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",minvar,mid,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",minvar,high,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",prior,low,0.00929,0.08591,-0.15374,-0.12689,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",prior,mid,0.00929,0.08591,-0.15374,-0.12689,24
+long_2014_w48_policyprior,"2021-2022 (inflation, rate shock)",prior,high,0.00929,0.08591,-0.15374,-0.12689,24
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.15953,0.0886,1.54665,-0.06098,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.14174,0.07001,1.70318,-0.04241,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08298,0.03163,1.91222,-0.01692,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",sample_mvo,low,0.1947,0.09931,1.73406,-0.06347,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.15767,0.08196,1.6492,-0.05865,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",sample_mvo,high,0.0775,0.04074,1.34991,-0.03643,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",minvar,low,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",minvar,mid,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",minvar,high,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",equal_weight,low,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",equal_weight,high,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",prior,low,0.13916,0.06924,1.68472,-0.04564,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",prior,mid,0.13916,0.06924,1.68472,-0.04564,44
+long_2014_w48_policyprior,"2023-2026 (AI rally, easing)",prior,high,0.13916,0.06924,1.68472,-0.04564,44
+long_2014_w48_blend50,2018-2019 (late cycle),equilibrium_mvo,low,0.0604,0.07492,0.50581,-0.05769,23
+long_2014_w48_blend50,2018-2019 (late cycle),equilibrium_mvo,mid,0.0604,0.07492,0.50581,-0.05769,23
+long_2014_w48_blend50,2018-2019 (late cycle),equilibrium_mvo,high,0.05148,0.05185,0.55889,-0.04471,23
+long_2014_w48_blend50,2018-2019 (late cycle),sample_mvo,low,0.08124,0.07732,0.75973,-0.05896,23
+long_2014_w48_blend50,2018-2019 (late cycle),sample_mvo,mid,0.08124,0.07732,0.75973,-0.05896,23
+long_2014_w48_blend50,2018-2019 (late cycle),sample_mvo,high,0.05659,0.04999,0.68207,-0.03714,23
+long_2014_w48_blend50,2018-2019 (late cycle),minvar,low,0.04954,0.03707,0.72947,-0.02551,23
+long_2014_w48_blend50,2018-2019 (late cycle),minvar,mid,0.04954,0.03707,0.72947,-0.02551,23
+long_2014_w48_blend50,2018-2019 (late cycle),minvar,high,0.04954,0.03707,0.72947,-0.02551,23
+long_2014_w48_blend50,2018-2019 (late cycle),equal_weight,low,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_blend50,2018-2019 (late cycle),equal_weight,mid,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_blend50,2018-2019 (late cycle),equal_weight,high,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_blend50,2018-2019 (late cycle),prior,low,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48_blend50,2018-2019 (late cycle),prior,mid,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48_blend50,2018-2019 (late cycle),prior,high,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48_blend50,2020 (COVID crash + rebound),equilibrium_mvo,low,0.08788,0.18989,0.34433,-0.16023,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),equilibrium_mvo,mid,0.08788,0.18989,0.34433,-0.16023,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),equilibrium_mvo,high,0.06447,0.12781,0.32836,-0.10971,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),sample_mvo,low,0.05645,0.20285,0.16736,-0.17386,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),sample_mvo,mid,0.05645,0.20285,0.16736,-0.17386,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),sample_mvo,high,0.05744,0.13685,0.25527,-0.11767,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),minvar,low,0.0687,0.10787,0.42826,-0.08819,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),minvar,mid,0.0687,0.10787,0.42826,-0.08819,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),minvar,high,0.0687,0.10787,0.42826,-0.08819,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),equal_weight,low,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),equal_weight,mid,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),equal_weight,high,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),prior,low,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),prior,mid,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48_blend50,2020 (COVID crash + rebound),prior,high,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.02877,0.12007,0.05223,-0.16225,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.02312,0.09117,0.00679,-0.12716,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.01388,0.04373,-0.19711,-0.06025,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.00145,0.1121,-0.18778,-0.16182,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.02712,0.08975,0.05152,-0.11621,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.01361,0.04454,-0.19958,-0.06118,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",minvar,low,-0.01248,0.06036,-0.57956,-0.10504,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",minvar,mid,-0.01248,0.06036,-0.57956,-0.10504,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",minvar,high,-0.01248,0.06036,-0.57956,-0.10504,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",prior,low,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",prior,mid,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48_blend50,"2021-2022 (inflation, rate shock)",prior,high,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.1722,0.0866,1.72864,-0.06199,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.14558,0.06997,1.7591,-0.0456,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08696,0.03626,1.77755,-0.02131,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",sample_mvo,low,0.17151,0.08789,1.69552,-0.06624,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.14227,0.07349,1.62972,-0.0496,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",sample_mvo,high,0.08697,0.03667,1.75834,-0.02153,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",minvar,low,0.09941,0.05271,1.45907,-0.03855,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",minvar,mid,0.09941,0.05271,1.45907,-0.03855,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",minvar,high,0.09941,0.05271,1.45907,-0.03855,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",equal_weight,low,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",equal_weight,high,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",prior,low,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",prior,mid,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_blend50,"2023-2026 (AI rally, easing)",prior,high,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_cashcap35,2018-2019 (late cycle),equilibrium_mvo,low,0.0578,0.10041,0.35152,-0.07529,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),equilibrium_mvo,mid,0.0561,0.09507,0.35338,-0.07759,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),equilibrium_mvo,high,0.04773,0.05187,0.48646,-0.04716,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),sample_mvo,low,0.09955,0.10599,0.72695,-0.07568,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),sample_mvo,mid,0.09791,0.09587,0.78661,-0.07568,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),sample_mvo,high,0.05951,0.05159,0.71733,-0.03417,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),minvar,low,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),minvar,mid,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),minvar,high,0.03444,0.01977,0.60388,-0.01178,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),equal_weight,low,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),equal_weight,mid,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),equal_weight,high,0.06206,0.05483,0.72151,-0.04231,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),prior,low,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),prior,mid,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48_cashcap35,2018-2019 (late cycle),prior,high,0.06806,0.07611,0.59859,-0.06804,23
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),equilibrium_mvo,low,0.10238,0.23564,0.33901,-0.19238,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),equilibrium_mvo,mid,0.13625,0.21909,0.51919,-0.17796,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),equilibrium_mvo,high,0.06354,0.11757,0.34906,-0.1003,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),sample_mvo,low,0.03894,0.25791,0.06374,-0.21927,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),sample_mvo,mid,0.05183,0.25854,0.11344,-0.21951,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),sample_mvo,high,0.05026,0.14221,0.19522,-0.12207,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),minvar,low,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),minvar,mid,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),minvar,high,0.06103,0.06245,0.61695,-0.04085,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),equal_weight,low,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),equal_weight,mid,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),equal_weight,high,0.07092,0.14857,0.32593,-0.12745,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),prior,low,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),prior,mid,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48_cashcap35,2020 (COVID crash + rebound),prior,high,0.08841,0.17946,0.36726,-0.15214,12
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.04143,0.11809,0.16028,-0.14924,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.03299,0.08881,0.11815,-0.11665,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.01233,0.04116,-0.24712,-0.05841,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.0376,0.1104,0.13678,-0.1281,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.02461,0.09094,0.0232,-0.10569,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.01023,0.04428,-0.27722,-0.05649,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",minvar,low,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",minvar,mid,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",minvar,high,-0.03846,0.0377,-1.61717,-0.08444,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01322,0.08693,-0.1068,-0.12815,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",prior,low,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",prior,mid,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48_cashcap35,"2021-2022 (inflation, rate shock)",prior,high,0.03298,0.10333,0.10139,-0.13672,24
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.18283,0.0887,1.80757,-0.05722,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.15413,0.06931,1.8992,-0.04036,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08442,0.03317,1.86688,-0.01706,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",sample_mvo,low,0.1947,0.09931,1.73406,-0.06347,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.15767,0.08196,1.6492,-0.05865,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",sample_mvo,high,0.07513,0.03919,1.34298,-0.02867,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",minvar,low,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",minvar,mid,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",minvar,high,0.0588,0.03383,1.07327,-0.02916,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",equal_weight,low,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",equal_weight,high,0.13527,0.07141,1.57909,-0.05446,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",prior,low,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",prior,mid,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_cashcap35,"2023-2026 (AI rally, easing)",prior,high,0.17349,0.08122,1.85911,-0.05553,44
+long_2014_w48_cost25,2018-2019 (late cycle),equilibrium_mvo,low,0.05739,0.10037,0.34765,-0.07535,23
+long_2014_w48_cost25,2018-2019 (late cycle),equilibrium_mvo,mid,0.05568,0.09502,0.34917,-0.07764,23
+long_2014_w48_cost25,2018-2019 (late cycle),equilibrium_mvo,high,0.04752,0.05189,0.4822,-0.04722,23
+long_2014_w48_cost25,2018-2019 (late cycle),sample_mvo,low,0.09914,0.10594,0.72342,-0.07572,23
+long_2014_w48_cost25,2018-2019 (late cycle),sample_mvo,mid,0.09773,0.09586,0.78476,-0.07572,23
+long_2014_w48_cost25,2018-2019 (late cycle),sample_mvo,high,0.0583,0.05175,0.69171,-0.03423,23
+long_2014_w48_cost25,2018-2019 (late cycle),minvar,low,0.03435,0.01977,0.59939,-0.01179,23
+long_2014_w48_cost25,2018-2019 (late cycle),minvar,mid,0.03435,0.01977,0.59939,-0.01179,23
+long_2014_w48_cost25,2018-2019 (late cycle),minvar,high,0.03435,0.01977,0.59939,-0.01179,23
+long_2014_w48_cost25,2018-2019 (late cycle),equal_weight,low,0.06191,0.05483,0.71869,-0.04237,23
+long_2014_w48_cost25,2018-2019 (late cycle),equal_weight,mid,0.06191,0.05483,0.71869,-0.04237,23
+long_2014_w48_cost25,2018-2019 (late cycle),equal_weight,high,0.06191,0.05483,0.71869,-0.04237,23
+long_2014_w48_cost25,2018-2019 (late cycle),prior,low,0.06792,0.07611,0.59672,-0.06809,23
+long_2014_w48_cost25,2018-2019 (late cycle),prior,mid,0.06792,0.07611,0.59672,-0.06809,23
+long_2014_w48_cost25,2018-2019 (late cycle),prior,high,0.06792,0.07611,0.59672,-0.06809,23
+long_2014_w48_cost25,2020 (COVID crash + rebound),equilibrium_mvo,low,0.10168,0.23581,0.33577,-0.19281,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),equilibrium_mvo,mid,0.13561,0.21924,0.51592,-0.17833,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),equilibrium_mvo,high,0.06226,0.11744,0.33854,-0.10044,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),sample_mvo,low,0.03804,0.2581,0.06021,-0.21984,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),sample_mvo,mid,0.05043,0.25887,0.10788,-0.22045,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),sample_mvo,high,0.04833,0.14237,0.18141,-0.12291,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),minvar,low,0.0608,0.06247,0.61313,-0.04096,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),minvar,mid,0.0608,0.06247,0.61313,-0.04096,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),minvar,high,0.0608,0.06247,0.61313,-0.04096,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),equal_weight,low,0.07067,0.14859,0.32415,-0.12752,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),equal_weight,mid,0.07067,0.14859,0.32415,-0.12752,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),equal_weight,high,0.07067,0.14859,0.32415,-0.12752,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),prior,low,0.0882,0.17947,0.36607,-0.1522,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),prior,mid,0.0882,0.17947,0.36607,-0.1522,12
+long_2014_w48_cost25,2020 (COVID crash + rebound),prior,high,0.0882,0.17947,0.36607,-0.1522,12
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",equilibrium_mvo,low,0.04067,0.11802,0.154,-0.14945,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",equilibrium_mvo,mid,0.03233,0.08876,0.11071,-0.1168,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",equilibrium_mvo,high,0.02149,0.03906,-0.02581,-0.04611,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",sample_mvo,low,0.03666,0.11048,0.12818,-0.12903,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",sample_mvo,mid,0.02361,0.09105,0.01217,-0.1064,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",sample_mvo,high,0.01841,0.04373,-0.09347,-0.0463,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",minvar,low,-0.03864,0.03773,-1.62024,-0.08476,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",minvar,mid,-0.03864,0.03773,-1.62024,-0.08476,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",minvar,high,-0.03864,0.03773,-1.62024,-0.08476,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",equal_weight,low,0.01304,0.08693,-0.10885,-0.12827,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",equal_weight,mid,0.01304,0.08693,-0.10885,-0.12827,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",equal_weight,high,0.01304,0.08693,-0.10885,-0.12827,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",prior,low,0.03281,0.10333,0.0998,-0.13683,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",prior,mid,0.03281,0.10333,0.0998,-0.13683,24
+long_2014_w48_cost25,"2021-2022 (inflation, rate shock)",prior,high,0.03281,0.10333,0.0998,-0.13683,24
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",equilibrium_mvo,low,0.18215,0.08873,1.79922,-0.05724,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",equilibrium_mvo,mid,0.15375,0.06932,1.89329,-0.04039,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",equilibrium_mvo,high,0.08772,0.03107,2.09931,-0.0165,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",sample_mvo,low,0.19387,0.09924,1.72687,-0.06374,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",sample_mvo,mid,0.15676,0.0819,1.63928,-0.05868,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",sample_mvo,high,0.07694,0.0407,1.33761,-0.03652,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",minvar,low,0.05862,0.03383,1.06761,-0.02919,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",minvar,mid,0.05862,0.03383,1.06761,-0.02919,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",minvar,high,0.05862,0.03383,1.06761,-0.02919,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",equal_weight,low,0.13509,0.07141,1.57666,-0.0545,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",equal_weight,mid,0.13509,0.07141,1.57666,-0.0545,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",equal_weight,high,0.13509,0.07141,1.57666,-0.0545,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",prior,low,0.17332,0.08121,1.85715,-0.05556,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",prior,mid,0.17332,0.08121,1.85715,-0.05556,44
+long_2014_w48_cost25,"2023-2026 (AI rally, easing)",prior,high,0.17332,0.08121,1.85715,-0.05556,44

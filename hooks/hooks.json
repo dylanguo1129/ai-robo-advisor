@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/check_reply.py\"", "timeout": 60 }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "robokit-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["scripts/serve_dev.py", "8765"],
+      "port": 8765
+    }
+  ]
+}

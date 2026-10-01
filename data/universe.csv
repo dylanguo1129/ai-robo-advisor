@@ -1,0 +1,21 @@
+ticker,name,issuer,asset_class,region,theme,currency,hedged,leverage,strategy,mer_pct,notes
+XIU.TO,iShares S&P/TSX 60 Index ETF,iShares,Equity,Canada,Large cap,CAD,No,No,Passive,0.18,Prototype universe; classification to be replaced by the Data lead's dataset
+XIC.TO,iShares Core S&P/TSX Capped Composite Index ETF,iShares,Equity,Canada,Broad market,CAD,No,No,Passive,0.05,
+ZLB.TO,BMO Low Volatility Canadian Equity ETF,BMO,Equity,Canada,Low volatility,CAD,No,No,Rules-based,0.39,
+XDV.TO,iShares Canadian Select Dividend Index ETF,iShares,Equity,Canada,Dividend,CAD,No,No,Passive,0.55,
+ZEB.TO,BMO Equal Weight Banks Index ETF,BMO,Equity,Canada,Banks sector,CAD,No,No,Passive,0.28,
+XRE.TO,iShares S&P/TSX Capped REIT Index ETF,iShares,Real estate,Canada,REITs,CAD,No,No,Passive,0.61,
+VFV.TO,Vanguard S&P 500 Index ETF,Vanguard,Equity,United States,Large cap,CAD,No,No,Passive,0.09,Unhedged USD exposure
+XSP.TO,iShares Core S&P 500 Index ETF (CAD-Hedged),iShares,Equity,United States,Large cap,CAD,Yes,No,Passive,0.09,CAD-hedged
+ZLU.TO,BMO Low Volatility US Equity ETF,BMO,Equity,United States,Low volatility,CAD,No,No,Rules-based,0.33,
+XAW.TO,iShares Core MSCI All Country World ex Canada Index ETF,iShares,Equity,Global ex Canada,Broad market,CAD,No,No,Passive,0.22,
+XEF.TO,iShares Core MSCI EAFE IMI Index ETF,iShares,Equity,Developed ex North America,Broad market,CAD,No,No,Passive,0.22,
+XEC.TO,iShares Core MSCI Emerging Markets IMI Index ETF,iShares,Equity,Emerging markets,Broad market,CAD,No,No,Passive,0.27,
+CGL.TO,iShares Gold Bullion ETF,iShares,Commodity,Global,Gold bullion,CAD,Yes,No,Passive,0.55,CAD-hedged gold
+ZAG.TO,BMO Aggregate Bond Index ETF,BMO,Fixed income,Canada,Aggregate bond,CAD,No,No,Passive,0.09,
+XBB.TO,iShares Core Canadian Universe Bond Index ETF,iShares,Fixed income,Canada,Aggregate bond,CAD,No,No,Passive,0.10,
+XSB.TO,iShares Core Canadian Short Term Bond Index ETF,iShares,Fixed income,Canada,Short-term bond,CAD,No,No,Passive,0.10,
+ZFL.TO,BMO Long Federal Bond Index ETF,BMO,Fixed income,Canada,Long government bond,CAD,No,No,Passive,0.22,
+ZCS.TO,BMO Short Corporate Bond Index ETF,BMO,Fixed income,Canada,Short-term corporate bond,CAD,No,No,Passive,0.11,
+XHY.TO,iShares U.S. High Yield Bond Index ETF (CAD-Hedged),iShares,Fixed income,United States,High-yield bond,CAD,Yes,No,Passive,0.66,CAD-hedged
+PSA.TO,Purpose High Interest Savings Fund,Purpose,Cash,Canada,High-interest savings,CAD,No,No,Passive,0.16,Cash-like; used as the safe asset

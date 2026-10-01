@@ -1,0 +1,35 @@
+# Install once per clone:  pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: check-json
+      - id: detect-private-key
+      - id: end-of-file-fixer
+        exclude: ^(web/data/|web/test_profiles\.json$|output/|docs/qa/|docs/research/_url_check\.json$)
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+        exclude: ^(web/data/|web/test_profiles\.json$|output/|docs/qa/)
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.9
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: no-raw-vendor-data
+        name: raw vendor data stays out of git (see data/README.md)
+        entry: raw vendor payloads are fetched locally and must not be committed
+        language: fail
+        files: ^data/(raw/|v2/|prices_daily_adjclose\.csv$)

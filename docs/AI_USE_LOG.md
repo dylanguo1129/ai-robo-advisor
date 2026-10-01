@@ -1,0 +1,19 @@
+# Generative-AI use log (optimizer workstream)
+
+MMAI 823 permits generative AI "with citation". This file is the citation for
+the optimizer workstream; it should be summarised in the report's AI-use
+disclosure, as the project outline (Appendix, step 8) asks.
+
+| Date | Tool | What it was used for | What a human did |
+| --- | --- | --- | --- |
+| 2026-09-26 | Claude Code (Anthropic, model Claude) | Literature scan of 2025-26 portfolio-optimization papers and robo-advisor methodology pages (web search + reading); drafting the `optimizer/` package, the test suite, the prototype script, and `docs/METHOD.md`. | Chose the design (equilibrium returns + shrunk covariance + resampling), reviewed every file, ran the tests, ran the prototype on real data and checked the outputs for sense. |
+| 2026-09-26 | Ledoit & Wolf reference code (BSD-2, 2021) | The QIS nonlinear-shrinkage estimator was ported to NumPy from the authors' published Python. | The port is verified against the original in `tests/test_estimators.py`; a numerical defect of the original in the singular case (non-orthonormal eigenvectors from `np.linalg.eig`) is documented there. |
+| 2026-09-26 (web) | Claude Code | Ported the engine to JavaScript (`web/engine.js`), wrote the verification script against the Python outputs, and built the v1 Allocation Lab page (since retired) following the team's chosen Wealthsimple-style direction; `docs/design/PRODUCT.md` and `docs/design/DESIGN.md` record the product facts and visual system. | Chose the direction, answered the design questions, reviewed the page in the browser. |
+| 2026-09-26 (second pass) | Claude Code | Read the Session 2 materials (backtesting protocol, Seven Sins, lecture slides, simulation notebook) and a second round of sources; drafted the protocol-compliance changes (transaction costs, stationary bootstrap, integrity report, cash cap, 1/N blend, policy prior, pre-registered robustness grid) and `docs/RESEARCH_LOG.md`, `docs/archive/SUMMARY_FOR_OUTLINE.md`. | Decided which protocol items to implement, ran the grid, read the results, and wrote the interpretation. |
+| 2026-09-28 (v2) | Claude Code (Anthropic, Claude Opus 5.5 main thread; Claude subagents for the research sweep, code review and persona tests) | Six-lane research sweep with verbatim sources (docs/research/); the data bridge, classifier, universe, shelf, profile, engine, views, projections, stress tests, signals, tools, MCP server, terminal agent, validator, glossary, AGENT.md, plugin packaging; the JavaScript engine port and the chat-first web page; the pre-registered v2 back-test; PRODUCT_SPEC.md, DATA.md and the METHOD.md update. No external model CLIs were used. | Set the scope (all Canadian CAD and US ETFs, Claude artifact with the viewer's own plan, product plan), chose the Wealthsimple-style direction earlier, reviews the live page. |
+| 2026-09-29 (v2.1) | Claude Code (Claude Opus 5.5 main thread; Claude subagents as persona testers and code reviewers) | User rounds 2-4: persona walkthroughs and code reviews, fixes to the level policy, onboarding, number consistency, phone layout and accessibility (docs/VERIFICATION.md section 5). | Set the bar, reviewed the page. |
+| 2026-09-30 (repository) | Claude Code (Claude Opus 5.5 main thread; Claude subagents for a read-only audit, and independent verification; one Cursor/Grok review of a diff) | Cleaned the repository to ML-engineering standards (pinned environment, CI, lint and format, data out of git), wrote the README, created the private GitHub repository. | Asked for each change and chose the repository settings; reviews the result. |
+
+No AI output was used without being executed and
+checked; every numerical claim in the docs comes from `scripts/run_prototype.py`
+output or from a cited source.

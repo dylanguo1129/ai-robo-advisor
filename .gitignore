@@ -1,0 +1,40 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---- Node ----
+node_modules/
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.tmp
+
+# ---- Data (see data/README.md) ----
+# Raw vendor payloads and the local cache are fetched on your own machine by
+# `python -m robokit refresh` and are never committed (licence terms + size).
+data/raw/
+data/v2/
+data/prices_daily_adjclose.csv
+
+# ---- Generated ----
+*.log
+output/v2/backtest_run*/
+web/mock.html
+
+# ---- Local tool state ----
+.impeccable/
+.claude/settings.local.json
