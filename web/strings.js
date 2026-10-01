@@ -7,7 +7,7 @@ export const S = {
     placeholder: 'Ask about ETFs, type a ticker, or say "build a portfolio"', send: 'Send', stop: 'Stop',
     chipBuild: 'Build a portfolio', chipEtf: 'What is an ETF?', chipCompare: 'Compare two ETFs', chipMarket: 'Markets today',
     disclosureAI: 'You are chatting with an AI (Claude) on your own Claude plan. Numbers come from Robo-Kit\'s code, not from the AI. Education, not personal advice.',
-    disclosureNoAI: 'The assistant is not available in this view (it needs Claude, and Claude only allows it for the page owner and their organization). Everything else here works without it.',
+    disclosureNoAI: 'The assistant is not available in this view (it needs Claude, and Claude only allows it for the page owner and their organization). Everything else here works without it. To use it on your own plan, publish your own copy (see the project README).',
     dataLine: (d) => `Data to ${d}`, sources: 'Sources and method', textSize: 'Text size', textNormal: 'normal', textLarger: 'larger', textLargest: 'largest',
     suggestions: 'Suggestions', messageLabel: 'Message', closeMix: 'Close the mix', copySeeBelow: 'Could not copy, see below',
     fundRow: (s, c, w) => `${s}, ${c}, ${w}. Open fund card`, trayPeek: (l, b, f, above, open) => `The mix: level ${l}${above ? ', above your self-check' : ''}, bad year ${b}, fees ${f} a year. ${open ? 'Collapse' : 'Expand'}`,

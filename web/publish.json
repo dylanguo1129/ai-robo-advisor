@@ -1,0 +1,21 @@
+{
+  "page": "index.html",
+  "files": [
+    "app.js",
+    "assistant.js",
+    "engine.js",
+    "icons.js",
+    "parse.js",
+    "robokit.js",
+    "strings.js",
+    "validate.js",
+    "worker2.js",
+    "data/core.json",
+    "data/ca.json",
+    "data/us.json"
+  ],
+  "capabilities": {"sample": {}},
+  "title": "Robo-Kit",
+  "icon": "chart",
+  "description": "Do-it-yourself ETF portfolio lab for Canadian and US-listed ETFs, with an optional assistant on the viewer's own Claude plan."
+}

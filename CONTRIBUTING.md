@@ -48,10 +48,11 @@ commands listed in the Makefile by hand.
 
 ## Updating the published web page
 
-The page is a claude.ai Artifact published from `web/` (the files `index.html`, `app.js`, `assistant.js`,
-`strings.js`, `robokit.js`, `engine.js`, `parse.js`, `validate.js`, `icons.js`, `worker2.js` and `data/*.json`).
-Only the owner of the artifact can republish it. After a merged change to `web/`: pull `main`, run
-`make check`, then ask the owner (or Claude Code on the owner's machine) to republish to the same URL.
+The page is a claude.ai Artifact published from the files listed in `web/publish.json`. If you add a file that the
+page loads, list it there: `python scripts/check_publish.py` (also run by pytest) fails when the list and the code
+disagree. Only the owner of an artifact can republish it. After a merged change to `web/`: pull `main`, run
+`make check`, then ask the owner (or Claude Code on the owner's machine) to republish the shared copy to the same URL.
+Everyone updates their own copy with `/publish-robo-kit update` (see the README, "Your own copy of the web page").
 To try the page locally, run `make serve` (or `python scripts/serve_dev.py`) and open http://127.0.0.1:8765/index.html
 (everything but the AI assistant). `python scripts/make_mock_page.py` writes `web/mock.html`, a test harness for the
 chat path: it does not answer by itself; you play Claude from the devtools console with `window.__mock.view()`,

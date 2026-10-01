@@ -24,14 +24,15 @@ reply from Claude that contains a number or a ticker no tool produced.
 ## Contents
 
 1. [Quick start](#quick-start)
-2. [Four ways to use it](#four-ways-to-use-it)
-3. [Sharing the web page: who gets the AI assistant](#sharing-the-web-page-who-gets-the-ai-assistant)
-4. [How it works](#how-it-works)
-5. [Repository layout](#repository-layout)
-6. [Development](#development)
-7. [Known limitations](#known-limitations)
-8. [How this was built: the prompts](#how-this-was-built-the-prompts)
-9. [Course context, AI use and licence](#course-context-ai-use-and-licence)
+2. [Ways to use it](#ways-to-use-it)
+3. [Your own copy of the web page](#your-own-copy-of-the-web-page)
+4. [Sharing the web page: who gets the AI assistant](#sharing-the-web-page-who-gets-the-ai-assistant)
+5. [How it works](#how-it-works)
+6. [Repository layout](#repository-layout)
+7. [Development](#development)
+8. [Known limitations](#known-limitations)
+9. [How this was built: the prompts](#how-this-was-built-the-prompts)
+10. [Course context, AI use and licence](#course-context-ai-use-and-licence)
 
 ---
 
@@ -60,11 +61,12 @@ python scripts/make_mock_page.py      # optional: web/mock.html, a test harness 
                                       # devtools console (window.__mock.view(), .call(name, args), .finish(text))
 ```
 
-## Four ways to use it
+## Ways to use it
 
 | Way | Who runs Claude | What you need | Start |
 |---|---|---|---|
-| **Web page** (a claude.ai Artifact) | The viewer's own Claude account, where Anthropic allows it (next section) | A Claude account and an invitation | [Robo-Kit artifact](https://claude.ai/artifact/8BA8T78qH17LF1v7Ss4qgu) (private; the owner shares it) |
+| **Web page, your own copy** (a claude.ai Artifact) | Your own Claude plan: you own the copy | Pro, Max, Team or Enterprise; Claude Code; access to this repo | Clone, open in Claude Code, type `/publish-robo-kit` ([next section](#your-own-copy-of-the-web-page)) |
+| **Web page, the owner's copy** | The viewer's own account, but the assistant only for the owner's Team / Enterprise organization ([sharing](#sharing-the-web-page-who-gets-the-ai-assistant)) | A Claude account and an invitation | [Robo-Kit artifact](https://claude.ai/artifact/8BA8T78qH17LF1v7Ss4qgu) (private; the owner shares it) |
 | **Claude Code plugin** | Your own Claude Code session and model | Claude Code, Python deps installed, access to this repo | `/plugin marketplace add dylanguo1129/ai-robo-advisor` then `/plugin install robo-kit@robo-kit` |
 | **MCP server** | Your own Claude Desktop / Claude Code | This repo, installed as above | `claude mcp add robokit -- python -m robokit.mcp_server` (run from the repo folder) |
 | **Terminal agent** | Your own `ANTHROPIC_API_KEY` | An API key | `python -m robokit chat --tier default` (`quick` = Haiku 4.5, `default` = Sonnet 5.5, `complex` = Opus 5.5, or `--model <id>`) |
@@ -81,22 +83,51 @@ For Claude Desktop, add to `claude_desktop_config.json`, pointing at the Python 
 { "mcpServers": { "robokit": { "command": "<path to this repo>/.venv/bin/python", "args": ["-m", "robokit.mcp_server"] } } }
 ```
 
+## Your own copy of the web page
+
+Anthropic lets the assistant run in a shared page only for its owner and the owner's Team or Enterprise organization
+([next section](#sharing-the-web-page-who-gets-the-ai-assistant)), and documents no way to copy someone else's
+Claude Code artifact. So each teammate who wants the assistant publishes **their own copy** from this repository: a
+private artifact in their own claude.ai account. They are its owner, so the assistant runs on their own plan.
+
+You need a Pro, Max, Team or Enterprise plan; Claude Code (the `claude` CLI, or the Code tab of the Claude desktop
+app, version 1.13576.0 or later) signed in with `/login`, not an API key; Python 3; and read access to this
+repository (the owner adds you).
+
+```bash
+git clone https://github.com/dylanguo1129/ai-robo-advisor.git
+cd ai-robo-advisor
+claude                       # or open this folder in the Code tab of the Claude desktop app
+```
+
+Then type `/publish-robo-kit`. Claude runs `python scripts/check_publish.py`, which checks the files listed in
+`web/publish.json` against what the page loads, scans every value in the data files and summarises them. Claude then
+reads the page code, publishes it and gives you your link. Publishing takes some of your Claude Code usage (Claude reads about 400 KB of page code), and
+the assistant's replies count against your plan, never the owner's.
+
+- **Updating:** `git pull`, then `/publish-robo-kit update` (same link). A copy never updates by itself.
+- **Keep it private:** the data snapshot is licensed for personal use, and artifacts that use Claude cannot be
+  shared by public link anyway.
+- **How it works:** the command is `.claude/skills/publish-robo-kit/SKILL.md`; the published files are listed in
+  `web/publish.json`, and `tests/test_publish_manifest.py` fails if the page loads a file that is not listed.
+
 ## Sharing the web page: who gets the AI assistant
 
-The page is published as a claude.ai Artifact from the files in `web/`. Everything except the chat runs inside the
+The page is published as a claude.ai Artifact from the files listed in `web/publish.json`. Everything except the chat runs inside the
 page itself: search, the self-check, the level ladder, the mix report, stress tests and projections. The chat uses
 the Artifact `sample` capability, which **runs Claude on the viewer's own account and usage**, never the owner's.
 There is no API key and no setup: the first time a viewer sends a message, Claude asks them once to allow it, and the
 viewer picks Quick / Standard / Deep under **Assistant** (a viewer whose plan lacks that tier gets the nearest one).
 
-Anthropic's sharing rules for artifacts that use Claude (help centre, "Publish and share artifacts", checked
-30 Sep 2026):
+Anthropic's sharing rules for artifacts that use Claude (help centre, "Share artifacts", checked 1 Oct 2026):
 
 - "Artifacts that connect to your apps or use Claude can't use 'Anyone with the link.'" There is no public link.
 - People you invite from outside your organization can open the page, but "Parts of the artifact that use Claude
   or your connectors don't work for them."
 - "Everyone needs a Claude account. People without one can't open a shared artifact, even with the link."
 - Email invites (beta) are available on Pro, Max, Team and Enterprise.
+- Copying a shared artifact into your own account is documented only for legacy chat artifacts (made before
+  16 Sep 2026); none is documented for artifacts published from Claude Code, which is what this page is.
 
 So, in practice:
 
@@ -104,11 +135,12 @@ So, in practice:
 |---|---|---|---|
 | The owner | yes | yes | yes, on the owner's plan |
 | Member of the owner's Team / Enterprise organization | yes | yes | **yes, automatically on their own account** after one consent prompt |
-| Anyone else invited by email (e.g. teammates on personal Pro / Max / Free accounts) | yes | yes | **no**: the page says the assistant is not available and everything else keeps working |
+| Anyone else invited by email (e.g. teammates on personal Pro / Max / Free accounts) | yes | yes | **no**: the page says the assistant is not available and everything else keeps working. On Pro or above they can publish their own copy |
 | No Claude account / public link | no | – | – |
 
-Teammates outside the owner's organization who want the AI guide on their own Claude account should use the
-**Claude Code plugin** or the **MCP server** from this repository: same tools, same rules, their own model choice.
+Teammates outside the owner's organization who want the assistant should **publish their own copy**
+([above](#your-own-copy-of-the-web-page)). The **Claude Code plugin** and the **MCP server** from this repository are
+the other route: same tools, same rules, their own model choice, in Claude Code or Claude Desktop instead of the page.
 
 The data snapshot inside the page is built from sources licensed for personal use (see [data/README.md](data/README.md)),
 which is one more reason to keep the page shared only with the team.
@@ -190,11 +222,12 @@ robokit/                 v2 engine (Python reference implementation)
   tools.py               the tool contract shared by every surface
   mcp_server.py agent.py bundle.py refresh.py backtest.py __main__.py (CLI)
 optimizer/               v1 numerical core still used by v2: shrinkage estimators, equilibrium returns, solvers
-web/                     the published page: index.html, app.js, strings.js, assistant.js, robokit.js (engine port),
-                         engine.js, parse.js, validate.js, icons.js, worker2.js, data/ (snapshot)
+web/                     the published page (files listed in web/publish.json): index.html, app.js, strings.js,
+                         assistant.js, robokit.js (engine port), engine.js, parse.js, validate.js, icons.js,
+                         worker2.js, data/ (snapshot)
                          dev only: dev_mock.js, test_*.mjs, test_profiles.json
 tests/                   pytest suite; tests/ui: browser regression tests (opt-in: -m ui)
-scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page
+scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page, publish check
 data/                    README.md (data catalogue) + v1 inputs; the local cache data/v2/ is git-ignored
 output/                  results of record: v1 and v2 back-tests (output/v2/backtest_v2_summary.json is used at runtime)
 docs/                    METHOD, PRODUCT_SPEC, DATA, RESEARCH_LOG, VERIFICATION, AI_USE_LOG,
@@ -203,6 +236,7 @@ docs/                    METHOD, PRODUCT_SPEC, DATA, RESEARCH_LOG, VERIFICATION,
 AGENT.md                 how the assistant talks and what it may do (loaded by the MCP server, plugin and terminal
                          agent; the web page carries a condensed copy in web/assistant.js)
 .claude-plugin/ skills/ hooks/ .mcp.json    Claude Code plugin packaging
+.claude/skills/publish-robo-kit/             /publish-robo-kit: publish your own copy of the web page
 .github/                 CI workflow and pull-request template
 ```
 
@@ -221,12 +255,13 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 120 passed with the local data cache; on a fresh clone and in CI 103 pass and 17 are skipped (16 engine tests need `data/v2/`, one v1 test needs `data/prices_daily_adjclose.csv`). The browser tests below are opt-in and deselected here |
+| Python tests | `python -m pytest -q` | 126 passed with the local data cache; on a fresh clone and in CI 109 pass and 17 are skipped (16 engine tests need `data/v2/`, one v1 test needs `data/prices_daily_adjclose.csv`). The browser tests below are opt-in and deselected here |
 | Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 13 reference portfolios, 400 self-check answer sets, one-fund and resampled checks all match |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |
 | Chat layer | `node web/test_assistant.mjs` | 7 cases, with a scripted model: each card appears once per turn, including across the rewrite pass |
 | v1 browser engine | `node web/test_engine.mjs` | 11 checks |
+| Published files | `python scripts/check_publish.py` | the 12 files in `web/publish.json` (plus the page) are exactly what the page loads, within the Artifact size limits; also run by pytest |
 | Lint / format | `ruff check .`, `ruff format --check .` | clean |
 
 Engineering conventions:

@@ -335,3 +335,23 @@ Fifteen repro scripts were updated where a fix deliberately changed the behaviou
 - Screen readers were checked through the live-region text, not heard. Real phones, iOS Safari and Firefox were not tested.
 - The page without the AI reads messages with keyword rules. Unusual phrasings can still get "Nothing matched"; the assistant handles free text.
 - A phone held sideways with the largest text size leaves little room above the composer.
+
+## 7. Publishing your own copy of the page (1 Oct 2026)
+
+Anthropic runs the assistant in a shared artifact only for its owner and the owner's Team or Enterprise organization,
+and documents no copy feature for artifacts published from Claude Code (help centre "Share artifacts" and
+code.claude.com/docs/en/artifacts, re-read on 1 Oct 2026 by three independent lanes with verbatim quotes; the two key
+quotes were confirmed again by fetching the raw page). So teammates publish their own copy with `/publish-robo-kit`
+(`.claude/skills/publish-robo-kit/SKILL.md`), from the files listed in `web/publish.json`.
+
+| Check | Result |
+| --- | --- |
+| `scripts/check_publish.py` and `tests/test_publish_manifest.py` | the 12 listed files are exactly what the page loads (modules, the worker, the data files); a missing module, a dev or test file, a capability mismatch and markup or hidden characters in data values are each caught |
+| A fresh agent, given only a clean clone and the command, publishes a new copy | private artifact with all 13 files at the repository's sizes and the `sample` capability; nothing in the clone changed |
+| The same with `/publish-robo-kit update` on that copy, from a fresh clone of the reviewed command | version 2 at the same link, 13 files, `sample` kept; its notes led to the update steps in the command (list the copy's files first, leave out `capabilities` unless missing, show the candidates' links when several are titled Robo-Kit) |
+| Cross-family review of the command, the checker and the README text | 1 finding (data files not read line by line before publishing), partly accepted: the publish did not fail, but the command now says how the data is reviewed, and the checker scans every value for hidden characters too |
+| `python -m pytest -q` on a fresh clone | 109 passed, 17 skipped (data-cache tests) |
+
+Limits: the in-page assistant of a new copy was not exercised, because its first call asks the viewer's consent. New
+copies get the current runtime contract (0.2.66), whose only change to the `sample` API is a larger prompt limit.
+
