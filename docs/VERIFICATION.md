@@ -1,6 +1,6 @@
-# Verification record (28-29 Sep 2026)
+# Verification record (28 Sep - 1 Oct 2026)
 
-> Historical log of the checks run on 28-29 Sep 2026. Test counts are as of each round; the current counts are in README.md.
+> Historical log of the checks run on 28 Sep - 1 Oct 2026. Test counts are as of each round; the current counts are in README.md.
 
 What was checked, how, and what it found. Deterministic checks come first because they have no hallucination floor. Model-based reviews come after, and every finding was adjudicated against the code.
 
@@ -234,3 +234,104 @@ Deterministic checks after round 4:
 - The tabs ran hidden, so `requestAnimationFrame` did not fire. First focus in sheets and scroll-into-view were read from the code, or observed only after a screenshot forced a frame.
 - The times to a first mix include tool latency. A timed run with a real person is still needed for the 2-minute target.
 - XUU's fee is missing from the data snapshot. The page now says which fund a fee total leaves out, but the fee itself is not filled in.
+
+## 6. Web page QA sweep (1 Oct 2026)
+
+A report that fund cards appeared twice in a chat answer led to a sweep for user-visible bugs before the page was shared. The duplicate came from the reply checker's rewrite pass, which called the same tools again and added their cards a second time. It was fixed first (commit 5a5ded6, with `web/test_assistant.mjs`).
+
+### 6.1 Method
+
+- **Testers.** In each round, independent testers drove the page in headless Edge through Playwright, against the local dev server. Each covered one area:
+  - the chat, with a stand-in for the AI;
+  - the page without the AI;
+  - the self-check;
+  - the mix and tray;
+  - layout and accessibility;
+  - input robustness;
+  - from round 3, a first-time investor's end-to-end journey in each market.
+- **Repro scripts.** A finding counted only with a self-contained repro script that prints `BUG` or `OK`. Every script was re-run before and after each round's fixes.
+- **Review.** A reviewer from another model family read the page code before round 1 and each round's patch afterwards. Every finding from testers and reviewer was checked against the code; the verdicts are below.
+- **Fixes.** All edits were made by one agent, one cluster at a time. Node tests and the affected repro scripts ran after each cluster.
+
+| Round | Testers | Findings (all reproduced) | Cross-family review of the code or patch |
+| --- | --- | --- | --- |
+| 1 | 6 | 85 | 4 findings, all accepted |
+| 2 | 5 | 58, many regressions of round 1 (for example a parallel-turn gap and over-eager word breaking) | 4: 3 accepted, 1 partly (its symptom was wrong; a stale flag was cleared) |
+| 3 | 4, plus the test-writing agent (1 more) | 40 | 3: 1 accepted, 1 rejected (no race: the check and the claim run in one synchronous step), 1 by design |
+| 4 | 4 | 45 | 3: 2 accepted, 1 by design |
+| 5 | 2, plus the test-writing agent (2, both also found by a tester) | 17 | 3 + 2: 3 accepted, 1 partly, 1 by design |
+
+Severity fell over the rounds. Round 1 had chat turns running in parallel, the Canadian list resolving to US funds, and text hidden behind the composer. Round 5 was mostly about how a typed phrase is read on the page without the AI.
+
+### 6.2 What changed (by area)
+
+- **Chat:**
+  - one message at a time; a message sent while the page is busy stays in the box;
+  - Stop keeps the partial text and checks its numbers;
+  - every tool call keeps its own turn's stop signal, so nothing appears after Stop;
+  - one card per fund, term or search in a turn, keyed on what the card shows;
+  - numbered lists and headings render;
+  - plain error messages;
+  - the footer says when a reply was cut short or answered by another model tier.
+- **Page without the AI.** The router's rules moved to `web/parse.js` (`routeText`), with their cases in `web/test_parse.mjs`:
+  - glossary terms only when asked about, or typed alone;
+  - fund requests search;
+  - market news, rates and the dollar open the market card;
+  - "US", "stocks", "money" and "real estate" are understood;
+  - a single lower-case word is searched first, then tried as a ticker from either list;
+  - all-capital sentences are read as words;
+  - pasted links carry no search words.
+- **Search.** Names and issuers match whole words, singular or plural; themes and regions match word starts; when no fund matches every word, the closest matches are shown with a note.
+- **Self-check:**
+  - a paused check applies only the savings or debt limit;
+  - the clarifying card stays until answered;
+  - limits that move a level give it back when they lift;
+  - a confirmation given for other answers is named as needing confirmation again;
+  - "needed within two years" has its own wording everywhere;
+  - the quiz feedback is shown.
+- **Mix:**
+  - own weights keep only funds that can be held, and a removed fund's weight returns with it;
+  - Undo applies only while nothing has changed;
+  - Reset clears the market on screen only;
+  - market switches close editors and refresh fund cards;
+  - "Add your own fund" answers inside the shelf;
+  - the tray never overwrites a box being typed in.
+- **Layout and accessibility:**
+  - the page's scroll padding is the measured composer and phone tray bar, so nothing lands behind them;
+  - the top bar stays fixed while scrolling;
+  - live cards opt out of scroll anchoring (a swap no longer jumps the page);
+  - long words wrap without breaking numbers in tables;
+  - keyboard focus is kept or moved somewhere visible after every action;
+  - screen readers hear which card was added;
+  - contrast fixes in dark mode.
+- **Saved session.** Saved and restored: the manual horizon, the clarifying-card state, limits and level sources. The resume card keeps its session while the person only looks around.
+
+### 6.3 Checks at the end
+
+| Check | Result |
+| --- | --- |
+| All 245 repro scripts (rounds 1-5) | 245 of 245 print OK |
+| `python -m pytest -m ui tests/ui` (new browser regression suite, Playwright) | 70 passed |
+| `python -m pytest -q` | 120 passed (the browser tests are opt-in and deselected here) |
+| `node web/test_parse.mjs` (parser and no-AI router) | all 144 cases pass |
+| `node web/test_assistant.mjs`, `test_engine.mjs`, `test_robokit.mjs` | pass |
+| `ruff check .`, `ruff format --check .` | clean |
+
+Fifteen repro scripts were updated where a fix deliberately changed the behaviour they assumed, and each update was checked to keep the script's own correctness test:
+- a second message is held in the box instead of queued;
+- "Add your own fund" answers in the shelf instead of in the thread;
+- comparison headers now show each fund's currency;
+- the not-ready result has new wording;
+- out-of-range years are refused with a message;
+- a paused check comes back as a summary with Continue;
+- "covered call" now shows the definition with its funds;
+- an AI turn stays busy until its reply arrives;
+- one script's nonsense word turned out to be a real ticker (QQQQ);
+- the Canadian list has no US real-estate fund, so the page now says so and points to the US list.
+
+### 6.4 Limits of this sweep
+
+- The real claude.ai `sample` capability was not available to the testers; the chat was played through the dev stand-in (`web/dev_mock.js`), which now follows the capability's contract for stopped requests.
+- Screen readers were checked through the live-region text, not heard. Real phones, iOS Safari and Firefox were not tested.
+- The page without the AI reads messages with keyword rules. Unusual phrasings can still get "Nothing matched"; the assistant handles free text.
+- A phone held sideways with the largest text size leaves little room above the composer.

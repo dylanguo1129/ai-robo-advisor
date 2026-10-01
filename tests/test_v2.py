@@ -197,6 +197,7 @@ def test_validator_rejects_invented_numbers_and_tickers():
 
 def test_validator_allows_counts_and_years():
     assert check_reply("Three funds, 5 levels, since 2008.", [])["ok"]
+    assert check_reply("Your 401(k) and a 403b are account names.", [])["ok"]  # not figures
 
 
 # ------------------------------------------------------------------ engine (needs data)

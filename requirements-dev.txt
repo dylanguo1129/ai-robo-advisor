@@ -66,6 +66,8 @@ fonttools==4.66.1 ; python_full_version >= '3.11'
     # via matplotlib
 frozendict==2.4.7
     # via yfinance
+greenlet==3.5.0
+    # via playwright
 h11==0.16.0
     # via
     #   httpcore
@@ -132,6 +134,8 @@ platformdirs==4.12.2
     # via
     #   virtualenv
     #   yfinance
+playwright==1.59.0
+    # via robokit (pyproject.toml)
 pluggy==1.6.0
     # via pytest
 pre-commit==4.6.2
@@ -148,6 +152,8 @@ pydantic-core==2.46.5
     # via pydantic
 pydantic-settings==2.15.0
     # via mcp
+pyee==13.0.1
+    # via playwright
 pygments==2.21.0
     # via pytest
 pyjwt==2.15.1
@@ -223,6 +229,7 @@ typing-extensions==4.16.0
     #   mcp
     #   pydantic
     #   pydantic-core
+    #   pyee
     #   pyjwt
     #   referencing
     #   starlette

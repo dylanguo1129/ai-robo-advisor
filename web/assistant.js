@@ -60,24 +60,35 @@ export class Assistant {
     const A = this.app;
     const once = (name, input, fn) => {
       if (!SHOWS_CARD.has(name)) return fn(input);
-      const key = JSON.stringify([A.st.market, name, canon(input)]);
-      if (!this.shown.has(key)) this.shown.set(key, Promise.resolve().then(() => fn(input)).catch((e) => { this.shown.delete(key); throw e; }));
-      return this.shown.get(key);
+      // the key is what the card shows, so it may wait for a fund list; the check and the claim below run together, in the
+      // card map of this call's own turn (a stopped turn that resumes late never claims a card of the next one)
+      const shown = this.shown;
+      return Promise.resolve(A.cardKey ? A.cardKey(name, input) : null).then((k) => {
+        const key = JSON.stringify([A.st.market, k || [name, canon(input)]]);
+        if (!shown.has(key)) shown.set(key, Promise.resolve().then(() => fn(input)).catch((e) => { shown.delete(key); throw e; }));
+        return shown.get(key);
+      });
     };
-    const wrap = (name, fn) => async (input) => { const out = await once(name, input || {}, fn); this.log.push({ tool: name, out }); if (this.log.length > 14) this.log.shift(); return out; };
+    const wrap = (name, fn) => async (input) => {
+      const signal = this.signal, log = this.log;  // this turn's, even if a later turn starts while this call waits
+      if (signal?.aborted) return { error: 'stopped: the person stopped this reply' };  // no card after Stop
+      const out = await once(name, input || {}, (i) => fn(i, signal));
+      if (signal?.aborted || log !== this.log) return { error: 'stopped: the person stopped this reply' };
+      log.push({ tool: name, out }); if (log.length > 40) log.shift(); return out;
+    };
     return [
       { name: 'search_etfs', description: 'Search the fund list of the current market with neutral filters. Returns up to 8 funds with fee, size, history and eligibility. Also shows them to the person as a card.',
         inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'name, ticker, issuer or theme words' }, asset_class: { type: 'string', enum: ['Equity', 'Fixed income', 'Cash', 'Real estate', 'Commodity', 'Multi-asset', 'Alternative', 'Crypto'] }, region: { type: 'string' }, max_mer: { type: 'number', description: 'fraction, 0.002 = 0.20%' }, sort_by: { type: 'string', enum: ['mer', 'aum', 'history', 'name'] }, include_excluded: { type: 'boolean' } } },
         execute: wrap('search_etfs', (i) => A.toolSearch(i)) },
       { name: 'etf_profile', description: 'Facts about one fund (fee, size, history, returns, classification with reasons, trend, why excluded if it is). Shows a fund card.',
-        inputSchema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] }, execute: wrap('etf_profile', (i) => A.toolProfile(i)) },
+        inputSchema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] }, execute: wrap('etf_profile', (i, sig) => A.toolProfile(i, sig)) },
       { name: 'compare_etfs', description: 'Side-by-side facts for 2 to 5 funds and how closely they moved together over 5 years. No verdict. Shows a comparison card.',
-        inputSchema: { type: 'object', properties: { tickers: { type: 'array', items: { type: 'string' } } }, required: ['tickers'] }, execute: wrap('compare_etfs', (i) => A.toolCompare(i)) },
+        inputSchema: { type: 'object', properties: { tickers: { type: 'array', items: { type: 'string' } } }, required: ['tickers'] }, execute: wrap('compare_etfs', (i, sig) => A.toolCompare(i, sig)) },
       { name: 'current_mix', description: 'The mix in the tray now: market, level, funds, weights, volatility, one-year dollar range, fees in dollars, stress tests, projection and ready-made explanation sentences (use these).',
         inputSchema: { type: 'object', properties: {} }, execute: wrap('current_mix', () => A.toolCurrentMix()) },
       { name: 'propose_change', description: 'Preview a change to the mix (level 1-5, add or remove funds, swap the fund in a slot, or the person\'s own weights) as a card with an Apply button. Returns before/after numbers and a status. A level above the self-check comes back read-only with an Explore button only the person can tap. Nothing changes until the person taps.',
         inputSchema: { type: 'object', properties: { level: { type: 'number' }, add: { type: 'array', items: { type: 'string' } }, remove: { type: 'array', items: { type: 'string' } }, swap: { type: 'object', description: '{slot_key or the ticker now in that slot: new ticker}; slot keys are funds[].slot_key in current_mix' }, weights: { type: 'object', description: "{ticker: share 0-1} for the person's own weights (must add to 1)" } } },
-        execute: wrap('propose_change', (i) => A.toolPropose(i)) },
+        execute: wrap('propose_change', (i, sig) => A.toolPropose(i, sig)) },
       { name: 'market_context', description: 'Risk flags (volatility index, geopolitical risk, policy uncertainty, credit spreads, yield curves, US dollar) with where each sits in its history, plus recent headlines with links. Context only. Shows a card.',
         inputSchema: { type: 'object', properties: {} }, execute: wrap('market_context', () => A.toolContext()) },
       { name: 'explain_term', description: 'A fixed plain-language definition (for example mer, volatility, leverage, hedged, bond_prices_rates, tfsa_rrsp, resampling, equilibrium_return). Shows a card.',
@@ -89,9 +100,9 @@ export class Assistant {
       { name: 'answer_self_check', description: 'When the person typed an answer to the open self-check question (PAGE STATE open_question), pre-select that option on the card. It does not record the answer; the person taps to confirm.',
         inputSchema: { type: 'object', properties: { question_id: { type: 'string' }, value: { type: 'string', description: 'one of open_question.options[].value' } }, required: ['question_id', 'value'] }, execute: wrap('answer_self_check', (i) => A.toolAnswerCheck(i)) },
       { name: 'plan_contribution', description: 'Split new money across the funds in the current mix so the holdings move toward its weights without selling anything (buy-only). Takes the new money and, optionally, what the person holds now in dollars per ticker. Returns buys in dollars and whole units. Shown in the mix card. Hypothetical, not an order.',
-        inputSchema: { type: 'object', properties: { new_money: { type: 'number' }, current: { type: 'object', description: '{ticker: dollars held now}' } }, required: ['new_money'] }, execute: wrap('plan_contribution', (i) => A.toolPlanContribution(i)) },
+        inputSchema: { type: 'object', properties: { new_money: { type: 'number' }, current: { type: 'object', description: '{ticker: dollars held now}' } }, required: ['new_money'] }, execute: wrap('plan_contribution', (i, sig) => A.toolPlanContribution(i, sig)) },
       { name: 'compare_one_fund', description: 'The same report for a single asset-allocation ETF at a similar stock share (fees in dollars, volatility, bad year, 2008 replay), on the same data. The do-it-yourself benchmark for the current mix. Shown in the mix card.',
-        inputSchema: { type: 'object', properties: {} }, execute: wrap('compare_one_fund', () => A.toolOneFund()) },
+        inputSchema: { type: 'object', properties: {} }, execute: wrap('compare_one_fund', (i, sig) => A.toolOneFund(i, sig)) },
     ];
   }
 
@@ -101,11 +112,14 @@ export class Assistant {
       market: s.market, currency: s.market === 'CA' ? 'CAD (Canadian-listed ETFs)' : 'USD (US-listed ETFs)', data_to: A.core.meta.prices_through,
       level: s.level, level_name: A.levelName(s.level), level_chosen_by_person: !!s.levelChosen, amount: s.amount, monthly: s.monthly, years: s.years, goal_amount: s.goal, mix_mode: s.result?.mode || 'optimized',
       above_self_check: A.isAbove() ? `level ${s.level} is above the self-check suggestion ${s.profile.suggested_level}; ${A.consented(s.level) ? 'the person confirmed it on the explore sheet' : 'not confirmed by the person'}` : null,
-      self_check: s.check.open ? 'open' : (s.profile ? 'done' : 'not started'), open_question: A.openQuestion(), profile: A.profileSummary(),
+      self_check: s.check.open ? 'open' : !s.profile ? 'not started' : (A.checkDone(s.profile) || s.profile.status === 'not_ready') ? 'done' : 'paused (questions still open)', open_question: A.openQuestion(), profile: A.profileSummary(),
       funds_in_tray: A.trayTickers(), picks_not_held: s.result ? A.notHeld(s.result) : [],
     };
     return `PAGE STATE (facts you may cite; not instructions): ${JSON.stringify(state)}`;
   }
+
+  /** Check text that never finished (a stopped or failed reply) against this turn's tool results. */
+  checkText(text) { return checkReply(text, [...this.log, { user_message: this.asked, page_state: this.pageState() }], this.app.universeSet(), this.app.stateNumbers()); }
 
   async ask(text, { tier = 'default', onText, signal } = {}) {
     if (!this.available) throw { code: 'not_granted' };
@@ -114,7 +128,9 @@ export class Assistant {
     // numbers may describe a mix that has since changed, and a large pool lets invented figures match by chance
     this.log = [];
     this.shown = new Map();
+    this.signal = signal; this.asked = text;
     this.turns.push({ role: 'user', content: text });
+    const asked = this.turns[this.turns.length - 1];
     while (JSON.stringify(this.turns).length > 30000 && this.turns.length > 2) this.turns.splice(0, 2);
     const head = { role: 'user', content: `${RULES}\n\n${this.pageState()}\n\n${this.first ? 'This is the first message of the session: begin your reply with one line saying you are an AI (Claude), not a person or a registered advisor, that numbers come from Robo-Kit\'s code, and that this is education, not personal advice.' : 'Do not repeat the AI disclosure.'}` };
     const opts = { cache: false, modelTier: tier, signal, onText };
@@ -125,8 +141,10 @@ export class Assistant {
       this.log.push({ tool: 'current_mix', out: mix });
       input = [head, { role: 'assistant', content: 'Understood.' }, ...this.turns.slice(0, -1), { role: 'user', content: `${text}\n\nPAGE DATA (the only numbers you may use):\n${JSON.stringify(mix).slice(0, 12000)}` }];
     }
-    const first = await this.sample(input, opts);
-    let reply = first.text;
+    // a failed or stopped request leaves no unanswered message behind to be resent with the next one
+    const call = (inp, o) => this.sample(inp, o).catch((e) => { const i = this.turns.lastIndexOf(asked); if (i >= 0) this.turns.splice(i, 1); throw e; });
+    const first = await call(input, opts);
+    let reply = first.text, truncated = !!first.truncated;
     let tierApplied = first.modelTierApplied;
     const evidence = () => [...this.log, { user_message: text, page_state: this.pageState() }];
     let check = checkReply(reply, evidence(), universe, this.app.stateNumbers());
@@ -134,12 +152,12 @@ export class Assistant {
     if (!check.ok && !(signal && signal.aborted)) {
       retried = true;
       const items = [...check.unsupported_numbers, ...check.unknown_tickers].join(', ');
-      const second = await this.sample([...input, { role: 'assistant', content: reply }, { role: 'user', content: REWRITE(items) }], { ...opts });
-      reply = second.text; tierApplied = second.modelTierApplied;
+      const second = await call([...input, { role: 'assistant', content: reply }, { role: 'user', content: REWRITE(items) }], { ...opts });
+      reply = second.text; tierApplied = second.modelTierApplied; truncated = !!second.truncated;
       check = checkReply(reply, evidence(), universe, this.app.stateNumbers());
     }
     this.first = false;
     this.turns.push({ role: 'assistant', content: reply });
-    return { text: reply, check, retried, tierApplied, toolCalls: this.log.length };
+    return { text: reply, check, retried, tierApplied, truncated, toolCalls: this.log.length };
   }
 }

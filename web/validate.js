@@ -20,7 +20,7 @@ const COMMON = new Set([
 // Words a person may type in capitals that are not tickers, for the page's no-AI router
 // (several are also real fund symbols: THE, WAR, CASH, SAFE, BOND).
 export const COMMON_WORDS = new Set([...COMMON, 'WAR', 'CASH', 'SAFE', 'BOND', 'BONDS', 'GOLD', 'RISK', 'FUND', 'FUNDS', 'BEST', 'HIGH', 'LOW',
-  'WHAT', 'WHY', 'HOW', 'WHO', 'WHEN', 'SELL', 'BUY', 'HOLD', 'NOW', 'NEW', 'TAX', 'RATE', 'RATES', 'NEWS', 'HELP', 'SHOW', 'ME', 'MY', 'IS', 'IN',
+  'HYSA', 'WHAT', 'WHY', 'HOW', 'WHO', 'WHEN', 'SELL', 'BUY', 'HOLD', 'NOW', 'NEW', 'TAX', 'RATE', 'RATES', 'NEWS', 'HELP', 'SHOW', 'ME', 'MY', 'IS', 'IN',
   'ON', 'TO', 'OF', 'FOR', 'ALL', 'ANY', 'CAN', 'DO', 'IF', 'BUT', 'SO', 'VS', 'PLS', 'THANKS', 'HI', 'HEY', 'BIG', 'TOP', 'GOOD', 'BAD']);
 // Numbers the rules tell the guide to give that no tool returns: the crisis line (call or text 988).
 const HELP_NUMBERS = [988];
@@ -61,7 +61,10 @@ function supported(v, dec, isPct, unit, pool) {
   return false;
 }
 
+const ACCOUNT_NAMES = /\b(?:401|403|457)\s?\(?[kb]\)?/gi;  // US retirement accounts: names, not figures
+
 export function checkReply(text, toolResults, universe = null, extra = []) {
+  text = (text || '').replace(ACCOUNT_NAMES, (s) => ' '.repeat(s.length));
   const pool = collectNumbers(toolResults, [...extra, ...HELP_NUMBERS].map(x => [x, false]));
   const bad = [];
   for (const m of (text || '').matchAll(NUM)) {

@@ -18,7 +18,7 @@ function sample(input, opts = {}) {
   return new Promise((resolve, reject) => {
     M.pending = { input, opts, resolve, reject, calls: [], at: Date.now() };
     M.history.push({ kind: 'request', turns: input.length, tier: opts.modelTier || 'default' });
-    if (opts.signal) opts.signal.addEventListener('abort', () => { if (M.pending && M.pending.opts === opts) { M.pending = null; reject({ code: 'cancelled', text: '' }); } });
+    if (opts.signal) opts.signal.addEventListener('abort', () => { if (M.pending && M.pending.opts === opts) { const text = M.pending.streamed || ''; M.pending = null; reject({ code: 'cancelled', text }); } });
   });
 }
 sample.limits = async () => ({ tools: true, images: false });
@@ -40,7 +40,7 @@ M.call = async (name, args = {}) => {
   M.history.push({ kind: 'tool', name, args });
   return out;
 };
-M.stream = (text) => { M.pending?.opts.onText?.({ text, delta: text }); };
+M.stream = (text) => { if (M.pending) M.pending.streamed = text; M.pending?.opts.onText?.({ text, delta: text }); };
 M.finish = (text) => {
   const p = M.pending;
   if (!p) throw new Error('no pending request');

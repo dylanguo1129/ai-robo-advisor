@@ -60,7 +60,7 @@ def explain_portfolio(p: dict) -> dict:
         )
 
     en.append(
-        f"Using published planning assumptions after fees, a middle outcome is about {_pct(s['planning_return'], 1)} a year over {pr.get('years', 10)} years; "
+        f"Using published planning assumptions after fees, a middle outcome is about {_pct(s['planning_return'], 1)} a year over {pr.get('years', 10)} {'year' if pr.get('years', 10) == 1 else 'years'}; "
         f"cash pays about {_pct(s['risk_free'], 1)} today."
     )
 

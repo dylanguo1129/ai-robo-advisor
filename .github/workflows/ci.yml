@@ -65,3 +65,21 @@ jobs:
       - run: node web/test_assistant.mjs
       - run: node web/test_engine.mjs
       - run: node web/test_robokit.mjs
+
+  ui:
+    name: Browser regression tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install (pinned) and the Chromium build Playwright drives
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e . --no-deps
+          python -m playwright install --with-deps chromium
+      - name: Browser tests (the page and the AI stand-in, served from web/)
+        run: python -m pytest -m ui -q -rs tests/ui

@@ -1,7 +1,7 @@
 # Robo-Kit developer tasks. On Windows without `make`, run the command lines under each target directly.
 PY ?= python
 
-.PHONY: help setup lock lint format test test-web check status build serve refresh backtest bundle data clean
+.PHONY: help setup lock lint format test test-web test-ui check status build serve refresh backtest bundle data clean
 
 help:  ## list the tasks
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -32,7 +32,10 @@ test-web:  ## browser-engine tests (node)
 	node web/test_engine.mjs
 	node web/test_robokit.mjs
 
-check: lint test test-web  ## everything CI checks
+test-ui:  ## browser regression tests (Playwright; needs a Chromium-based browser: python -m playwright install chromium)
+	$(PY) -m pytest -m ui -q tests/ui
+
+check: lint test test-web  ## lint, Python tests and browser-engine tests (CI also runs test-ui)
 
 status:  ## which data the engine is using (local cache or the committed snapshot)
 	$(PY) -m robokit status

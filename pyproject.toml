@@ -29,6 +29,7 @@ dev = [
   "matplotlib>=3.8",    # charts written by scripts/run_prototype.py
   "ruff==0.16.9",
   "pre-commit>=4.0",
+  "playwright>=1.49",   # browser regression tests in tests/ui (opt-in: -m ui)
 ]
 
 [project.scripts]
@@ -43,7 +44,9 @@ version = {attr = "robokit.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-p no:cacheprovider"
+# browser tests (tests/ui) are opt-in: python -m pytest -m ui tests/ui
+addopts = "-p no:cacheprovider -m 'not ui'"
+markers = ["ui: browser regression tests (Playwright); run with -m ui"]
 
 [tool.ruff]
 line-length = 140

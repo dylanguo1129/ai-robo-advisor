@@ -193,7 +193,7 @@ optimizer/               v1 numerical core still used by v2: shrinkage estimator
 web/                     the published page: index.html, app.js, strings.js, assistant.js, robokit.js (engine port),
                          engine.js, parse.js, validate.js, icons.js, worker2.js, data/ (snapshot)
                          dev only: dev_mock.js, test_*.mjs, test_profiles.json
-tests/                   pytest suite
+tests/                   pytest suite; tests/ui: browser regression tests (opt-in: -m ui)
 scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page
 data/                    README.md (data catalogue) + v1 inputs; the local cache data/v2/ is git-ignored
 output/                  results of record: v1 and v2 back-tests (output/v2/backtest_v2_summary.json is used at runtime)
@@ -210,7 +210,8 @@ AGENT.md                 how the assistant talks and what it may do (loaded by t
 
 ```bash
 make setup      # pinned deps + editable install + pre-commit hooks
-make check      # ruff lint + format check, pytest, node browser-engine tests (what CI runs)
+make check      # ruff lint + format check, pytest, node browser-engine tests
+make test-ui    # browser regression tests (Playwright; CI runs them in their own job)
 make format     # auto-fix lint and format
 make data       # NETWORK: refresh the local cache and rebuild web/data/ (then review, test, republish)
 make lock       # re-lock requirements*.txt from pyproject.toml (uv keeps existing pins; add --upgrade to move)
@@ -220,9 +221,10 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 120 passed with the local data cache; on a fresh clone and in CI 103 pass and 17 are skipped (16 engine tests need `data/v2/`, one v1 test needs `data/prices_daily_adjclose.csv`) |
+| Python tests | `python -m pytest -q` | 120 passed with the local data cache; on a fresh clone and in CI 103 pass and 17 are skipped (16 engine tests need `data/v2/`, one v1 test needs `data/prices_daily_adjclose.csv`). The browser tests below are opt-in and deselected here |
+| Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 13 reference portfolios, 400 self-check answer sets, one-fund and resampled checks all match |
-| Input parser | `node web/test_parse.mjs` | 25 cases |
+| Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |
 | Chat layer | `node web/test_assistant.mjs` | 7 cases, with a scripted model: each card appears once per turn, including across the rewrite pass |
 | v1 browser engine | `node web/test_engine.mjs` | 11 checks |
 | Lint / format | `ruff check .`, `ruff format --check .` | clean |
@@ -238,7 +240,7 @@ Engineering conventions:
   result. `python -m robokit bundle` refuses to run without the local data cache.
 - **Single source of truth:** Python is the reference; the browser port must reproduce it
   (`web/test_robokit.mjs`), and `python -m robokit bundle` regenerates the reference cases.
-- **CI:** lint, Python 3.10 and 3.12 tests and node tests on pushes to `main` and on every pull request
+- **CI:** lint, Python 3.10 and 3.12 tests, node tests and the browser regression tests on pushes to `main` and on every pull request
   (`.github/workflows/ci.yml`). Workflow and rules: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Known limitations
@@ -259,6 +261,9 @@ Found during the 30 Sep 2026 audit and not yet fixed:
    rate-limit failure inside a successful price chunk is not recorded; news is partly carried over from an earlier
    fetch.
 6. **Level 5** is close to a corner solution and lands slightly below its volatility target after resampling.
+7. **The page without the assistant reads messages with keyword rules** (`web/parse.js`, cases in `web/test_parse.mjs`).
+   Unusual phrasings can get "Nothing matched"; the assistant handles free text.
+8. **A phone held sideways with the largest text size** leaves little room above the composer for the self-check.
 
 ## How this was built: the prompts
 

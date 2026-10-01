@@ -40,7 +40,11 @@ commands listed in the Makefile by hand.
 - **Style.** English only. Plain words, short sentences. Spell it "advisor" (keep "adviser" only inside quotations,
   legal names such as the Investment Advisers Act, and URLs such as adviserinfo.sec.gov).
 - **Tests.** Every bug fix gets a regression test. Tests that need the local data cache (`data/v2/`, marked
-  `needs_data`) or the v1 price file skip on a fresh clone and in CI.
+  `needs_data`) or the v1 price file skip on a fresh clone and in CI. A bug in the web page gets a browser test in
+  `tests/ui` (`make test-ui`, or `python -m pytest -m ui tests/ui`; once, `python -m playwright install chromium`
+  unless Edge or Chrome is installed). These tests are opt-in locally and run in their own CI job.
+- **The page's no-AI router is a table of rules** (`routeText` in `web/parse.js`). Add every phrasing you fix to
+  `web/test_parse.mjs`, so a later rule cannot quietly undo it.
 
 ## Updating the published web page
 

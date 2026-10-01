@@ -146,6 +146,7 @@ COMMON_CAPS = {
 }
 # Numbers the rules tell the guide to give that no tool returns: the crisis line (call or text 988).
 HELP_NUMBERS = [988.0]
+ACCOUNT_NAMES = re.compile(r"\b(?:401|403|457)\s?\(?[kb]\)?", re.IGNORECASE)  # US retirement accounts
 
 
 # A small count ("3 funds") passes without a source, unless it counts future events ("2 cuts next year").
@@ -224,6 +225,7 @@ def _supported(v: float, dec: int, is_pct: bool, unit: str | None, pool: list) -
 
 def check_reply(text: str, tool_results: list, universe_tickers: set[str] | None = None, extra_allowed: list[float] | None = None) -> dict:
     """Return {ok, unsupported_numbers, unknown_tickers}. ``tool_results`` is anything JSON-like."""
+    text = ACCOUNT_NAMES.sub(lambda m: " " * len(m.group(0)), text or "")  # "401(k)" is an account name, not a figure
     pool: list = []
     _collect_numbers(tool_results, pool)
     pool += [(float(x), False) for x in list(extra_allowed or []) + HELP_NUMBERS]

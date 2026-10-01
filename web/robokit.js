@@ -781,7 +781,7 @@ export function explain(p) {
   } else if (one) {
     en.push(`In 8 years out of 10, ${money(amt, ccy)} might end the year between ${money(amt * (1 + one.p10), ccy)} and ${money(amt * (1 + one.p90), ccy)}. In a bad year (about 1 in 20) it could fall to about ${money(amt * (1 + one.p5), ccy)}. These are ranges, not promises.`);
   }
-  en.push(`Using published planning assumptions after fees, a middle outcome is about ${pctS(s.planning_return, 1)} a year over ${pr.years ?? 10} years; cash pays about ${pctS(s.risk_free, 1)} today.`);
+  en.push(`Using published planning assumptions after fees, a middle outcome is about ${pctS(s.planning_return, 1)} a year over ${pr.years ?? 10} ${(pr.years ?? 10) === 1 ? 'year' : 'years'}; cash pays about ${pctS(s.risk_free, 1)} today.`);
   if (s.weighted_mer != null) {
     en.push(`Fund fees average ${pctS(s.weighted_mer, 2)} a year: about ${money(s.fee_per_year, ccy)} a year on ${money(amt, ccy)}.`);
   }
