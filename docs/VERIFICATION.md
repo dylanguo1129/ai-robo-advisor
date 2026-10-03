@@ -355,3 +355,19 @@ quotes were confirmed again by fetching the raw page). So teammates publish thei
 Limits: the in-page assistant of a new copy was not exercised, because its first call asks the viewer's consent. New
 copies get the current runtime contract (0.2.66), whose only change to the `sample` API is a larger prompt limit.
 
+### 7.1 Other AI tools (2 Oct 2026)
+
+README, "Other AI tools and free Claude accounts": the MCP server from Claude Desktop, Cursor, Gemini CLI, Antigravity
+and Codex, and the page without AI. Plans and config formats come from each vendor's documentation (four research
+lanes with verbatim quotes; the Codex, Cursor, Gemini CLI and Claude Desktop config details were confirmed again on the
+raw pages).
+
+| Check | Result |
+| --- | --- |
+| Fresh clone, `pip install -r requirements.txt` and `pip install -e . --no-deps` in a venv, then a standard MCP stdio client starts the venv Python from outside the repository | 15 tools, the `robo_kit_guide` prompt and the rules resource; start 0.8 s, `build_portfolio` 8.3-8.5 s, other tools under 0.2 s; the same with a forward-slash Windows path |
+| Cursor CLI 2026.10.01 with a project `.cursor/mcp.json` | config recognised ("needs approval"); not approved here, since that changes the Cursor settings of this machine |
+| `agy mcp add --help` (Antigravity CLI 1.2.14) | the documented `agy mcp add <name> -- <command> [args]` form |
+| Cross-family review of the README section against the sources | 8 points: 4 fixed (macOS JSON example, Claude Desktop plan wording, Cursor plan wording, which surfaces check reply numbers), 4 rejected (Python 3.10, `AGENT.md`, port 8765 and `tool_timeout_sec` are all real: `pyproject.toml`, the repository, `serve_dev.py`, the Codex docs) |
+
+Not tested: Gemini CLI and Codex themselves (not installed here), and any tool on a Free account.
+

@@ -26,13 +26,14 @@ reply from Claude that contains a number or a ticker no tool produced.
 1. [Quick start](#quick-start)
 2. [Ways to use it](#ways-to-use-it)
 3. [Your own copy of the web page](#your-own-copy-of-the-web-page)
-4. [Sharing the web page: who gets the AI assistant](#sharing-the-web-page-who-gets-the-ai-assistant)
-5. [How it works](#how-it-works)
-6. [Repository layout](#repository-layout)
-7. [Development](#development)
-8. [Known limitations](#known-limitations)
-9. [How this was built: the prompts](#how-this-was-built-the-prompts)
-10. [Course context, AI use and licence](#course-context-ai-use-and-licence)
+4. [Other AI tools and free Claude accounts](#other-ai-tools-and-free-claude-accounts)
+5. [Sharing the web page: who gets the AI assistant](#sharing-the-web-page-who-gets-the-ai-assistant)
+6. [How it works](#how-it-works)
+7. [Repository layout](#repository-layout)
+8. [Development](#development)
+9. [Known limitations](#known-limitations)
+10. [How this was built: the prompts](#how-this-was-built-the-prompts)
+11. [Course context, AI use and licence](#course-context-ai-use-and-licence)
 
 ---
 
@@ -68,7 +69,7 @@ python scripts/make_mock_page.py      # optional: web/mock.html, a test harness 
 | **Web page, your own copy** (a claude.ai Artifact) | Your own Claude plan: you own the copy | Pro, Max, Team or Enterprise; Claude Code; access to this repo | Clone, open in Claude Code, type `/publish-robo-kit` ([next section](#your-own-copy-of-the-web-page)) |
 | **Web page, the owner's copy** | The viewer's own account, but the assistant only for the owner's Team / Enterprise organization ([sharing](#sharing-the-web-page-who-gets-the-ai-assistant)) | A Claude account and an invitation | [Robo-Kit artifact](https://claude.ai/artifact/8BA8T78qH17LF1v7Ss4qgu) (private; the owner shares it) |
 | **Claude Code plugin** | Your own Claude Code session and model | Claude Code, Python deps installed, access to this repo | `/plugin marketplace add dylanguo1129/ai-robo-advisor` then `/plugin install robo-kit@robo-kit` |
-| **MCP server** | Your own Claude Desktop / Claude Code | This repo, installed as above | `claude mcp add robokit -- python -m robokit.mcp_server` (run from the repo folder) |
+| **MCP server** | Your own AI tool: Claude Desktop (any plan, Free included), Claude Code, Cursor, Gemini CLI, Antigravity, Codex | This repo, installed as above | `claude mcp add robokit -- python -m robokit.mcp_server` (run from the repo folder); other tools: [below](#other-ai-tools-and-free-claude-accounts) |
 | **Terminal agent** | Your own `ANTHROPIC_API_KEY` | An API key | `python -m robokit chat --tier default` (`quick` = Haiku 4.5, `default` = Sonnet 5.5, `complex` = Opus 5.5, or `--model <id>`) |
 
 The plugin bundles the MCP server, the guide skill (`skills/robo-kit/`) and a Stop hook (`hooks/check_reply.py`)
@@ -110,6 +111,63 @@ the assistant's replies count against your plan, never the owner's.
   shared by public link anyway.
 - **How it works:** the command is `.claude/skills/publish-robo-kit/SKILL.md`; the published files are listed in
   `web/publish.json`, and `tests/test_publish_manifest.py` fails if the page loads a file that is not listed.
+
+## Other AI tools and free Claude accounts
+
+The web page's assistant needs a Claude plan (above). The same Robo-Kit tools also run as an MCP server on your own
+computer, so any AI tool that can start a local MCP server can use them: the same 15 tools and the same numbers, with
+that tool's model and plan. The conversation then happens in that tool instead of on the web page.
+
+**One-time setup** (Git and Python 3.10 or later):
+
+```bash
+git clone https://github.com/dylanguo1129/ai-robo-advisor.git
+cd ai-robo-advisor
+python -m venv .venv && source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt && pip install -e . --no-deps
+```
+
+The server command is the full path of that Python followed by `-m robokit.mcp_server`, for example
+`C:/Users/you/ai-robo-advisor/.venv/Scripts/python.exe -m robokit.mcp_server` on Windows (forward slashes work) or
+`/Users/you/ai-robo-advisor/.venv/bin/python -m robokit.mcp_server` on macOS. It works from any folder. Tested: it
+starts in under a second, and building a mix takes about 10 seconds.
+
+| Tool | Plans (vendor docs, 2 Oct 2026) | Add the server |
+|---|---|---|
+| Claude Desktop | Local servers run on every Claude plan (Anthropic: "Desktop extensions are available to all users"); the config file below was not tried on a Free account | Settings > Developer > Edit Config opens `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS); JSON below |
+| Cursor (editor or CLI) | Cursor's pricing page lists MCP under the paid plans, not under the free Hobby plan | `~/.cursor/mcp.json`, or `.cursor/mcp.json` in this folder, JSON below; approve the server when Cursor asks |
+| Gemini CLI | Free with a personal Google account (1,000 requests a day), or Google AI Pro / Ultra | `~/.gemini/settings.json`, JSON below; the folder must be trusted (`gemini trust`) |
+| Antigravity (Google) | Every plan, free included (weekly quota) | `agy mcp add robokit -- <python> -m robokit.mcp_server` |
+| Codex CLI, Codex IDE extension, ChatGPT desktop app | ChatGPT sign-in (OpenAI's pricing page lists every plan from Free up; the Codex README lists paid plans) or an API key | `codex mcp add robokit -- <python> -m robokit.mcp_server`, then add `tool_timeout_sec = 120` under `[mcp_servers.robokit]` in `~/.codex/config.toml` |
+
+The JSON for Claude Desktop, Cursor and Gemini CLI, with your own path (merge it into the file if it already lists
+servers). Windows:
+
+```json
+{ "mcpServers": { "robokit": { "command": "C:/Users/you/ai-robo-advisor/.venv/Scripts/python.exe", "args": ["-m", "robokit.mcp_server"] } } }
+```
+
+macOS or Linux:
+
+```json
+{ "mcpServers": { "robokit": { "command": "/Users/you/ai-robo-advisor/.venv/bin/python", "args": ["-m", "robokit.mcp_server"] } } }
+```
+
+Then start a chat in that tool, for example: *"Use the robokit tools and follow the Robo-Kit guide rules (AGENT.md in
+the repository). I want to build an ETF mix: retirement, about 50k."* In Gemini CLI the guide is also the slash
+command `/robo_kit_guide`. Gemini CLI and Codex add the server's built-in rules to the model's instructions by
+themselves.
+
+Limits of this route:
+- No web page: you see the tool results as text and tables in your tool's chat.
+- Only the web page and the Claude Code plugin (its Stop hook) check every number in a reply against the tool
+  results. Other tools, and the bare MCP server in Claude Desktop or Claude Code, do not, so trust the tool results
+  over the model's own wording.
+- Web chat apps (claude.ai, chatgpt.com, gemini.google.com) cannot start a server on your computer.
+
+**No AI at all:** run the page on your own computer, with everything except the assistant:
+`python scripts/serve_dev.py`, then open http://127.0.0.1:8765/index.html. Or ask the owner for an invitation to the
+shared page (needs a Claude account; no assistant).
 
 ## Sharing the web page: who gets the AI assistant
 
