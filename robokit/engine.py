@@ -627,6 +627,7 @@ RESEARCH_KEYS = {
     "delta",
     "yardstick",
     "cap_scale",
+    "lambda",
 }
 
 
@@ -639,10 +640,13 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
     'single'), prior ({sleeve: share}), block_length (months), max_window (months), stand_ins (False: each fund's own
     history only), delta (equilibrium risk aversion), yardstick ({sleeve: weight}: the stock-market mix whose
     volatility sets the level targets, in place of the policy-weighted equity slots), cap_scale (the sleeve caps
-    multiplied by this factor, at most 1)."""
+    multiplied by this factor, at most 1), lambda (the final pipeline at this risk aversion, not calibrated: re-checks
+    the evidence a calibration reports)."""
     research = dict(research or {})
     if set(research) - RESEARCH_KEYS:
         raise RoboKitInputError(f"unknown research switches: {sorted(set(research) - RESEARCH_KEYS)}", {"field": "research"})
+    if "lambda" in research and not (np.isfinite(float(research["lambda"])) and float(research["lambda"]) > 0):
+        raise RoboKitInputError("research lambda must be a positive number", {"field": "research"})
     req = validate_request(req)
     U, R, fx, _ = _load()
     meta = U.set_index("yahoo")
@@ -812,7 +816,19 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
                 "vol": _mix_vol(w_, opt.sigma),
             }
 
-        if research.get("calibrate", "final") == "single":  # ablation: lambda from the single solve, as in v2
+        if "lambda" in research:  # research: the final pipeline at a given lambda, to re-check calibration evidence
+            fin = final(float(research["lambda"]))
+            calibration = {
+                "method": "final pipeline at a given lambda (research)",
+                "lambda_single_solve": round(lam_point, 4),
+                "evaluations": 1,
+                "outcome": "given lambda",
+                "target_vol": round(tv, 6),
+                "achieved_vol": round(fin["vol"], 6),
+                "within_tolerance": bool(abs(fin["vol"] - tv) <= CAL_TOL),
+                "evidence": None,
+            }
+        elif research.get("calibrate", "final") == "single":  # ablation: lambda from the single solve, as in v2
             fin = final(lam_point)
             calibration = {
                 "method": "single solve (v2)",
@@ -822,6 +838,7 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
                 "target_vol": round(tv, 6),
                 "achieved_vol": round(fin["vol"], 6),
                 "within_tolerance": bool(abs(fin["vol"] - tv) <= CAL_TOL),
+                "evidence": None,
             }
         else:
             fin, calibration = _calibrate_final(final, tv, final(lam_point))
@@ -1204,6 +1221,7 @@ def ni81_102_rating(monthly) -> dict:
         "std_10y": round(sd, 4),
         "rating": label,
         "months": int(len(r)),
+        "appendix_f": bool(len(r) >= 120),  # the full 10 years Appendix F asks for; fewer is an estimate on what exists
         "method": "NI 81-102 Appendix F: standard deviation of the last 120 monthly returns (n - 1), times the square root of 12",
     }
 
@@ -1246,7 +1264,10 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
        four steps (on the ten standard mixes this takes 23 evaluations in all, against 34 when checked every two).
     It stops within CAL_TOL of the target, when the bracket is narrower than CAL_WIDTH in log lambda (a jump: no mix in
     between), at a bound, or after CAL_MAX evaluations; the closest mix seen is kept. Every evaluation uses the same
-    bootstrap draws, so f is a deterministic function of lambda. web/robokit.js calibrateFinal is the same algorithm."""
+    bootstrap draws, so f is a deterministic function of lambda. web/robokit.js calibrateFinal is the same algorithm.
+    A stop short of the target carries its evidence, which tests/test_v3_calibration.py re-checks by rebuilding at the
+    lambdas it names: for a jump, the last bracket (lambda and volatility at each end, one above the target and one
+    below, closer than CAL_WIDTH in log lambda); out of reach, the bound of lambda and the volatility there."""
     lu, hu = float(np.log(LAM_LO)), float(np.log(LAM_HI))
     best, evals = first, 1
 
@@ -1255,10 +1276,12 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
 
     u, f = float(np.log(first["lam"])), f_of(first)
     a = fa = b = fb = None  # bracket: a has vol above target (f > 0), b below (f < 0), a < b
+    va = vb = None  # the volatility at each end (fa and fb are scaled by the Illinois rule)
+    last_vol = first["vol"]  # the volatility at u, the last lambda evaluated
     if f > 0:
-        a, fa = u, f
+        a, fa, va = u, f, first["vol"]
     elif f < 0:
-        b, fb = u, f
+        b, fb, vb = u, f, first["vol"]
     step, side, widths, outcome = max(abs(f), 0.05), 0, [], "limit"
     while True:
         if abs(best["vol"] - target) <= CAL_TOL:
@@ -1284,21 +1307,33 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
         cur = final(float(np.exp(u)))
         evals += 1
         f = f_of(cur)
+        last_vol = cur["vol"]
         if abs(cur["vol"] - target) < abs(best["vol"] - target):
             best = cur
         if a is None or b is None:
             if f > 0 and (a is None or u > a):
-                a, fa = u, f
+                a, fa, va = u, f, cur["vol"]
             elif f < 0 and (b is None or u < b):
-                b, fb = u, f
+                b, fb, vb = u, f, cur["vol"]
         elif f > 0:  # Illinois: an end kept twice in a row has its value halved
             if side == 1:
                 fb *= 0.5
-            a, fa, side = u, f, 1
+            a, fa, va, side = u, f, cur["vol"], 1
         elif f < 0:
             if side == -1:
                 fa *= 0.5
-            b, fb, side = u, f, -1
+            b, fb, vb, side = u, f, cur["vol"], -1
+    evidence = None
+    if outcome == "out of reach":  # lambda at a bound and the mix there still on the far side of the target
+        evidence = {"bound_lambda": float(np.exp(u)), "vol_at_bound": last_vol, "side": "above" if last_vol > target else "below"}
+    elif a is not None and b is not None:  # the last bracket
+        evidence = {
+            "lambda_above": float(np.exp(a)),
+            "vol_above": va,
+            "lambda_below": float(np.exp(b)),
+            "vol_below": vb,
+            "log_width": b - a,
+        }
     info = {
         "method": "final pipeline (resampled, minimum position applied): bracket, then Illinois regula falsi on log lambda",
         "lambda_single_solve": round(first["lam"], 4),
@@ -1307,6 +1342,7 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
         "target_vol": round(target, 6),
         "achieved_vol": round(best["vol"], 6),
         "within_tolerance": bool(abs(best["vol"] - target) <= CAL_TOL),
+        "evidence": evidence,
     }
     return best, info
 

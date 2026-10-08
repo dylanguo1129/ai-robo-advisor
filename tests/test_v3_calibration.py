@@ -78,3 +78,53 @@ def test_every_calibration_ends_on_target_or_proves_why_not(req):
     c = p["risk"]["calibration"]
     assert c["outcome"] in ("within tolerance", "jump", "out of reach"), c
     assert c["within_tolerance"] == (c["outcome"] == "within tolerance")
+    _check_evidence(req, c)
+
+
+def _check_evidence(req: dict, c: dict) -> None:
+    """Rebuild at the lambdas a calibration names as its evidence and check its claim from those builds alone: a jump
+    is a sign change of volatility minus target across a bracket narrower than CAL_WIDTH in log lambda; out of reach is
+    a bound of lambda with the mix there still on the far side of the target."""
+    import numpy as np
+
+    from robokit.engine import CAL_WIDTH, LAM_HI, LAM_LO
+
+    e = c["evidence"]
+
+    def vol_at(lam):
+        return build_portfolio(Request(**req), lean=True, research={"lambda": lam})["volatility"]
+
+    if c["outcome"] == "jump":
+        assert e["log_width"] < CAL_WIDTH and np.log(e["lambda_below"] / e["lambda_above"]) == pytest.approx(e["log_width"], rel=1e-6)
+        va, vb = vol_at(e["lambda_above"]), vol_at(e["lambda_below"])
+        assert va == pytest.approx(e["vol_above"], abs=1e-9) and vb == pytest.approx(e["vol_below"], abs=1e-9)
+        assert va > c["target_vol"] > vb
+    elif c["outcome"] == "out of reach":
+        v = vol_at(e["bound_lambda"])
+        assert v == pytest.approx(e["vol_at_bound"], abs=1e-9)
+        if e["side"] == "above":  # the steadiest mix the limits allow is still above the target
+            assert e["bound_lambda"] == pytest.approx(LAM_HI) and v > c["target_vol"]
+        else:  # the riskiest mix is still below it
+            assert e["bound_lambda"] == pytest.approx(LAM_LO) and v < c["target_vol"]
+    if c["outcome"] in ("jump", "out of reach"):
+        assert abs(c["achieved_vol"] - c["target_vol"]) > CAL_TOL
+
+
+@pytest.mark.parametrize(
+    "req",
+    [
+        dict(market="CA", risk_level=2.5),
+        dict(market="CA", risk_level=3.5, satellites=["XIT.TO", "ZEB.TO"]),
+        dict(market="US", risk_level=4, min_weight=0.05),
+        dict(market="CA", risk_level=5),
+        dict(market="CA", target_vol=0.30),
+    ],
+    ids=["CA-2.5", "CA-3.5-satellites", "US-4-min5", "CA-5", "CA-30pct"],
+)
+def test_resampled_calibrations_end_on_target_or_prove_why_not(req):
+    """The shipped default (resampled): the same guarantee as the single solve, with the evidence re-checked."""
+    p = build_portfolio(Request(**req))
+    c = p["risk"]["calibration"]
+    assert c["outcome"] in ("within tolerance", "jump", "out of reach"), c
+    assert c["within_tolerance"] == (c["outcome"] == "within tolerance")
+    _check_evidence(req, c)

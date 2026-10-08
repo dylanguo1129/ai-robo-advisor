@@ -76,3 +76,18 @@ def test_each_research_switch_changes_only_its_component(switch):
         assert q["window"]["months"] == 120
     if "calibrate" in switch:
         assert q["calibration"]["outcome"] == "single solve"
+
+
+@pytest.mark.parametrize("date,months", [("2024-10-31", 35), ("2024-11-30", 36)])
+def test_the_36_month_gate_refuses_35_shared_months_and_builds_on_36(date, months):
+    """Strict as-of, own histories only: CASH.TO's first return is for December 2021, so the CA reference funds share
+    35 months at the end of October 2024 and 36 a month later."""
+    req = Request(market="CA", risk_level=3, resample=False)
+    with as_of(pd.Timestamp(date), "strict"):
+        if months < 36:
+            with pytest.raises(RoboKitInputError) as e:
+                build_portfolio(req, lean=True, research={"stand_ins": False})
+            assert e.value.details == {"kind": "short_history", "months": months}
+        else:
+            q = build_portfolio(req, lean=True, research={"stand_ins": False})
+            assert q["window"]["months"] == 36 and q["window"]["start"] == "2021-12-31"

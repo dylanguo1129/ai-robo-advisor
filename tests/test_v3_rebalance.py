@@ -120,3 +120,16 @@ def test_random_accounts_keep_the_invariants():
             assert x["units_after"] >= -1e-12
             if x["action"] == "sell":
                 assert x["units"] <= x["units_before"] + 1e-12
+
+
+def test_with_the_bands_off_only_the_cash_flow_trades():
+    """A calendar rule between its dates: a fund the targets no longer hold is not sold for drift, nothing trades
+    without a flow, and new money still goes to the fund furthest below its target."""
+    T = {"A": 0.6, "B": 0.4}
+    P = {"A": 10.0, "B": 10.0, "OLD": 10.0}
+    U = {"A": 300, "B": 500, "OLD": 200}
+    assert all(x["action"] == "hold" for x in rebalance(T, U, P, band_trades=False)["rows"])
+    rows = {x["ticker"]: x for x in rebalance(T, U, P, flow=1_000.0, band_trades=False)["rows"]}
+    assert rows["OLD"]["action"] == "hold" and rows["A"]["action"] == "buy" and rows["B"]["action"] == "hold"
+    rows = {x["ticker"]: x for x in rebalance(T, U, P)["rows"]}
+    assert rows["OLD"]["action"] == "sell" and rows["OLD"]["reason"][0] == "not in the mix"  # the shipped bands do sell it

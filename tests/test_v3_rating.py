@@ -52,3 +52,10 @@ def test_every_build_carries_the_rating_and_its_check():
     r = p["stats"]["ni81_102"]
     assert r["months"] == 120 and r["rating"] in {"Low", "Low to medium", "Medium", "Medium to high", "High"}
     assert any(c["id"] == "regulator_rating" and r["rating"] in c["en"] for c in p["checks"])
+
+
+@pytest.mark.parametrize("n,full", [(119, False), (120, True), (150, True)])
+def test_the_rating_says_whether_it_has_the_ten_years_appendix_f_asks_for(n, full):
+    r = ni81_102_rating(_series_with_sd(0.08, n=n))
+    assert r["months"] == min(n, 120) and r["appendix_f"] is full
+    assert ("months available" in rating_check(r)["en"]) is (not full)

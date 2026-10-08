@@ -16,7 +16,7 @@ from .data.prices import monthly_returns
 from .engine import Request, returns_in, select_funds
 from .history import backfill_by_regression, backfill_regressors, proxies_for
 from .rebalance import rebalance
-from .stress import SCENARIOS
+from .stress import SCENARIOS, standin_peers
 
 
 # ------------------------------------------------------------------ E6: the rebalancer on a simulated account
@@ -57,8 +57,8 @@ def account_path(
         else:
             if rule == "monthly":
                 kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0}
-            elif rule == "annual":  # back to target in January; otherwise no band can trigger (a band of 100 points)
-                kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0} if m.month == 1 else {"band_abs": 1.0, "band_rel": 1e9}
+            elif rule == "annual":  # back to target in January; otherwise only the cash flow trades (bands off)
+                kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0} if m.month == 1 else {"band_trades": False}
             else:
                 kw = {}
             res = rebalance(
@@ -171,8 +171,9 @@ def jump_screen_self_excluded(threshold_log: float) -> dict:
 
 
 def crisis_standin_holdout() -> list[dict]:
-    """For every eligible fund with its own data through an episode: its episode return against the peer-median
-    stand-in the replay would have used without it (same class, region and market; itself left out)."""
+    """For every eligible fund with its own data through an episode: its episode return against the stand-in the
+    replay would have used without it (robokit/stress.py standin_peers: the same rule and fallback, the fund itself
+    left out). A fund with no peer at all is kept, with no stand-in, and counted."""
     U, R, _, _ = E._load_all()
     meta = U.set_index("yahoo")
     rows = []
@@ -183,22 +184,18 @@ def crisis_standin_holdout() -> list[dict]:
             continue
         full = win.notna().all()
         ep = (1 + win.fillna(0)).prod() - 1
-        have = [t for t in meta.index[meta.eligible] if t in win.columns and bool(full.get(t, False))]
-        for t in have:
-            ac, rg, mk = meta.at[t, "asset_class"], meta.at[t, "region"], meta.at[t, "market"]
-            peers = [
-                p for p in have if p != t and meta.at[p, "asset_class"] == ac and meta.at[p, "region"] == rg and meta.at[p, "market"] == mk
-            ]
-            if len(peers) < 3:
-                continue
+        avail = set(full.index[full])
+        for t in [t for t in meta.index[meta.eligible] if t in avail]:
+            peers, rule = standin_peers(meta, t, avail - {t})
             rows.append(
                 {
                     "episode": sc["key"],
                     "ticker": t,
-                    "asset_class": ac,
+                    "asset_class": meta.at[t, "asset_class"],
                     "actual": float(ep[t]),
-                    "standin": float(np.median(ep[peers])),
+                    "standin": float(np.median(ep[peers])) if peers else None,
                     "peers": len(peers),
+                    "peer_rule": rule,
                 }
             )
     return rows
@@ -263,7 +260,7 @@ def standin_holdout(market: str) -> list[dict]:
     for _, row in shelf.iterrows():
         t = row.ticker
         for p, conv in proxies_for(row.sleeve, hedged.get(t, False), lambda x: hedged.get(x, False)):
-            if p.startswith("RATE:") or p not in R.columns:
+            if p == t or p.startswith("RATE:") or p not in R.columns:  # the chain starts with the fund itself
                 continue
             # the stand-in exactly as the engine uses it: converted to the portfolio currency only when its rule says so
             own = returns_in(market, [t])[t]

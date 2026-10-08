@@ -10,6 +10,14 @@ const mk = { CA: new Market(core, JSON.parse(readFileSync(new URL('data/ca.json'
 let fails = 0;
 // at a jump of the minimum-position rule the last bisection step depends on the 15th digit of log(lambda): one more
 // or fewer evaluation, the same side of the jump
+// the evidence behind a stop short of the target: the same bound in both engines, or a bracket that straddles the target
+const bracketOk = (c) => c.evidence.vol_above > c.target_vol && c.evidence.vol_below < c.target_vol && c.evidence.lambda_above < c.evidence.lambda_below;
+const sameEvidence = (x, y) => {
+  if ((x.evidence == null) !== (y.evidence == null)) return false;
+  if (x.evidence == null) return true;
+  if (x.outcome === 'out of reach') return x.evidence.side === y.evidence.side && Math.abs(x.evidence.bound_lambda - y.evidence.bound_lambda) <= 1e-9 * y.evidence.bound_lambda && Math.abs(x.evidence.vol_at_bound - y.evidence.vol_at_bound) <= 1e-4;
+  return bracketOk(x) && bracketOk(y) && (x.outcome !== 'jump' || (x.evidence.log_width < 1e-5 && y.evidence.log_width < 1e-5));
+};
 const sameSteps = (x, y) => x.outcome === y.outcome && (x.outcome === 'jump' ? Math.abs(x.evaluations - y.evaluations) <= 2 : x.evaluations === y.evaluations);
 for (const c of core.reference_cases) {
   const q = c.request; const t0 = Date.now();
@@ -33,8 +41,8 @@ for (const c of core.reference_cases) {
   const sameChecks = !c.checks || JSON.stringify(p.checks.map(x => x.id)) === JSON.stringify(c.checks);
   // final-pipeline calibration: the same number of steps and the same volatility reached (null for own weights)
   const pc = p.risk.calibration, cc = c.calibration;
-  const sameCal = (pc == null) === (cc == null) && (pc == null || (sameSteps(pc, cc) && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance));
-  const sameRating = !c.ni81_102 || (p.stats.ni81_102.rating === c.ni81_102.rating && Math.abs(p.stats.ni81_102.std_10y - c.ni81_102.std_10y) <= 1e-4 + 1e-12 && p.stats.ni81_102.months === c.ni81_102.months);
+  const sameCal = (pc == null) === (cc == null) && (pc == null || (sameSteps(pc, cc) && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance && sameEvidence(pc, cc)));
+  const sameRating = !c.ni81_102 || (p.stats.ni81_102.rating === c.ni81_102.rating && Math.abs(p.stats.ni81_102.std_10y - c.ni81_102.std_10y) <= 1e-4 + 1e-12 && p.stats.ni81_102.months === c.ni81_102.months && p.stats.ni81_102.appendix_f === c.ni81_102.appendix_f);
   const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks && sameCal && sameRating;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  dvol=${dv.toExponential(2)}  dstress=${ds.toExponential(2)}  window ${p.window.months}/${c.window.months}  ${Date.now() - t0} ms`);
@@ -58,7 +66,7 @@ for (const c of core.resampled_cases || []) {
   if (C.chance_need_to_adjust != null) dr = Math.max(dr, Math.abs(P.chance_need_to_adjust - C.chance_need_to_adjust));
   if (C.withdrawal) dr = Math.max(dr, Math.abs(P.withdrawal.chance_lasts - C.withdrawal.chance_lasts), Math.abs(P.withdrawal.p50_months - C.withdrawal.p50_months) / C.withdrawal.months);
   const pc = p.risk.calibration, cc = c.calibration;
-  const sameCal = sameSteps(pc, cc) && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance;
+  const sameCal = sameSteps(pc, cc) && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance && sameEvidence(pc, cc);
   const ok = maxd <= 2e-3 && maxb <= 5e-3 && Math.abs(p.stats.volatility - c.volatility) <= 1e-3 && dr <= 5e-3 && dm <= 5e-3 && sameCal;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} resampled ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  max|dband|=${maxb.toExponential(2)}  projection: returns ${dr.toExponential(2)}, money ${dm.toExponential(2)}  ${Date.now() - t0} ms`);
@@ -72,7 +80,7 @@ for (const c of core.qis_checks || []) {
   console.log(`${ok ? 'ok  ' : 'FAIL'} QIS T=${c.t} N=${c.n}  max|dSigma|/max|Sigma| = ${(md / mx).toExponential(2)}`);
 }
 // rebalancer: the same orders as Python on hand-made and seeded random accounts (robokit/bundle.py rebalance_cases)
-const camel = { cash: 'cash', flow: 'flow', min_trade: 'minTrade', cash_reserve: 'cashReserve', whole_units: 'wholeUnits', adv: 'adv' };
+const camel = { cash: 'cash', flow: 'flow', min_trade: 'minTrade', cash_reserve: 'cashReserve', whole_units: 'wholeUnits', adv: 'adv', band_trades: 'bandTrades' };
 let rb = 0, rbn = 0;
 for (const c of core.rebalance_cases || []) {
   rbn++;

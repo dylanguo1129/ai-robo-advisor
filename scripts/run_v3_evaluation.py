@@ -87,13 +87,16 @@ def provenance(allow_dirty: bool) -> dict:
 
 
 def clean(o):
-    """JSON-safe: numpy scalars to floats, non-finite numbers to None, tuples to lists."""
+    """JSON-safe: numpy scalars to floats, NaN to None, infinities to "inf" and "-inf", tuples to lists."""
     if isinstance(o, dict):
         return {str(k): clean(v) for k, v in o.items()}
     if isinstance(o, (list, tuple)):
         return [clean(v) for v in o]
     if isinstance(o, (np.floating, float)):
-        return float(o) if math.isfinite(float(o)) else None
+        x = float(o)
+        if math.isnan(x):
+            return None
+        return x if math.isfinite(x) else ("inf" if x > 0 else "-inf")  # an infinite minimum track record stays readable
     if isinstance(o, (np.integer,)):
         return int(o)
     if isinstance(o, (np.bool_,)):
@@ -205,14 +208,20 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
 
 
 def qis_truths() -> dict:
-    """Two truths for the QIS study, 20 funds drawn once (seed 20261008) from the 43-fund US list: constant-correlation
-    shrinkage (structure that favours linear shrinkage) and the sample covariance (no imposed structure)."""
+    """Two truths for the QIS study, estimated on exactly the 120 months before the first US estimation date, from 20
+    funds drawn once (seed 20261008) among those on the 43-fund US list with a return in every one of those months:
+    constant-correlation shrinkage (structure that favours linear shrinkage) and the sample covariance (none imposed)."""
     shelf, core, _ = E.select_funds(Request(market="US"))
     end = SIM.truth_end("US")  # only months before the US walk-forward tests anything
-    pool = [t for t in dict.fromkeys(core + WIDE_US) if E.returns_in("US", [t])[t].loc[:end].notna().sum() >= 120]
+    names = list(dict.fromkeys(core + WIDE_US))
+    window = E.returns_in("US", names).loc[:end].tail(120)
+    ym = np.asarray(window.index.year * 12 + window.index.month)
+    if len(window) != 120 or (np.diff(ym) != 1).any():
+        raise RuntimeError(f"the QIS truth needs the 120 consecutive months up to {end}")
+    pool = [t for t in names if window[t].notna().all()]
     rng = np.random.default_rng(20261008)
     pick = list(rng.choice(pool, size=20, replace=False))
-    X = E.returns_in("US", pick).loc[:end].dropna(how="any").to_numpy()
+    X = window[pick].to_numpy()
     return {"constant_correlation": choose_covariance(X, "lw_cc")[0], "sample": np.cov(X.T, ddof=1), "_months": len(X), "_funds": pick}
 
 
@@ -241,16 +250,54 @@ def walk_forward(market: str, locks: dict, strategies, levels_all, dates=None, m
 PATH_ERRORS: list = []  # a held fund without a return stops that path; recorded, never filled in
 
 
-def analyse_paths(builds, realised, cash, strategies, levels) -> dict:
+def schedule_of(attempted: list, leading_skips: bool = False) -> list:
+    """The estimation dates a path must have: every date attempted; with ``leading_skips`` (E2, registered: a date
+    whose shelf lacks 36 months of own history is skipped) only those from the first date that built."""
+    dates = sorted(b["task"][1] for b in attempted)
+    if leading_skips:
+        ok = sorted(b["task"][1] for b in attempted if "weights" in b)
+        dates = [d for d in dates if ok and d >= ok[0]]
+    return dates
+
+
+def safe_path(attempted, realised, stage: str, market: str, strategy: str, level, leading_skips: bool = False) -> pd.DataFrame | None:
+    """EV.hold_path on the builds that succeeded, against the schedule of every build attempted (a failed build stops
+    the path), a failure recorded in PATH_ERRORS (stage, market, strategy, level) instead of raised."""
+    builds = [b for b in attempted if "weights" in b]
+    if not builds:
+        PATH_ERRORS.append({"stage": stage, "market": market, "strategy": strategy, "level": level, "error": "no build succeeded"})
+        return None
+    try:
+        return EV.hold_path(builds, realised, schedule=schedule_of(attempted, leading_skips))
+    except ValueError as e:
+        PATH_ERRORS.append({"stage": stage, "market": market, "strategy": strategy, "level": level, "error": str(e)})
+        return None
+
+
+def past_centre(builds, realised, index) -> pd.Series:
+    """For each month, the mean return the weights in force predicted from the 180 months up to their estimation date:
+    the centre of a squared-deviation loss that uses no later data."""
+    builds = sorted(builds, key=lambda b: b["task"][1])
+    out = pd.Series(np.nan, index=index)
+    for i, b in enumerate(builds):
+        d = pd.Timestamp(b["task"][1])
+        end = pd.Timestamp(builds[i + 1]["task"][1]) if i + 1 < len(builds) else index[-1]
+        w = pd.Series(b["weights"], dtype=float)
+        mu = realised.loc[:d, list(w.index)].tail(180).mean()
+        out.loc[(index > d) & (index <= end)] = float((w * mu).sum() / w.sum())
+    return out
+
+
+def analyse_paths(builds, realised, cash, strategies, levels, stage: str, market: str, leading_skips: bool = False) -> dict:
+    """One path per strategy and level, from every build attempted (failed ones included, so a gap is seen)."""
     paths = {}
     for s in strategies:
         for L in levels:
-            bs = [b for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] == L]
+            bs = [b for b in builds if b["task"][3] == s and b["task"][2] == L]
             if bs:
-                try:
-                    paths[(s, L)] = EV.hold_path(bs, realised)
-                except ValueError as e:
-                    PATH_ERRORS.append({"strategy": s, "level": L, "error": str(e)})
+                p = safe_path(bs, realised, stage, market, s, L, leading_skips)
+                if p is not None:
+                    paths[(s, L)] = p
     return paths
 
 
@@ -266,7 +313,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     builds = out["builds"]
     realised = sh.full
     cash = realised[sh.cash]
-    paths = analyse_paths(builds, realised, cash, strategies, (1, 2, 3, 4, 5))
+    paths = analyse_paths(builds, realised, cash, strategies, (1, 2, 3, 4, 5), "E1", market)
     res = {
         "market": market,
         "dates": [str(d.date()) for d in dates],
@@ -310,9 +357,15 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
                 ]
             res["comparisons"].setdefault(b, {})[L] = c
             conf.append((b, L))
-    adj = es.holm([res["comparisons"][b][L]["p_two_sided"] for b, L in conf])
-    adj_ni = es.holm([res["comparisons"][b][L]["p_noninferior"] for b, L in conf])
-    for (b, L), a, ani in zip(conf, adj, adj_ni):
+    # Holm over all 12 registered comparisons: one without a path enters with p = 1, so a missing path never makes
+    # the others easier to pass
+    family = [(b, L) for L in EV.PRIMARY for b in EV.CONFIRMATORY]
+    adj = es.holm([res["comparisons"][b][L]["p_two_sided"] if (b, L) in conf else 1.0 for b, L in family])
+    adj_ni = es.holm([res["comparisons"][b][L]["p_noninferior"] if (b, L) in conf else 1.0 for b, L in family])
+    res["holm_family"] = len(family)
+    for (b, L), a, ani in zip(family, adj, adj_ni):
+        if (b, L) not in conf:
+            continue
         res["comparisons"][b][L]["p_holm"] = a
         res["comparisons"][b][L]["p_noninferior_holm"] = ani
         res["comparisons"][b][L]["reading"] = EV.reading(res["comparisons"][b][L])
@@ -328,13 +381,13 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
                 ex = paths[(s, L)]["net"] - cash.reindex(paths[(s, L)].index).fillna(0.0)
                 srs.append(float(ex.mean() / ex.std(ddof=1)))
         rk_ex = (paths[("robokit", L)]["net"] - cash.reindex(paths[("robokit", L)].index).fillna(0.0)).to_numpy()
-        best = max(EV.CONFIRMATORY, key=lambda b: res["strategies"][b][L]["sharpe"])
-        b_ex = (paths[(best, L)]["net"] - cash.reindex(paths[(best, L)].index).fillna(0.0)).to_numpy()
-        res["dsr"][L] = {
-            "robokit": es.deflated_sharpe(rk_ex, srs, N_TRIALS),
-            "best_benchmark": best,
-            "benchmark": es.deflated_sharpe(b_ex, srs, N_TRIALS),
-        }
+        res["dsr"][L] = {"robokit": es.deflated_sharpe(rk_ex, srs, N_TRIALS), "best_benchmark": None, "benchmark": None}
+        have = [b for b in EV.CONFIRMATORY if (b, L) in paths]  # a benchmark without a path cannot be the best one
+        if have:
+            best = max(have, key=lambda b: res["strategies"][b][L]["sharpe"])
+            b_ex = (paths[(best, L)]["net"] - cash.reindex(paths[(best, L)].index).fillna(0.0)).to_numpy()
+            res["dsr"][L]["best_benchmark"] = best
+            res["dsr"][L]["benchmark"] = es.deflated_sharpe(b_ex, srs, N_TRIALS)
     res["ex_ante_gap"] = {}
     for s in strategies:
         for L in EV.PRIMARY:
@@ -345,16 +398,22 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     gaps = {}
     for s in ("robokit", "single_lambda"):
         g = [abs(b["ex_ante_vol"] - b["target"]) for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] in EV.PRIMARY]
-        gaps[s] = {"mean_abs_gap": float(np.mean(g)), "max_abs_gap": float(np.max(g)), "n": len(g)}
+        gaps[s] = {"mean_abs_gap": float(np.mean(g)), "max_abs_gap": float(np.max(g)), "n": len(g)} if g else {"n": 0}
     res["calibration_ablation"] = {
         "ex_ante_gap": gaps,
         "realised_ratio": {
-            s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L]["ratio"] for L in EV.PRIMARY} for s in ("robokit", "single_lambda")
+            s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L]["ratio"] for L in EV.PRIMARY if (s, L) in paths}
+            for s in ("robokit", "single_lambda")
         },
     }
     res["calibration_outcomes"] = (
         pd.Series([b.get("outcome") for b in builds if "weights" in b and b["task"][3] == "robokit"]).value_counts().to_dict()
     )
+    res["calibration_failures"] = [  # the evaluation limit reached: neither on target nor a proven jump or bound
+        {"strategy": b["task"][3], "date": b["task"][1], "level": b["task"][2]}
+        for b in builds
+        if "weights" in b and b.get("outcome") == "limit"
+    ]
     res["unreachable_benchmarks"] = sum(1 for b in builds if "weights" in b and not b.get("reachable", True))
     res["shelf"] = sh.tickers
     return res
@@ -369,7 +428,7 @@ def stage_e2(market: str, locks: dict) -> dict:
     skipped = [b for b in out["builds"] if "error" in b]
     realised = EV.strict_realised(market, builds)
     cash = sh.full[sh.cash]  # the bill-extended cash series: the Sharpe reference, the same as E1
-    paths = analyse_paths(builds, realised, cash, strategies, EV.PRIMARY)
+    paths = analyse_paths(out["builds"], realised, cash, strategies, EV.PRIMARY, "E2", market, leading_skips=True)
     res = {
         "market": market,
         "skipped": len(skipped),
@@ -378,7 +437,7 @@ def stage_e2(market: str, locks: dict) -> dict:
         "comparisons": {},
     }
     for (s, L), p in paths.items():
-        res["strategies"].setdefault(s, {})[L] = EV.describe(p, cash)
+        res["strategies"].setdefault(s, {})[L] = {**EV.describe(p, cash), "2020": EV.subperiod(p, 2020), "2022": EV.subperiod(p, 2022)}
         p.to_csv(OUT / f"e2_{market}_{s}_L{L}.csv")
     if all(("robokit", L) in paths for L in EV.PRIMARY):
         res["risk_delivery"] = EV.risk_delivery({L: paths[("robokit", L)] for L in EV.PRIMARY}, EV.PRIMARY)
@@ -402,10 +461,13 @@ def stage_e4(market: str, locks: dict) -> dict:
     builds = pmap(EV.build_at, tasks)
     realised = sh.full
     out = {"target_risk": {}, "min_variance": {}, "forecast": {}, "errors": sum(1 for b in builds if "error" in b)}
-    series_tr = {}
+    series_tr, centre_tr = {}, {}
     for m in ests:
-        bs = [b for t, b in zip(tasks, builds) if "weights" in b and t[5].get("cov_method") == m]
-        series_tr[m] = EV.hold_path(bs, realised)["net"]
+        bs = [b for t, b in zip(tasks, builds) if t[5].get("cov_method") == m]
+        p = safe_path(bs, realised, "E4", market, f"robokit ({m})", 3)
+        if p is not None:
+            series_tr[m] = p["net"]
+            centre_tr[m] = past_centre([b for b in bs if "weights" in b], realised, p.index)
     # minimum-variance portfolios (non-cash funds, 50% cap) and the fixed-weight forecast check
     series_mv = {m: [] for m in ests}
     fc = {m: [] for m in ests}
@@ -427,8 +489,11 @@ def stage_e4(market: str, locks: dict) -> dict:
             fc[m].append({"date": str(d.date()), "pred": pred, "real": real})
     mv = {m: pd.concat(v) for m, v in series_mv.items() if v}
     for m in ests:
-        r_tr = series_tr[m]
-        out["target_risk"][m] = {"ann_vol": float(r_tr.std(ddof=1) * math.sqrt(12)), "months": int(len(r_tr))}
+        if m in series_tr:
+            r_tr = series_tr[m]
+            out["target_risk"][m] = {"ann_vol": float(r_tr.std(ddof=1) * math.sqrt(12)), "months": int(len(r_tr))}
+        else:
+            out["target_risk"][m] = {"error": "path missing (see path_errors)"}
         out["min_variance"][m] = {"ann_vol": float(mv[m]["r"].std(ddof=1) * math.sqrt(12)), "mean_loss": float(mv[m]["loss"].mean())}
         f = pd.DataFrame(fc[m]).dropna()
         out["forecast"][m] = {
@@ -442,13 +507,16 @@ def stage_e4(market: str, locks: dict) -> dict:
             continue
         idx = mv[m].index.intersection(base_mv.index)
         out["min_variance"][m]["dm_vs_lw_cc"] = es.diebold_mariano(mv[m]["loss"].loc[idx].to_numpy(), base_mv.loc[idx].to_numpy())
-        a, b = series_tr[m], series_tr["lw_cc"]
-        idx = a.index.intersection(b.index)
-        la = (a.loc[idx] - a.loc[idx].mean()) ** 2
-        lb = (b.loc[idx] - b.loc[idx].mean()) ** 2
-        out["target_risk"][m]["dm_vs_lw_cc"] = es.diebold_mariano(la.to_numpy(), lb.to_numpy())
+        if m in series_tr and "lw_cc" in series_tr:
+            a, b = series_tr[m], series_tr["lw_cc"]
+            idx = a.index.intersection(b.index)
+            la = (a.loc[idx] - centre_tr[m].loc[idx]) ** 2
+            lb = (b.loc[idx] - centre_tr["lw_cc"].loc[idx]) ** 2
+            out["target_risk"][m]["dm_vs_lw_cc"] = es.diebold_mariano(la.to_numpy(), lb.to_numpy())
     out["note"] = (
-        "descriptive: no back-test result changes a default (section 6 rule); the loss for minimum variance is centred on the past-window mean"
+        "descriptive: no back-test result changes a default (section 6 rule); every squared-deviation loss is centred on a "
+        "mean predicted from the past only (minimum variance: the window mean; target risk: the weights in force times "
+        "the funds' 180-month mean up to their estimation date)"
     )
     return out
 
@@ -599,8 +667,10 @@ def e5_walk(market: str, locks: dict, pw: float) -> dict:
         else:
             extra = {}
         res, errors = walk_forward(market, locks, ["robokit"], lambda s: (3,), dates, extra=extra)
-        builds = [b for b in res["builds"] if "weights" in b]
-        p = EV.hold_path(builds, sh.full)
+        p = safe_path(res["builds"], sh.full, "E5", market, f"robokit ({name})", 3)
+        if p is None:
+            out[name] = {"error": "path missing (see path_errors)", "errors": len(errors)}
+            continue
         out[name] = {**EV.describe(p, sh.full[sh.cash]), "risk_ratio": EV.risk_delivery({3: p}, (3,))[3], "errors": len(errors)}
     return out
 
@@ -638,8 +708,15 @@ def stage_e7() -> dict:
         "jump_screen_self_excluded_ln2": AU.jump_screen_self_excluded(math.log(2)),
     }
     h = pd.DataFrame(AU.crisis_standin_holdout())
-    h["abs_error"] = (h.actual - h.standin).abs()
+    no_peer = int(h.standin.isna().sum())
+    h = h.dropna(subset=["standin"])
+    h["abs_error"] = (h.actual - h.standin.astype(float)).abs()
     out["crisis_standins"] = {
+        "no_peer": no_peer,
+        "by_rule": {
+            r: {"mae": float(g.abs_error.mean()), "median_ae": float(g.abs_error.median()), "n": int(len(g))}
+            for r, g in h.groupby("peer_rule")
+        },
         "by_episode": {
             ep: {"mae": float(g.abs_error.mean()), "median_ae": float(g.abs_error.median()), "n": int(len(g))}
             for ep, g in h.groupby("episode")

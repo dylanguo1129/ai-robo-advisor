@@ -293,6 +293,9 @@ def rebalance_cases() -> list:
         dict(targets=T, units=U, prices=P, opts=dict(whole_units=False, min_trade=0.0)),
         dict(targets=T, units={"XIC.TO": 200, "ZAG.TO": 760, "VFV.TO": 44, "CASH.TO": 26}, prices=P, opts=dict(flow=60.0)),
         dict(targets=T, units={}, prices=P, opts=dict(flow=1_000_000.0, adv={"XIC.TO": 5_000_000.0, "ZAG.TO": 100_000_000.0})),
+        dict(targets=T, units=U, prices=P, opts=dict(band_trades=False)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=5_000.0, band_trades=False)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=-3_000.0, band_trades=False)),
     ]
     r = Mulberry32(2026)
     for _ in range(40):

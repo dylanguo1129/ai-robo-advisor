@@ -162,10 +162,18 @@ def build_at(task: tuple) -> dict:
 
 
 # ------------------------------------------------------------------ holding
-def hold_path(builds: list[dict], realised: pd.DataFrame, cost: float = COST) -> pd.DataFrame:
+def hold_path(builds: list[dict], realised: pd.DataFrame, cost: float = COST, schedule: list | None = None) -> pd.DataFrame:
     """Monthly gross and net returns, turnover and the target in force, for one strategy and level: each December's
-    weights held 12 months and rebalanced monthly back to target, cost on the monthly drift and on the annual change."""
+    weights held 12 months and rebalanced monthly back to target, cost on the monthly drift and on the annual change.
+    The months must follow each other from the month after each estimation date, and with ``schedule`` (the estimation
+    dates the path should have) every scheduled date must have its build: a gap of either kind raises ValueError, as
+    a missing build would otherwise hold the previous weights past their 12 months."""
     builds = sorted(builds, key=lambda b: b["task"][1])
+    if schedule is not None:
+        want = sorted({str(pd.Timestamp(d).date()) for d in schedule})
+        got = sorted({str(pd.Timestamp(b["task"][1]).date()) for b in builds})
+        if got != want:
+            raise ValueError(f"no build for {sorted(set(want) - set(got))}: the previous weights would be held past 12 months")
     rows, prev = [], None
     for i, b in enumerate(builds):
         start = pd.Timestamp(b["task"][1])
@@ -173,6 +181,9 @@ def hold_path(builds: list[dict], realised: pd.DataFrame, cost: float = COST) ->
         hold = realised.loc[(realised.index > start) & (realised.index <= end)]
         if hold.empty:
             continue
+        ym = np.asarray(hold.index.year * 12 + hold.index.month)
+        if ym[0] != start.year * 12 + start.month + 1 or (np.diff(ym) != 1).any():  # a missing month would drop out unseen
+            raise ValueError(f"the return dates after {start.date()} are not consecutive months")
         tick = list(hold.columns)
         w = np.array([b["weights"].get(t, 0.0) for t in tick])
         w = w / w.sum()

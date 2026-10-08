@@ -122,10 +122,13 @@ def rebalance(
     cost_bps: float = COST_BPS,
     adv: dict | None = None,
     adv_limit: float = ADV_LIMIT,
+    band_trades: bool = True,
 ) -> dict:
     """Orders that take the account from ``units`` (fund -> units held) and ``cash`` to the ``targets`` (fund ->
     weight, adding to 1), after a cash ``flow`` (new money positive, a withdrawal negative). ``prices`` gives a price
-    for every fund in either. Returns the orders, the weights before and after, and the cost."""
+    for every fund in either. Returns the orders, the weights before and after, and the cost. With ``band_trades``
+    False only the cash flow trades: a calendar rule between its dates, when no fund is rebalanced for drift (a fund
+    whose target is zero has a band of zero, so any band would sell it)."""
     units = dict(units or {})
     prices = dict(prices or {})
     if not isinstance(targets, dict) or not targets:
@@ -170,7 +173,7 @@ def rebalance(
     # 2. bands, after the flow
     w1 = [v / invest for v in v1]
     band = [min(band_abs, band_rel * w) for w in t_w]
-    out = [abs(w1[i] - t_w[i]) > band[i] + 1e-12 for i in range(n)]
+    out = [band_trades and abs(w1[i] - t_w[i]) > band[i] + 1e-12 for i in range(n)]
     band_trade = [0.0] * n
     if any(out):
         # out-of-band funds end within destination x band of target; funds inside their band may move through their

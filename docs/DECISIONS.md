@@ -22,7 +22,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation) | policy |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: windows 120 / 180 / all | E5(w) |
-| D6 | At least 36 months of common history, or the build stops | 36 | Test: known-truth simulation with 36 / 60 / 120 / 180 months | E3(i) |
+| D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
 | D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
 
 ## 2. Universe and reference shelf
@@ -48,7 +48,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D15 | Ledoit-Wolf constant-correlation shrinkage; QIS when N/T > 0.25 | | Source: Ledoit and Wolf (2004, 2022). Test: the four estimators walk-forward with a pre-set rule (E4); the switch point by simulation with a pre-set rule (E3(ii)) | E3, E4 |
+| D15 | Ledoit-Wolf constant-correlation shrinkage; QIS when N/T > 0.25 | | Source: Ledoit and Wolf (2004, 2022). Test of the switch point: simulation with a pre-set rule (E3(ii)). Descriptive: the four estimators walk-forward (E4; no back-test result changes a default) | E3, E4 |
 | D16 | Monthly covariance x 12; the shrunk matrix x T/(T-1) | | Proof: scaling Sigma scales pi by the same factor, so the weights at a given lambda do not change; only the risk yardstick moves (0.28% at T = 180), consistently with the n-1 market volatility it is compared with (paper, Proposition 2); test | E5 |
 
 ## 5. Objective and constraints
@@ -78,7 +78,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D30 | First, lambda for the single solve: bisection on log lambda | [0.05, 2000], ratio 1.002 | Proof: the single solve's volatility falls as lambda rises (paper, Proposition 3) | done |
-| D31 | Then lambda for the mix the person gets (resampled, minimum position applied, the same draws every step): bracket, then Illinois regula falsi with a bisection safeguard | tolerance 0.005 points; bracket 1e-5 in log lambda; at most 30 evaluations | Source: Scherer (2002) for why; Dowell and Jarratt (1971) for the method. Test: 120 random requests (every miss is a proven jump or a bound), tests/test_v3_calibration.py. Test of the benefit: against single-solve calibration | E1 |
+| D31 | Then lambda for the mix the person gets (resampled, minimum position applied, the same draws every step): bracket, then Illinois regula falsi with a bisection safeguard | tolerance 0.005 points; bracket 1e-5 in log lambda; at most 30 evaluations | Source: Scherer (2002) for why; Dowell and Jarratt (1971) for the method. Test: 40 random single-solve requests and five resampled ones end within tolerance, at a proven jump or at a bound, each jump and bound re-checked by rebuilding at the lambdas its evidence names (tests/test_v3_calibration.py); in E1 any `limit` is listed as a failure. Test of the benefit: against single-solve calibration | E1 |
 | D32 | A note when the final mix is more than 0.5 points from target | | Policy (what is worth telling a person) | policy |
 
 ## 8. Resampling
@@ -212,6 +212,28 @@ again held only an addendum (four required changes and one recommendation); it r
 | Band coverage left out funds the minimum position dropped | true | every fund counts (a dropped fund's band is [0, 0]); fixture with a dropped 1% position |
 | The ESG coefficient was not varied | true | varied on the ESG shelf |
 | D28 cited a rating E1 did not compute | true | E1 now reports the Appendix F rating of each level's realised path |
+
+**Stage 1, fourth round (8 Oct 2026).** One examiner: accept after six required changes; the other's captured review
+again held only an addendum (four required changes and one bug). The capture kept only the agent's last message; the
+next round records every message.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The round-2 "annual" fix still sold a fund whose target is zero (its band is zero) | true | a bands-off switch in both engines (`band_trades`); the annual rule uses it between Januaries; tested, with three parity cases |
+| E7(b) scored a different stand-in rule from the replay's (no fallback, at least three peers) | true | one rule, `standin_peers`, used by both; the fund itself left out; funds with no peer counted; tested against the replay rule |
+| A missing benchmark path crashed the deflated Sharpe and the calibration ablation | true | both use only the paths that exist and say so |
+| Holm ran over fewer than 12 comparisons when a path was missing | true | always the registered 12, a missing comparison entering with p = 1 |
+| The QIS truths could rest on fewer than 120 joint months | true | exactly the 120 months before 2019, from funds complete over all of them; the run refuses otherwise |
+| A failed December build let the previous weights run for 24 months | true | a scheduled date without its build stops the path, recorded; so does a missing month (E2's registered leading skips excepted) |
+| An infinite minimum track record was written as null | true | written as "inf" |
+| D15 cited E4 as a test with a rule; D6 cited E3(i) for the 36-month gate | true | D15: E4 is descriptive; D6: the gate tested at 35 and 36 months |
+| The plan still said "full extended history" for E3's truth | true | one definition: months up to the first E1 estimation date |
+| path_errors lacked market and stage | true | added |
+| E2 lacked the 2020 and 2022 subperiods | true | added |
+| E4's target-risk loss was centred on the full-sample mean (later months moved earlier losses) | true | centred on the mean the weights in force predicted from the funds' past 180 months |
+| D31 cited 120 random requests; the test has 40, single-solve, and accepted the outcome label | partly true: 40 is the committed number (120 was an earlier probe), and the label alone proved nothing | each jump or bound carries its evidence in both engines, re-checked by rebuilding at the lambdas it names; five resampled requests added; any `limit` listed in E1 |
+| A rating on fewer than 120 months was labelled an Appendix F rating; tests/test_v3_rating.py absent | partly true: the build already said how many months it used; the test file exists but was left out of the review copy | an `appendix_f` flag (120 months or not) in both engines; 119/120-month boundary tests; the plan labels a short path an estimate; the review copy now has every test |
+| (Found by the authors' own smoke run, not by an examiner) E8(a) compared each slot's reference fund with itself, because the stand-in chain starts with the fund: a NaN correlation for five funds | true | the fund itself skipped; a test that every row compares two funds and every statistic is finite |
 
 ## Sources checked for this register
 

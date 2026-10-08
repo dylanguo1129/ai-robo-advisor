@@ -109,3 +109,99 @@ def test_band_coverage_counts_a_fund_the_minimum_position_dropped():
     band = {"A": (0.30, 0.40), "B": (0.55, 0.65)}  # C (true weight 1%) was dropped by the 2% rule: no band shown
     assert band_coverage(band, ["A", "B", "C"], np.array([0.35, 0.60, 0.01])) == pytest.approx(2 / 3)
     assert band_coverage(band, ["A", "B", "C"], np.array([0.35, 0.60, 0.0])) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("drop", [5, 0])
+def test_hold_path_refuses_a_missing_month(drop):
+    """A month missing from the return dates (inside a year, or the first month after an estimation date) would
+    drop its return unseen: the path fails instead, and the runner records it."""
+    idx = pd.date_range("2020-01-31", periods=24, freq="ME").delete(drop)
+    R = pd.DataFrame({"A": 0.01, "B": 0.0}, index=idx)
+    b = _builds({"2019-12-31": {"A": 0.5, "B": 0.5}, "2020-12-31": {"A": 0.3, "B": 0.7}})
+    with pytest.raises(ValueError, match="consecutive"):
+        EV.hold_path(b, R)
+
+
+def test_the_annual_rule_turns_the_bands_off_between_januaries(monkeypatch):
+    seen = []
+    real = AU.rebalance
+
+    def spy(*a, **kw):
+        seen.append(kw)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(AU, "rebalance", spy)
+    idx = pd.date_range("2020-01-31", periods=24, freq="ME")
+    prices = pd.DataFrame(
+        100 * np.cumprod(1 + np.random.default_rng(2).normal(0.005, 0.04, size=(24, 3)), axis=0), index=idx, columns=list("ABC")
+    )
+    t = {"2019-12-31": {"A": 0.5, "B": 0.3, "C": 0.2}, "2020-06-30": {"A": 0.6, "B": 0.4}}  # C leaves the mix in July
+    df = AU.account_path(t, prices, 10_000.0, 0.0, "annual")["path"]
+    assert len(seen) == len(df)
+    for kw, m in zip(seen, df.index):
+        if m.month == 1:
+            assert kw.get("band_trades", True) and kw["band_abs"] == 0.0
+        else:
+            assert kw["band_trades"] is False
+
+
+def test_the_crisis_hold_out_uses_the_replay_stand_in_rule():
+    """robokit/stress.py standin_peers, the fund itself left out, the same fallback to the asset class, no minimum
+    number of peers: the hold-out tests the rule the replay uses."""
+    from robokit import engine as E
+    from robokit.stress import SCENARIOS, standin_peers
+
+    rows = AU.crisis_standin_holdout()
+    U, R, _, _ = E._load_all()
+    meta = U.set_index("yahoo")
+    assert rows and {r["peer_rule"] for r in rows} <= {"class, region and market", "class", "none"}
+    for r0 in rows[:: max(1, len(rows) // 25)]:
+        sc = next(s for s in SCENARIOS if s["key"] == r0["episode"])
+        win = R.loc[(R.index > pd.Timestamp(sc["start"])) & (R.index <= pd.Timestamp(sc["end"]))]
+        full = win.notna().all()
+        peers, rule = standin_peers(meta, r0["ticker"], set(full.index[full]) - {r0["ticker"]})
+        assert r0["ticker"] not in peers and rule == r0["peer_rule"] and len(peers) == r0["peers"]
+        if peers:
+            ep = (1 + win.fillna(0)).prod() - 1
+            assert r0["standin"] == pytest.approx(float(np.median(ep[peers])))
+
+
+def test_hold_path_refuses_a_missing_build_on_its_schedule():
+    """A December build that failed must not let the previous weights run for 24 months."""
+    idx = pd.date_range("2020-01-31", periods=36, freq="ME")
+    R = pd.DataFrame({"A": 0.01, "B": 0.0}, index=idx)
+    b = _builds({"2019-12-31": {"A": 0.5, "B": 0.5}, "2021-12-31": {"A": 0.3, "B": 0.7}})
+    assert len(EV.hold_path(b, R)) == 36  # without the schedule the gap is invisible
+    with pytest.raises(ValueError, match="2020-12-31"):
+        EV.hold_path(b, R, schedule=["2019-12-31", "2020-12-31", "2021-12-31"])
+    assert len(EV.hold_path(b, R, schedule=["2019-12-31", "2021-12-31"])) == 36
+
+
+def test_the_runner_stops_a_path_with_a_failed_build_and_records_it():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("runner", Path(__file__).resolve().parents[1] / "scripts" / "run_v3_evaluation.py")
+    rv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rv)
+    idx = pd.date_range("2020-01-31", periods=36, freq="ME")
+    R = pd.DataFrame({"A": 0.01, "B": 0.0}, index=idx)
+    ok = _builds({"2019-12-31": {"A": 0.5, "B": 0.5}, "2021-12-31": {"A": 0.3, "B": 0.7}})
+    failed = {"task": (None, "2020-12-31", 3, "s", "fixed"), "error": "RoboKitInputError: too short"}
+    rv.PATH_ERRORS.clear()
+    assert rv.safe_path([*ok, failed], R, "E1", "CA", "s", 3) is None
+    assert rv.PATH_ERRORS and rv.PATH_ERRORS[0]["stage"] == "E1" and "2020-12-31" in rv.PATH_ERRORS[0]["error"]
+    early = {"task": (None, "2018-12-31", 3, "s", "strict"), "error": "short history"}
+    assert rv.safe_path([early, *ok], R, "E2", "CA", "s", 3, leading_skips=True) is not None  # a leading skip is registered
+    assert rv.safe_path([early, *ok, failed], R, "E2", "CA", "s", 3, leading_skips=True) is None  # a later gap is not
+    assert rv.schedule_of([early, *ok], leading_skips=True) == ["2019-12-31", "2021-12-31"]
+    assert rv.clean({"x": float("inf"), "y": float("-inf"), "z": float("nan")}) == {"x": "inf", "y": "-inf", "z": None}
+
+
+@pytest.mark.parametrize("market", ["CA", "US"])
+def test_the_stand_in_hold_out_compares_two_different_funds(market):
+    """The slot's stand-in chain starts with the reference fund itself: compared with itself it gave a NaN
+    correlation (two columns with one name). Every row compares two funds and every statistic is finite."""
+    rows = AU.standin_holdout(market)
+    assert rows and all(r["fund"] != r["standin"] for r in rows)
+    assert all(math.isfinite(r[k]) for r in rows for k in ("correlation", "tracking_error", "vol_ratio", "mean_gap_annual"))

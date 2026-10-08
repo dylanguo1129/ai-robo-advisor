@@ -439,7 +439,7 @@ function optimizeOn(est, lam, idx, bounds, satMask, satCap, { resample = false, 
 const APPENDIX_F = [[0.06, 'Low'], [0.11, 'Low to medium'], [0.16, 'Medium'], [0.20, 'Medium to high'], [Infinity, 'High']];
 export function ni81102Rating(monthly) {
   const r = Array.from(monthly).slice(-120); const sd = std(r) * Math.sqrt(12);
-  return { std_10y: round(sd), rating: APPENDIX_F.find(([cut]) => sd < cut)[1], months: r.length,
+  return { std_10y: round(sd), rating: APPENDIX_F.find(([cut]) => sd < cut)[1], months: r.length, appendix_f: r.length >= 120,
     method: 'NI 81-102 Appendix F: standard deviation of the last 120 monthly returns (n - 1), times the square root of 12' };
 }
 function ratingCheck(rating) {
@@ -458,7 +458,8 @@ function calibrateFinal(final, target, first) {
   const fOf = (fx) => Math.log(Math.max(fx.vol, 1e-12) / target);
   let u = Math.log(first.lam), f = fOf(first);
   let a = null, fa = null, b = null, fb = null;  // bracket: a has vol above target (f > 0), b below (f < 0), a < b
-  if (f > 0) { a = u; fa = f; } else if (f < 0) { b = u; fb = f; }
+  let va = null, vb = null, lastVol = first.vol;  // the volatility at each end, and at the last lambda evaluated
+  if (f > 0) { a = u; fa = f; va = first.vol; } else if (f < 0) { b = u; fb = f; vb = first.vol; }
   let step = Math.max(Math.abs(f), 0.05), side = 0, outcome = 'limit'; const widths = [];
   for (;;) {
     if (Math.abs(best.vol - target) <= CAL_TOL) { outcome = 'within tolerance'; break; }
@@ -474,15 +475,19 @@ function calibrateFinal(final, target, first) {
       if (!(a + 0.01 * width < u && u < b - 0.01 * width) || (widths.length >= 4 && width > 0.5 * widths[widths.length - 4])) u = 0.5 * (a + b);
       widths.push(width);
     }
-    const cur = final(Math.exp(u)); evals++; f = fOf(cur);
+    const cur = final(Math.exp(u)); evals++; f = fOf(cur); lastVol = cur.vol;
     if (Math.abs(cur.vol - target) < Math.abs(best.vol - target)) best = cur;
     if (a == null || b == null) {
-      if (f > 0 && (a == null || u > a)) { a = u; fa = f; } else if (f < 0 && (b == null || u < b)) { b = u; fb = f; }
-    } else if (f > 0) { if (side === 1) fb *= 0.5; a = u; fa = f; side = 1; }  // Illinois: an end kept twice has its value halved
-    else if (f < 0) { if (side === -1) fa *= 0.5; b = u; fb = f; side = -1; }
+      if (f > 0 && (a == null || u > a)) { a = u; fa = f; va = cur.vol; } else if (f < 0 && (b == null || u < b)) { b = u; fb = f; vb = cur.vol; }
+    } else if (f > 0) { if (side === 1) fb *= 0.5; a = u; fa = f; va = cur.vol; side = 1; }  // Illinois: an end kept twice has its value halved
+    else if (f < 0) { if (side === -1) fa *= 0.5; b = u; fb = f; vb = cur.vol; side = -1; }
   }
+  // the evidence for a stop short of the target: the bound and the volatility there, or the last bracket
+  let evidence = null;
+  if (outcome === 'out of reach') evidence = { bound_lambda: Math.exp(u), vol_at_bound: lastVol, side: lastVol > target ? 'above' : 'below' };
+  else if (a != null && b != null) evidence = { lambda_above: Math.exp(a), vol_above: va, lambda_below: Math.exp(b), vol_below: vb, log_width: b - a };
   return { best, info: { method: 'final pipeline (resampled, minimum position applied): bracket, then Illinois regula falsi on log lambda', lambda_single_solve: round(first.lam),
-    evaluations: evals, outcome, target_vol: round(target, 6), achieved_vol: round(best.vol, 6), within_tolerance: Math.abs(best.vol - target) <= CAL_TOL } };
+    evaluations: evals, outcome, target_vol: round(target, 6), achieved_vol: round(best.vol, 6), within_tolerance: Math.abs(best.vol - target) <= CAL_TOL, evidence } };
 }
 
 /** Say so when the mix cannot be brought to the level's target (checked on the final mix). */
@@ -772,7 +777,7 @@ function rebShiftInto(x, a, lo, hi, total) {
  *  cash flow (new money positive, a withdrawal negative): cash flows first, tolerance bands with a destination, whole
  *  units, a minimum order, residual cash to the fund furthest below target. robokit/rebalance.py explains each rule. */
 export function rebalance(targets, units = {}, prices = {}, { cash = 0, flow = 0, bandAbs = 0.02, bandRel = 0.25, destination = 0.875, minTrade = 50,
-  cashReserve = 0, wholeUnits = true, costBps = 10, adv = null, advLimit = 0.01 } = {}) {
+  cashReserve = 0, wholeUnits = true, costBps = 10, adv = null, advLimit = 0.01, bandTrades = true } = {}) {
   units = units || {}; prices = prices || {};
   if (!targets || typeof targets !== 'object' || Array.isArray(targets) || !Object.keys(targets).length) throw inputError('targets must name at least one fund with its weight.', 'targets');
   const tick = [...Object.keys(targets), ...Object.keys(units).filter(t => !(t in targets))];
@@ -804,7 +809,7 @@ export function rebalance(targets, units = {}, prices = {}, { cash = 0, flow = 0
   // 2. bands, after the flow
   const w1 = v1.map(v => v / invest);
   const band = tw.map(w => Math.min(bandAbs, bandRel * w));
-  const out = tick.map((_, i) => Math.abs(w1[i] - tw[i]) > band[i] + 1e-12);
+  const out = tick.map((_, i) => Boolean(bandTrades) && Math.abs(w1[i] - tw[i]) > band[i] + 1e-12);  // bands off: only the flow trades
   let bandTrade = new Array(n).fill(0);
   if (out.some(Boolean)) {
     const lo = tick.map((_, i) => (out[i] ? tw[i] - destination * band[i] : Math.min(w1[i], tw[i] - destination * band[i])));
