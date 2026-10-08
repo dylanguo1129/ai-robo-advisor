@@ -71,3 +71,19 @@ def test_proposition_1_holds_through_the_final_pipeline():
     c4 = build_portfolio(req, lean=True, research={"delta": 4.0})
     assert c1["calibration"]["within_tolerance"] and c4["calibration"]["within_tolerance"]
     assert abs(c1["volatility"] - c4["volatility"]) <= 2 * CAL_TOL
+
+
+def test_proposition_1_holds_through_the_resampled_pipeline():
+    """The shipped pipeline averages 200 resampled solves; each draw's equilibrium return is delta times its own
+    covariance times the prior, so each draw's solution, and their average, depends only on lambda / delta."""
+    from robokit.engine import CAL_TOL, Request, build_portfolio
+
+    req = Request(market="CA", risk_level=3)  # resampled, as shipped
+    a = build_portfolio(req, lean=True, research={"delta": 1.0, "lambda": 1.0 * 1.3})
+    b = build_portfolio(req, lean=True, research={"delta": 4.0, "lambda": 4.0 * 1.3})
+    names = set(a["weights"]) | set(b["weights"])
+    assert max(abs(a["weights"].get(t, 0.0) - b["weights"].get(t, 0.0)) for t in names) < 1e-5
+    c1 = build_portfolio(req, lean=True, research={"delta": 1.0})
+    c4 = build_portfolio(req, lean=True, research={"delta": 4.0})
+    assert c1["calibration"]["within_tolerance"] and c4["calibration"]["within_tolerance"]
+    assert abs(c1["volatility"] - c4["volatility"]) <= 2 * CAL_TOL

@@ -359,6 +359,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     paths = analyse_paths(builds, realised, cash, strategies, (1, 2, 3, 4, 5), "E1", market)
     res = {
         "market": market,
+        "inference": "confirmatory" if market == "CA" else "exploratory (stated in advance: about 92 months, underpowered)",
         "dates": [str(d.date()) for d in dates],
         "errors": errors,
         "strategies": {},
@@ -424,7 +425,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     res["dsr_trials"] = {
         "n_trials": N_TRIALS,
         "inventory": TRIAL_INVENTORY,
-        "trial_sharpe_spread": "from the E1 strategies' paths at each level and market",
+        "trial_sharpe_variance": "var_trials in each level's entries: the variance of the E1 strategies' monthly Sharpe ratios at that level and market",
     }
     for L in EV.PRIMARY:
         excess = {}

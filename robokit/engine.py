@@ -841,7 +841,7 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
                 "evidence": None,
             }
         else:
-            fin, calibration = _calibrate_final(final, tv, final(lam_point))
+            fin, calibration = _calibrate_final(final, tv, final(lam_point), bool(req.resample and req.n_boot > 0))
         lam, w, res, dropped, relaxations, group_applied = (
             fin["lam"],
             fin["w"],
@@ -1250,7 +1250,7 @@ def _mix_vol(w: pd.Series, sigma: pd.DataFrame) -> float:
     return float(np.sqrt(w.to_numpy() @ s @ w.to_numpy()))
 
 
-def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
+def _calibrate_final(final, target: float, first: dict, resampled: bool = True) -> tuple[dict, dict]:
     """Risk aversion for the mix the person gets, not for the single solve (Scherer 2002: averaging resampled
     portfolios and dropping small positions move the risk off the target the single solve was calibrated to).
 
@@ -1335,7 +1335,7 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
             "log_width": b - a,
         }
     info = {
-        "method": "final pipeline (resampled, minimum position applied): bracket, then Illinois regula falsi on log lambda",
+        "method": f"final pipeline ({'resampled' if resampled else 'single solve'}, minimum position applied): bracket, then Illinois regula falsi on log lambda",
         "lambda_single_solve": round(first["lam"], 4),
         "evaluations": evals,
         "outcome": outcome,

@@ -128,3 +128,9 @@ def test_resampled_calibrations_end_on_target_or_prove_why_not(req):
     assert c["outcome"] in ("within tolerance", "jump", "out of reach"), c
     assert c["within_tolerance"] == (c["outcome"] == "within tolerance")
     _check_evidence(req, c)
+
+
+def test_the_calibration_label_says_whether_the_draws_were_resampled():
+    single = build_portfolio(Request(market="CA", risk_level=3, resample=False))["risk"]["calibration"]["method"]
+    shipped = build_portfolio(Request(market="CA", risk_level=3))["risk"]["calibration"]["method"]
+    assert single.startswith("final pipeline (single solve,") and shipped.startswith("final pipeline (resampled,")

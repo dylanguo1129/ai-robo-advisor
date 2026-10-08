@@ -23,7 +23,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: windows 120 / 180 / all | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
-| D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
+| D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 in size and at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
 
 ## 2. Universe and reference shelf
 
@@ -42,7 +42,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D13 | Equilibrium returns from a written policy mix, not from fund sizes or past returns | 60% stocks, 35% bonds, 3% real estate, 2% gold | Source: Sharpe (1974) and He and Litterman (1999) for reverse optimisation; Doeswijk, Lam and Swinkels (2014): the market portfolio is "a natural benchmark for investors". Test: alternative priors | E5(w) |
 | D13b | 30% of equity in Canada | 0.18 / 0.60 | Source: Vanguard Investments Canada (25 June 2024): "a reasonable equity balance of around 30% home bias, in Canadian securities"; Canada is about 2.7% of world equity. The full report (minimum-variance analysis) is no longer online; its finding is quoted from press coverage only. Test: 0 / 20 / 40% against the 30% default | E5(w) |
 | D17 | pi = delta Sigma w_prior | | Source: Sharpe (1974); Black and Litterman (1992); He and Litterman (1999) | done |
-| D18 | delta = 2.5 | | Source: He and Litterman (1999): "we use delta = 2.5 as the risk aversion parameter representing the world average risk tolerance". Proof: with lambda calibrated to a volatility target the weights do not depend on delta (paper, Proposition 1); tests: at fixed lambda / delta the weights are identical, in the optimizer and through the final pipeline (tests/test_v3_propositions.py); calibrated at delta 1 and 4, the model volatility agrees within twice the calibration tolerance (the same file, and E5) | done; E5 |
+| D18 | delta = 2.5 | | Source: He and Litterman (1999): "we use delta = 2.5 as the risk aversion parameter representing the world average risk tolerance". Proof: with lambda calibrated to a volatility target the weights do not depend on delta (paper, Proposition 1); tests: at fixed lambda / delta the weights are identical, in the optimizer and through the final pipeline, single solve and resampled (tests/test_v3_propositions.py); calibrated at delta 1 and 4, the model volatility agrees within twice the calibration tolerance (the same file, and E5) | done; E5 |
 
 ## 4. Risk model
 
@@ -280,6 +280,18 @@ re-checked the round-6 fixes as holding and raised the points below, which were 
 | (Cut-off review) The QIS rule's `all(...)` runs over the truths present, so a truth with no samples would pass unseen | true (not reachable today: a failed sample stops the run) | the rule and the full-sample check run over the registered truths by name |
 | (Cut-off review) `static_mix` is called risk-matched but holds a fixed stock share | true (wording): it is matched by construction, not calibrated | the plan says so; its ex-ante gap is reported |
 | (Cut-off review) E6 starts at the first E1 target, later than the first common price | true (wording) | the plan says the account starts once a target exists |
+
+**Stage 1, eighth round (8 Oct 2026).** Both Cursor model pools had reached their monthly limits; the review came from
+Cursor's automatic routing, which reported itself as the same family as the round-5 to round-7 second examiner. Accept
+after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The variance of the trial Sharpe ratios, registered for the deflated Sharpe ratio, was not written | true | written beside each deflated Sharpe ratio |
+| The round-5 Proposition 1 test switched resampling off, so it did not test the shipped pipeline | true (the round-5 fix was incomplete) | a resampled case added at fixed lambda / delta and calibrated at delta 1 and 4 |
+| The calibration label said "resampled" for single-solve builds | true | the label says which, in both engines; tested |
+| D9 named one of the screen's two conditions | true | both stated |
+| The US readings were not labelled exploratory in the results | true | labelled |
 
 ## Sources checked for this register
 

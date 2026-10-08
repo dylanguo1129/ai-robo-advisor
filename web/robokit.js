@@ -452,7 +452,7 @@ const LAM_LO = 0.05, LAM_HI = 2000, CAL_TOL = 5e-5, CAL_MAX = 30, CAL_WIDTH = 1e
 /** Risk aversion for the mix the person gets (robokit/engine.py _calibrate_final, same algorithm): bracket the target
  *  from the single-solve lambda, then Illinois regula falsi (Dowell and Jarratt 1971) on log(vol / target) over
  *  log(lambda), safeguarded by bisection; the same bootstrap draws at every step; the closest mix seen kept. */
-function calibrateFinal(final, target, first) {
+function calibrateFinal(final, target, first, resampled = true) {
   const lu = Math.log(LAM_LO), hu = Math.log(LAM_HI);
   let best = first, evals = 1;
   const fOf = (fx) => Math.log(Math.max(fx.vol, 1e-12) / target);
@@ -486,7 +486,7 @@ function calibrateFinal(final, target, first) {
   let evidence = null;
   if (outcome === 'out of reach') evidence = { bound_lambda: Math.exp(u), vol_at_bound: lastVol, side: lastVol > target ? 'above' : 'below' };
   else if (a != null && b != null) evidence = { lambda_above: Math.exp(a), vol_above: va, lambda_below: Math.exp(b), vol_below: vb, log_width: b - a };
-  return { best, info: { method: 'final pipeline (resampled, minimum position applied): bracket, then Illinois regula falsi on log lambda', lambda_single_solve: round(first.lam),
+  return { best, info: { method: `final pipeline (${resampled ? 'resampled' : 'single solve'}, minimum position applied): bracket, then Illinois regula falsi on log lambda`, lambda_single_solve: round(first.lam),
     evaluations: evals, outcome, target_vol: round(target, 6), achieved_vol: round(best.vol, 6), within_tolerance: Math.abs(best.vol - target) <= CAL_TOL, evidence } };
 }
 
@@ -1086,7 +1086,7 @@ export function buildPortfolio(M, req = {}) {
       }
       return { lam: lamX, wMap: wm, bandMap: bm, dropped: drops, notes: fnotes, relaxations: rel, boundsApplied: bApplied, gcapApplied: gcap, vol: mixVol(wm) };
     };
-    const fin = calibrateFinal(finalAt, tv, finalAt(cal.lam));
+    const fin = calibrateFinal(finalAt, tv, finalAt(cal.lam), !!r.resample && r.nBoot > 0);
     const best = fin.best; calibration = fin.info;
     lam = best.lam; wMap = best.wMap; bandMap = best.bandMap; relaxations = best.relaxations; dropped.push(...best.dropped);
     const boundsApplied = best.boundsApplied, gcapApplied = best.gcapApplied;

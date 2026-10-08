@@ -182,7 +182,7 @@ def deflated_sharpe(r, trial_srs, n_trials: int | None = None) -> dict:
     v = float(np.var(trial_srs, ddof=1)) if len(trial_srs) > 1 else 0.0
     sr0 = math.sqrt(v) * ((1 - EULER) * stats.norm.ppf(1 - 1 / n) + EULER * stats.norm.ppf(1 - 1 / (n * math.e))) if n > 1 else 0.0
     z = (sr - sr0) * math.sqrt(T - 1) / math.sqrt(1 - g3 * sr + (g4 - 1) / 4 * sr**2)
-    return {"sr": sr, "sr0": sr0, "dsr": float(stats.norm.cdf(z)), "n_trials": n}
+    return {"sr": sr, "sr0": sr0, "dsr": float(stats.norm.cdf(z)), "n_trials": n, "var_trials": v, "trial_sharpes": int(len(trial_srs))}
 
 
 def min_track_record(r, sr_star: float = 0.0, alpha: float = 0.05) -> float:
