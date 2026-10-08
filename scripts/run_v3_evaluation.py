@@ -55,7 +55,14 @@ def pmap(fn, tasks, chunksize=1):
 
 def provenance(allow_dirty: bool) -> dict:
     def git(*a):
-        return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        r = subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f"git {' '.join(a)} failed: the registered run needs a git checkout ({r.stderr.strip()})")
+        return r.stdout.strip()
+
+    commit = git("rev-parse", "HEAD")
+    if len(commit) != 40:
+        sys.exit("no commit id: the registered run needs a committed protocol")
 
     dirty = "\n".join(
         line
@@ -67,7 +74,7 @@ def provenance(allow_dirty: bool) -> dict:
     import scipy
 
     return {
-        "commit": git("rev-parse", "HEAD"),
+        "commit": commit,
         "dirty": bool(dirty),
         "data_snapshot": E.snapshot_id(),
         "python": platform.python_version(),
@@ -111,7 +118,7 @@ def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
 
 
 def stage_e3(reps: int) -> tuple[dict, dict]:
-    tasks = [(w, r, 3, E3_METHODS, 180) for w in "abc" for r in range(reps)]
+    tasks = [(w, r, 3, E3_METHODS, 180) for w in "abc" for r in range(reps)]  # level 3, every method
     tasks += [(w, r, L, ["robokit", "no_resample"], 180) for w in "abc" for r in range(reps) for L in (2, 4)]
     tasks += [("b", r, 3, ["robokit"], T) for T in (36, 60, 120) for r in range(reps)]
     rows = [x for chunk in pmap(SIM.replicate, tasks) for x in chunk]
@@ -122,6 +129,7 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
     for (w, L, m, T), g in ok.groupby(["world", "level", "method", "months"]):
         summary.setdefault(w, {}).setdefault(int(L), {}).setdefault(int(T), {})[m] = {
             "loss_bp": float(g.loss_bp.mean()),
+            "loss_bp_minpos": float(g.loss_bp_minpos.mean()),
             "loss_bp_se": float(g.loss_bp.std(ddof=1) / math.sqrt(len(g))),
             "vol_error": float(g.vol_error.mean()),
             "abs_vol_error": float(g.vol_error.abs().mean()),
@@ -131,6 +139,21 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
             "calibration_outcomes": g.outcome.value_counts().to_dict() if g.outcome.notna().any() else None,
             "n": int(len(g)),
         }
+    # paired contrasts against robokit, level 3, 180 months, aligned by replication (common random numbers)
+    contrasts = {}
+    for w in "abc":
+        base = ok[(ok.world == w) & (ok.level == 3) & (ok.months == 180) & (ok.method == "robokit")].set_index("rep")
+        for m in E3_METHODS:
+            if m == "robokit":
+                continue
+            other = ok[(ok.world == w) & (ok.level == 3) & (ok.months == 180) & (ok.method == m)].set_index("rep")
+            for col in ("loss_bp", "loss_bp_minpos"):
+                d = (other[col] - base[col]).dropna()
+                contrasts.setdefault(w, {}).setdefault(m, {})[col] = {
+                    "mean_minus_robokit": float(d.mean()),
+                    "se": float(d.std(ddof=1) / math.sqrt(len(d))) if len(d) > 1 else None,
+                    "pairs": int(len(d)),
+                }
     # the resampling rule: drop resampling only if it costs more than 2 bp in both realistic worlds (b, c), level 3
     rule = {}
     for w in "abc":
@@ -170,6 +193,7 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
     locks = {"resample": not drop_resampling, "qis_switch": switch}
     result = {
         "summary": summary,
+        "paired_contrasts": contrasts,
         "resampling_rule": {**rule, "drop_resampling": drop_resampling},
         "qis_switch": {"by_ratio": qsum, "tests": tests, "switch": switch, "truth": qmeta},
         "truth_months": SIM._truth_cache()["truth_months"],
@@ -256,7 +280,15 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         p.to_csv(OUT / f"e1_{market}_{s}_L{L}.csv")
     if dry:
         return {"counts": {"builds": len(builds), "errors": len(errors), "paths": len(paths)}}
+    missing = [
+        (s, L) for s in ["robokit", *EV.CONFIRMATORY] for L in ((1, 2, 3, 4, 5) if s == "robokit" else EV.PRIMARY) if (s, L) not in paths
+    ]
+    res["missing_paths"] = [f"{s} level {L}" for s, L in missing]
+    if any(s == "robokit" for s, _ in missing):
+        res["stopped"] = "a robokit path is missing (see path_errors): no confirmatory analysis"
+        return res
     rk = {L: paths[("robokit", L)] for L in (1, 2, 3, 4, 5)}
+    res["regulator_rating"] = {L: E.ni81_102_rating(rk[L]["net"].to_numpy()) for L in (1, 2, 3, 4, 5)}  # realised paths, last 120 months
     res["risk_delivery"] = {
         "primary": EV.risk_delivery(rk, EV.PRIMARY),
         "level_1": EV.risk_delivery(rk, (1,)),
@@ -268,6 +300,9 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     conf = []
     for L in EV.PRIMARY:
         for b in EV.CONFIRMATORY:
+            if (b, L) not in paths:
+                res["comparisons"].setdefault(b, {})[L] = {"error": "path missing (see path_errors)"}
+                continue
             c = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
             for blk in (3, 12):
                 c[f"p_two_sided_block{blk}"] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash, block=blk)[
@@ -496,13 +531,16 @@ def e5_today(market: str, locks: dict) -> dict:
     from robokit.shelf import SCORE
 
     changes = {}
-    for k in ("aum", "volume", "fee", "history"):
+    ref_esg = build_shelf(U, market, prefer_esg=True).set_index("sleeve")
+    for k in SCORE:
         for f in (0.5, 1.5):
-            alt = build_shelf(U, market, coef={k: SCORE[k] * f}).set_index("sleeve")
-            changed = [s for s in ref.index if ref.at[s, "ticker"] != alt.at[s, "ticker"]]
+            esg = k == "esg"  # the ESG coefficient applies only to the ESG shelf
+            base_ref = ref_esg if esg else ref
+            alt = build_shelf(U, market, prefer_esg=esg, coef={k: SCORE[k] * f}).set_index("sleeve")
+            changed = [s for s in base_ref.index if base_ref.at[s, "ticker"] != alt.at[s, "ticker"]]
             changes[f"{k}x{f}"] = {
                 "slots_changed": changed,
-                "fee_change": {s: float((alt.at[s, "mer"] or 0) - (ref.at[s, "mer"] or 0)) for s in changed},
+                "fee_change": {s: float((alt.at[s, "mer"] or 0) - (base_ref.at[s, "mer"] or 0)) for s in changed},
             }
     out["shelf_score"] = changes
     # projection precision: the Monte Carlo standard error of the one-year 5th percentile over 10 seeds
@@ -655,10 +693,12 @@ def main():
             shutil.rmtree(OUT, ignore_errors=True)
         return
     OUT = ROOT / "output" / "v3"
+    if args.reps != 500:
+        sys.exit("the registered run uses 500 replications (RESEARCH_LOG section 10, E3); other values are for smoke runs only")
     if (OUT / "results.json").exists():
         sys.exit("output/v3/results.json exists: the registered evaluation runs once (section 6 rule).")
     OUT.mkdir(parents=True, exist_ok=True)
-    results = {"provenance": provenance(allow_dirty=False)}
+    results = {"provenance": {**provenance(allow_dirty=False), "replications": args.reps}}
     t0 = time.time()
 
     def save():

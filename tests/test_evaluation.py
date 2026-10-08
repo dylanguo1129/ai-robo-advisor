@@ -55,3 +55,57 @@ def test_production_rebalancer_account_never_goes_short_or_overdrawn():
     for rule in ("monthly", "bands", "annual"):
         df = AU.account_path(t, prices, 10_000.0, 250.0, rule)["path"]
         assert (df["cash_share"] >= -1e-12).all() and (df["value"] > 0).all()
+
+
+@pytest.mark.parametrize(
+    "c,want",
+    [
+        (
+            {"p_holm": 0.01, "sharpe_diff_annual": -0.3, "p_noninferior_holm": 0.9, "min_track_record_months": float("inf"), "months": 200},
+            "benchmark better",
+        ),
+        (
+            {"p_holm": 0.01, "sharpe_diff_annual": 0.3, "p_noninferior_holm": 0.01, "min_track_record_months": 50.0, "months": 200},
+            "robokit better",
+        ),
+        (
+            {"p_holm": 0.4, "sharpe_diff_annual": 0.05, "p_noninferior_holm": 0.02, "min_track_record_months": 900.0, "months": 200},
+            "robokit not worse by more than 0.10",
+        ),
+        (
+            {"p_holm": 0.4, "sharpe_diff_annual": 0.05, "p_noninferior_holm": 0.2, "min_track_record_months": 900.0, "months": 200},
+            "too short to tell",
+        ),
+        (
+            {"p_holm": 0.4, "sharpe_diff_annual": -0.05, "p_noninferior_holm": 0.2, "min_track_record_months": float("inf"), "months": 200},
+            "inconclusive",
+        ),
+        (
+            {"p_holm": 0.4, "sharpe_diff_annual": -0.05, "p_noninferior_holm": 0.2, "min_track_record_months": None, "months": 200},
+            "inconclusive",
+        ),
+        (
+            {"p_holm": 0.4, "sharpe_diff_annual": 0.05, "p_noninferior_holm": 0.2, "min_track_record_months": 150.0, "months": 200},
+            "inconclusive",
+        ),
+    ],
+)
+def test_the_confirmatory_reading_follows_the_registered_rule(c, want):
+    assert EV.reading(c) == want
+
+
+def test_account_returns_are_after_trading_costs():
+    idx = pd.date_range("2020-01-31", periods=6, freq="ME")
+    prices = pd.DataFrame({"A": 10.0, "B": 20.0}, index=idx)
+    t = {"2019-12-31": {"A": 0.6, "B": 0.4}}
+    df = AU.account_path(t, prices, 10_000.0, 0.0, "ideal", cost_bps=10.0)["path"]
+    assert df["return"].iloc[0] == pytest.approx(-10_000 * 1e-3 / 10_000, rel=1e-6)  # buying everything costs 10 bps
+    assert df["return"].iloc[1:].abs().max() < 1e-12  # flat prices, back at target: nothing more to pay
+
+
+def test_band_coverage_counts_a_fund_the_minimum_position_dropped():
+    from robokit.simulation import band_coverage
+
+    band = {"A": (0.30, 0.40), "B": (0.55, 0.65)}  # C (true weight 1%) was dropped by the 2% rule: no band shown
+    assert band_coverage(band, ["A", "B", "C"], np.array([0.35, 0.60, 0.01])) == pytest.approx(2 / 3)
+    assert band_coverage(band, ["A", "B", "C"], np.array([0.35, 0.60, 0.0])) == pytest.approx(1.0)

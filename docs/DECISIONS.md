@@ -197,6 +197,22 @@ again in full). The rulings, after each point was checked against the repository
 | The jump screen's "five peers" include the fund itself | partly true: the code is consistent, the description was not | description corrected; the stricter reading reported in E7(a) |
 | "All months" was coded as 300; a missing return counted as flat; median error by asset class, and the ex-ante gap per strategy, missing; untracked files ignored; two evidence mappings wrong (D1, D11) | true | all fixed |
 
+**Stage 1, third round (8 Oct 2026).** One examiner: accept after four required changes; the other's captured review
+again held only an addendum (four required changes and one recommendation); it reviews once more in full.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| An infinite minimum track record (robokit not ahead) was read "too short to tell" | true | "inconclusive" then; "too short to tell" only when robokit is ahead but the sample is short; a "robokit better" reading added for symmetry; every branch tested |
+| Provenance did not check that git worked | true | refuses without a git checkout and a full commit id |
+| The registered run accepted any number of simulated histories | true | refuses anything but 500 |
+| A missing path crashed E1 instead of being recorded | true | recorded; comparisons that need it carry the error |
+| E6 returns left out trading costs | true | time-weighted returns after each month's costs |
+| E3's oracle ignores the 2% minimum | partly true: a valid oracle whose loss includes the cost of discretising, which cancels in the resampling rule's paired differences | stated in the plan; a second oracle with the minimum-position rule reported too |
+| E3 lacked paired contrasts for the other methods | true | paired contrast table (mean, Monte Carlo SE, pairs) |
+| Band coverage left out funds the minimum position dropped | true | every fund counts (a dropped fund's band is [0, 0]); fixture with a dropped 1% position |
+| The ESG coefficient was not varied | true | varied on the ESG shelf |
+| D28 cited a rating E1 did not compute | true | E1 now reports the Appendix F rating of each level's realised path |
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).

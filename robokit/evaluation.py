@@ -272,13 +272,17 @@ def compare(a: pd.Series, b: pd.Series, cash: pd.Series, block: int = 6, n_boot:
 
 
 def reading(c: dict) -> str:
-    """The pre-registered reading of one confirmatory comparison (RESEARCH_LOG section 10, E1), from its numbers."""
-    if not c["track_record_long_enough"] and not (c["p_holm"] < 0.05 or c["p_noninferior_holm"] < 0.05):
-        return "too short to tell"
-    if c["p_holm"] < 0.05 and c["sharpe_diff_annual"] < 0:
-        return "benchmark better"
+    """The pre-registered reading of one confirmatory comparison (RESEARCH_LOG section 10, E1), from its numbers, in
+    this order: a significant difference either way; otherwise non-inferiority; otherwise "too short to tell" when
+    robokit's Sharpe is ahead but the sample is shorter than the minimum track record (an infinite minimum, robokit
+    not ahead, cannot be cured by more of the same data); otherwise "inconclusive"."""
+    if c["p_holm"] < 0.05:
+        return "benchmark better" if c["sharpe_diff_annual"] < 0 else "robokit better"
     if c["p_noninferior_holm"] < 0.05:
         return "robokit not worse by more than 0.10"
+    mtr = c.get("min_track_record_months")
+    if mtr is not None and math.isfinite(mtr) and c["months"] < mtr:
+        return "too short to tell"
     return "inconclusive"
 
 

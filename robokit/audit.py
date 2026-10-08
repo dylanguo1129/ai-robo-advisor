@@ -45,7 +45,6 @@ def account_path(
         px = {t: float(prices.at[m, t]) for t in tick}
         held = sum(units[t] * px[t] for t in tick)
         v_before = held + cash
-        r = v_before / v_prev - 1 if v_prev > 0 else 0.0
         drift = max(abs((units[t] * px[t] / held if held > 0 else 0.0) - tgt[t]) for t in tick) if held > 0 else None
         if rule == "ideal":  # fractional, exactly back to target, cost on the traded amount
             total = v_before + flow
@@ -74,6 +73,7 @@ def account_path(
             orders = sum(1 for row in res["rows"] if row["action"] != "hold")
             skipped = sum(1 for row in res["rows"] if "under the minimum trade" in row["reason"])
         v_after = sum(units[t] * px[t] for t in tick) + cash
+        r = (v_after - flow) / v_prev - 1 if v_prev > 0 else 0.0  # time-weighted, after this month's trading costs
         rows.append(
             {
                 "month": m,

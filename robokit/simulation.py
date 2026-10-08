@@ -4,7 +4,8 @@ The engine is not reimplemented: each simulated history is handed to ``engine.bu
 loader (``simulated_data``), so the estimates, caps, resampling, minimum position and calibration are the product's.
 
 Data-generating process (monthly, the 10 Canadian reference funds):
-* Sigma: the Ledoit-Wolf constant-correlation estimate over the funds' full extended history (the truth).
+* Sigma: the Ledoit-Wolf constant-correlation estimate over the funds' extended history up to the first walk-forward
+  (E1) estimation date (``truth_end``), so nothing E1 tests informs it (the truth).
 * Means: world 'a' rf + delta Sigma w_prior (the model is right); worlds 'b' and 'c' the FP Canada 2026 planning
   return after the fund's fee, made arithmetic: (1 + g)^(1/12) - 1 + Sigma_ii / 2.
 * Shocks: worlds 'a' and 'b' multivariate Student t, 5 degrees of freedom, scale Sigma (nu - 2) / nu so the covariance
@@ -13,7 +14,8 @@ Data-generating process (monthly, the 10 Canadian reference funds):
 * Truth at level L: the target is L x 20% of the true volatility of the policy-weighted equity slots; the true optimum
   maximises mu_excess'w - (gamma/2) w'Sigma w under the engine's limits at that level, gamma set so its true
   volatility equals the target. A method's loss is the certainty equivalent of the true optimum minus its own, at
-  that gamma, in basis points a year.
+  that gamma, in basis points a year. This optimum ignores the 2% minimum position, so every method's loss includes
+  the cost of discretising; a second oracle applies the engine's minimum-position rule to the truth (``loss_bp_minpos``).
 """
 
 from __future__ import annotations
@@ -167,6 +169,60 @@ def true_optimum(tr: dict, world: str, level: float) -> dict:
     return {"w": w, "gamma": g, "target": target, "vol": v, "S": S, "mu_x": mu_x}
 
 
+def true_optimum_minpos(tr: dict, world: str, level: float, min_weight: float = 0.02) -> dict:
+    """The true optimum after the engine's minimum-position rule: drop positions under ``min_weight``, re-solve and
+    recalibrate gamma to the target, round after round until none is small."""
+    base = true_optimum(tr, world, level)
+    S, mu_x, target = base["S"], base["mu_x"], base["target"]
+    n = len(tr["tickers"])
+    lvl10 = prof.engine_level(level)
+    ub0 = np.full(n, 0.5)
+    for t, c in tr["caps"].items():
+        ub0[tr["tickers"].index(t)] = c
+    ci = tr["tickers"].index(tr["cash"])
+    ub0[ci] = prof.cash_cap(lvl10) if prof.cash_cap(lvl10) < 1 else 1.0
+    keep = np.ones(n, dtype=bool)
+    w, g = base["w"], base["gamma"]
+    for _ in range(n):
+        small = keep & (w > 1e-9) & (w < min_weight - 1e-9)
+        if not small.any():
+            break
+        trial = keep & ~small
+        if (ub0 * trial).sum() < 1 - 1e-9:  # the remaining limits cannot hold everything: keep as is (as the engine)
+            break
+        keep = trial
+        ub = ub0 * keep
+
+        def vol(gg, ub=ub):
+            ww = solve_qp_pgd(S, mu_x, gg, np.zeros(n), ub)
+            return float(math.sqrt(ww @ S @ ww)), ww
+
+        lo, hi = 0.05, 2000.0
+        if vol(lo)[0] <= target:
+            g = lo
+        elif vol(hi)[0] >= target:
+            g = hi
+        else:
+            for _ in range(200):
+                mid = math.sqrt(lo * hi)
+                if vol(mid)[0] > target:
+                    lo = mid
+                else:
+                    hi = mid
+                if hi / lo < 1 + 1e-10:
+                    break
+            g = math.sqrt(lo * hi)
+        w = vol(g)[1]
+    return {"w": w, "gamma": g, "target": target, "vol": float(math.sqrt(w @ S @ w)), "S": S, "mu_x": mu_x}
+
+
+def band_coverage(band: dict, tickers: list, w_true) -> float:
+    """Share of funds whose true optimal weight lies in the resampling band. Every fund counts: a fund the final mix
+    does not hold (dropped by the minimum position, or never held) has the band [0, 0]."""
+    full = {t: band.get(t, (0.0, 0.0)) for t in tickers}
+    return float(np.mean([full[t][0] - 1e-9 <= w_true[i] <= full[t][1] + 1e-9 for i, t in enumerate(tickers)]))
+
+
 def ce(opt: dict, w: np.ndarray) -> float:
     return float(opt["mu_x"] @ w - opt["gamma"] / 2 * w @ opt["S"] @ w)
 
@@ -201,6 +257,7 @@ def replicate(task: tuple) -> list[dict]:
     rng = np.random.default_rng([20261008, ord(world), rep])
     hist = simulate(tr, world, months + 12, rng)
     opt = true_optimum(tr, world, level)
+    opt_mp = true_optimum_minpos(tr, world, level)
     out = []
     for m in methods:
         try:
@@ -217,16 +274,14 @@ def replicate(task: tuple) -> list[dict]:
             "method": m,
             "months": months,
             "loss_bp": 1e4 * (ce(opt, opt["w"]) - ce(opt, w)),
+            "loss_bp_minpos": 1e4 * (ce(opt_mp, opt_mp["w"]) - ce(opt_mp, w)),
             "vol_error": float(math.sqrt(w @ opt["S"] @ w)) - opt["target"],
             "distance": 0.5 * float(np.abs(w - opt["w"]).sum()),
             "turnover": None if b is None else 0.5 * float(np.abs(b["w"] - w).sum()),
             "outcome": a.get("outcome"),
         }
         if a["band"]:
-            inside = [
-                a["band"][t][0] - 1e-9 <= opt["w"][i] <= a["band"][t][1] + 1e-9 for i, t in enumerate(tr["tickers"]) if t in a["band"]
-            ]
-            row["band_coverage"] = float(np.mean(inside)) if inside else None
+            row["band_coverage"] = band_coverage(a["band"], tr["tickers"], opt["w"])
         out.append(row)
     return out
 
