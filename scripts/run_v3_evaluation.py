@@ -44,6 +44,14 @@ from robokit.shelf import PRIOR, build_shelf  # noqa: E402
 
 WORKERS = max(1, min(28, (os.cpu_count() or 4) - 2))
 N_TRIALS = 54  # RESEARCH_LOG section 10: the trials counted for the deflated Sharpe ratio, enumerated there
+TRIAL_INVENTORY = {  # the 54, written into results.json beside the deflated Sharpe ratios
+    "RESEARCH_LOG section 2: the five methods of the first back-test": 5,
+    "RESEARCH_LOG section 4: 7 configurations x 5 methods": 35,
+    "RESEARCH_LOG section 6: v2 strategies": 5,
+    "E1 confirmatory strategies (robokit and four benchmarks)": 5,
+    "E3 contrasts that could move a default (resampling; three QIS tests)": 4,
+}
+assert sum(TRIAL_INVENTORY.values()) == N_TRIALS
 
 
 def pmap(fn, tasks, chunksize=1):
@@ -203,15 +211,16 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
         }
     # a default locks only on the full registered sample: every input of both rules has exactly ``reps`` finite pairs
     short = {f"resampling, world {w}": rule[w]["n"] for w in ("b", "c") if rule[w]["n"] != reps}
-    for name, gg in q.groupby("truth"):
+    for name in qtruths:  # every registered truth, so a truth with no samples at all is caught too
+        gg = q[q.truth == name]
         for r in (0.2, 0.25, 0.3):
             n_ok = int(np.isfinite(gg.loc[gg.n_over_t == r, "rel"]).sum())
             if n_ok != reps:
                 short[f"QIS, {name} truth at {r}"] = n_ok
     if short:
         raise RuntimeError(f"a locking rule lacks its {reps} replications {short}: no default is locked, the run stops")
-    lower = all(tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in tests)
-    raise_ = all(tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in tests)
+    lower = all(tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in qtruths)
+    raise_ = all(tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in qtruths)
     switch = 0.20 if lower else (0.30 if raise_ else 0.25)
     locks = {"resample": not drop_resampling, "qis_switch": switch}
     result = {
@@ -412,6 +421,11 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
                 except ValueError as e:
                     res["descriptive"].setdefault(s, {})[L] = {"error": str(e)}
     res["dsr"] = {}
+    res["dsr_trials"] = {
+        "n_trials": N_TRIALS,
+        "inventory": TRIAL_INVENTORY,
+        "trial_sharpe_spread": "from the E1 strategies' paths at each level and market",
+    }
     for L in EV.PRIMARY:
         excess = {}
         for s in strategies:
@@ -774,6 +788,16 @@ def coverage_check(samples: int = 1000, months: int = 120, n_boot: int = 999, bl
     """How often the risk-delivery interval (circular block bootstrap, percentile) covers the true ratio 1 on i.i.d.
     standardised months, at the nominal 90% of one interval and at the 96.7% each of three simultaneous ones."""
     out = {"samples": samples, "months": months, "n_boot": n_boot, "block": block}
+    # the simultaneous claim: three correlated levels (correlation 0.9, as the levels' paths are), 96.7% each, the same
+    # bootstrap draws for all three (as risk_delivery uses), all three intervals covering 1 at once
+    rho, level = 0.9, 1 - 0.10 / 3
+    C = np.linalg.cholesky(np.full((3, 3), rho) + (1 - rho) * np.eye(3))
+    joint = 0
+    for s in range(samples):
+        Z = np.random.default_rng(5000 + s).normal(0, 1, (months, 3)) @ C.T
+        joint += all(es.vol_ratio_interval(Z[:, k], block=block, n_boot=n_boot, level=level, seed=s)["contains_1"] for k in range(3))
+    out["simultaneous_0.90_three_levels"] = joint / samples
+    out["correlation_between_levels"] = rho
     for name, level in (("nominal_0.90", 0.90), ("nominal_0.967", 1 - 0.10 / 3)):
         hits = sum(
             es.vol_ratio_interval(np.random.default_rng(1000 + s).normal(0, 1, months), block=block, n_boot=n_boot, level=level, seed=s)[

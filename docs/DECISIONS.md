@@ -269,6 +269,18 @@ after required changes.
 | E5 records the delta builds but not the registered agreement | true | the volatility gap to delta 2.5 and whether it is within twice the tolerance are recorded |
 | Sub-study (i) lacks a 180-month arm | false: the 180-month arm is the main grid's level-3 robokit row in world b, the same replications; the summary groups by months | the plan says so |
 
+**Stage 1, seventh round (8 Oct 2026).** The third-family examiner: accept as is, with two recommendations. The
+first examiner's review was cut off by its model pool's usage limit before its final message; its recorded reasoning
+re-checked the round-6 fixes as holding and raised the points below, which were checked and ruled on like any finding.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The interval check covers one interval, but "delivered" needs three at once | true | the run also measures the joint coverage of three simultaneous intervals on series correlated 0.9 |
+| The 54 deflated-Sharpe trials are in the plan but not in results.json | true | the inventory is written beside the deflated Sharpe ratios |
+| (Cut-off review) The QIS rule's `all(...)` runs over the truths present, so a truth with no samples would pass unseen | true (not reachable today: a failed sample stops the run) | the rule and the full-sample check run over the registered truths by name |
+| (Cut-off review) `static_mix` is called risk-matched but holds a fixed stock share | true (wording): it is matched by construction, not calibrated | the plan says so; its ex-ante gap is reported |
+| (Cut-off review) E6 starts at the first E1 target, later than the first common price | true (wording) | the plan says the account starts once a target exists |
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).
