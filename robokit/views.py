@@ -89,3 +89,95 @@ def bound_tilt(
         "tracking_error_after": round(te * s, 4),
         "budget": {"tracking_error": te_budget, "per_fund": max_tilt},
     }
+
+
+def _refill(w: np.ndarray, room: np.ndarray, mass: float) -> np.ndarray | None:
+    """Give ``mass`` back to the held funds in proportion to their weights, never past ``room``; None if it cannot."""
+    w = w.copy()
+    for _ in range(100):
+        if mass <= 1e-12:
+            return w
+        live = (w > 0) & (room - w > 1e-12)
+        if not live.any():
+            return None
+        add = np.minimum(mass * w[live] / w[live].sum(), (room - w)[live])
+        w[live] += add
+        mass -= float(add.sum())
+    return w if mass <= 1e-9 else None
+
+
+def bound_tilt_clean(
+    w0: pd.Series,
+    w1: pd.Series,
+    sigma: np.ndarray,
+    min_weight: float = 0.0,
+    protected: set[str] | None = None,
+    ub: pd.Series | None = None,
+    groups: list[tuple[list[str], float]] | None = None,
+    te_budget: float = TE_BUDGET,
+    max_tilt: float = MAX_TILT,
+) -> tuple[pd.Series, dict]:
+    """The bounded tilt of ``bound_tilt``, with the portfolio rules applied to the result.
+
+    After the move w0 + s (w1 - w0), positions under ``min_weight`` are removed (never the ``protected`` ones:
+    forced funds and positions the no-view mix holds below the minimum on purpose), and their weight goes back
+    to the held funds in proportion, never past a fund's limit ``ub``. The scale s is the largest value in
+    [0, s_max] whose result keeps the tracking error and the largest move within budget, every weight within
+    its limit and each group within its cap. If no s > 0 works, the result is w0 itself (scale 0)."""
+    protected = protected or set()
+    names = list(w0.index)
+    ubv = np.ones(len(names)) if ub is None else ub.reindex(names).fillna(1.0).to_numpy()
+    w0v = w0.to_numpy()
+    d = (w1 - w0).to_numpy()
+    te = float(np.sqrt(max(d @ sigma @ d, 0.0)))
+    biggest = float(np.abs(d).max()) if len(d) else 0.0
+    s_max = 1.0
+    if te > te_budget:
+        s_max = min(s_max, te_budget / te)
+    if biggest > max_tilt:
+        s_max = min(s_max, max_tilt / biggest)
+
+    def clean(s: float) -> tuple[np.ndarray | None, list[str]]:
+        w = np.clip(w0v + s * d, 0.0, None)
+        small = [i for i, t in enumerate(names) if 0 < w[i] < min_weight - 1e-9 and t not in protected] if min_weight > 0 else []
+        if not small:
+            return w / w.sum(), []
+        mass = float(w[small].sum())
+        w[small] = 0.0
+        if not (w > 0).any():
+            return None, []
+        return _refill(w, ubv, mass), [names[i] for i in small]
+
+    def ok(w: np.ndarray | None) -> bool:
+        if w is None or not np.isfinite(w).all() or abs(w.sum() - 1.0) > 1e-9:
+            return False
+        dd = w - w0v
+        if float(np.sqrt(max(dd @ sigma @ dd, 0.0))) > te_budget + 1e-9 or float(np.abs(dd).max()) > max_tilt + 1e-9:
+            return False
+        if (w > ubv + 1e-9).any():
+            return False
+        return all(float(sum(w[names.index(t)] for t in m if t in names)) <= cap + 1e-9 for m, cap in (groups or []))
+
+    s, (w, small) = s_max, clean(s_max)
+    if not ok(w):  # search down to the largest scale whose result obeys every rule
+        lo, hi = 0.0, s_max
+        for _ in range(50):
+            mid = 0.5 * (lo + hi)
+            if ok(clean(mid)[0]):
+                lo = mid
+            else:
+                hi = mid
+        s, (w, small) = lo, clean(lo)
+        if lo == 0.0 or not ok(w):  # nothing works: the no-view mix, exactly
+            s, w, small = 0.0, w0v.copy(), []
+    w = pd.Series(w, index=names)
+    dd = (w - w0).to_numpy()
+    return w, {
+        "tracking_error_before": round(te, 4),
+        "largest_move_before": round(biggest, 4),
+        "scale": round(s, 4),
+        "tracking_error_after": round(float(np.sqrt(max(dd @ sigma @ dd, 0.0))), 4),
+        "largest_move_after": round(float(np.abs(dd).max()) if len(dd) else 0.0, 4),
+        "dropped_after_tilt": [t for t in small if w0.get(t, 0.0) > 0 or w1.get(t, 0.0) > 0],
+        "budget": {"tracking_error": te_budget, "per_fund": max_tilt, "min_weight": min_weight},
+    }

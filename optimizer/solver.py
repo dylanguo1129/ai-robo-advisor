@@ -30,7 +30,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from .errors import InfeasibleConstraints, SolverNotConverged
+
 EPS = 1e-12
+KKT_TOL = 1e-6  # projected-gradient residual accepted when the iteration limit is reached
 
 
 def project_weighted_capped_simplex(x: np.ndarray, a: np.ndarray, cap: np.ndarray, total: float = 1.0, tol: float = 1e-13) -> np.ndarray:
@@ -43,7 +46,9 @@ def project_weighted_capped_simplex(x: np.ndarray, a: np.ndarray, cap: np.ndarra
     a = np.asarray(a, dtype=float)
     cap = np.asarray(cap, dtype=float)
     if a @ cap < total - 1e-9:
-        raise ValueError(f"infeasible: a'cap = {a @ cap:.4f} < {total}")
+        raise InfeasibleConstraints(
+            f"infeasible: a'cap = {a @ cap:.4f} < {total}", {"kind": "caps", "capacity": float(a @ cap), "needed": float(total)}
+        )
     lo = float(((x - cap) / a).min()) - 1.0
     hi = float((x / a).max()) + 1.0
     for _ in range(200):
@@ -79,7 +84,12 @@ def project_with_group_cap(x: np.ndarray, a: np.ndarray, cap: np.ndarray, total:
         return v
     rest = ~mask
     room_rest = float(a[rest] @ cap[rest])
-    g = max(group_cap, total - room_rest)  # the rest cannot absorb more than its caps
+    if group_cap < total - room_rest - 1e-9:  # the rest cannot absorb what the group may not hold: fail closed
+        raise InfeasibleConstraints(
+            f"infeasible: group cap {group_cap:.4f} plus room in the other funds {room_rest:.4f} is below {total:.4f}",
+            {"kind": "group_cap", "group_cap": float(group_cap), "room_rest": float(room_rest), "needed": float(total)},
+        )
+    g = group_cap
     out = np.zeros_like(v)
     if g > 1e-15:
         out[mask] = project_weighted_capped_simplex(x[mask], a[mask], cap[mask], g)
@@ -116,20 +126,33 @@ def solve_qp_pgd(
     tol: float = 1e-10,
     w0: np.ndarray | None = None,
     group_cap: tuple[np.ndarray, float] | None = None,
+    info: dict | None = None,
 ) -> np.ndarray:
     """FISTA (with adaptive restart) on the box-and-budget constrained QP,
     run in the diagonally preconditioned space described in the module doc.
 
-    ``group_cap = (mask, hi)`` adds sum(w[mask]) <= hi (the satellite cap)."""
+    ``group_cap = (mask, hi)`` adds sum(w[mask]) <= hi (the satellite cap).
+    ``info``, when given, receives the iteration count, whether the step
+    tolerance was met and the final projected-gradient residual. A solve that
+    hits ``max_iter`` with a residual above ``KKT_TOL`` raises
+    ``SolverNotConverged`` instead of returning an unfinished answer."""
     sigma = np.asarray(sigma, dtype=float)
     mu = np.asarray(mu, dtype=float)
     n = len(mu)
     lb = np.zeros(n) if lb is None else np.asarray(lb, dtype=float)
     ub = np.ones(n) if ub is None else np.asarray(ub, dtype=float)
+    if not (np.isfinite(sigma).all() and np.isfinite(mu).all() and np.isfinite(lam)):
+        raise ValueError("Sigma, mu and lam must be finite")
     if (lb < -EPS).any() or (ub < lb - EPS).any():
         raise ValueError("need 0 <= lb <= ub")
     if lb.sum() > 1 + 1e-9:
-        raise ValueError(f"infeasible: lower bounds sum to {lb.sum():.4f} > 1")
+        raise InfeasibleConstraints(
+            f"infeasible: lower bounds sum to {lb.sum():.4f} > 1", {"kind": "minimums", "minimums_total": float(lb.sum())}
+        )
+    if ub.sum() < 1 - 1e-9:
+        raise InfeasibleConstraints(
+            f"infeasible: upper bounds sum to {ub.sum():.4f} < 1", {"kind": "caps", "capacity": float(ub.sum()), "needed": 1.0}
+        )
     if lam <= EPS:
         return _greedy_max_return(mu, lb, ub)
 
@@ -152,6 +175,11 @@ def solve_qp_pgd(
     if group_cap is not None:
         gmask = np.asarray(group_cap[0], dtype=bool)
         ghi = float(group_cap[1]) - float(lb[gmask].sum())  # in shifted (u) units; a'v = sum u
+        if ghi < -1e-9:
+            raise InfeasibleConstraints(
+                f"infeasible: minimums inside the group add to {lb[gmask].sum():.4f}, above its cap {group_cap[1]:.4f}",
+                {"kind": "group_minimums", "group_cap": float(group_cap[1]), "group_minimums": float(lb[gmask].sum())},
+            )
 
         def proj(z):
             return project_with_group_cap(z, a, capv, mass, gmask, max(ghi, 0.0))
@@ -164,7 +192,8 @@ def solve_qp_pgd(
     v = proj(v0)
     y = v.copy()
     t_k = 1.0
-    for _ in range(max_iter):
+    converged, it = False, 0
+    for it in range(1, max_iter + 1):  # noqa: B007 (the count is reported after the loop)
         grad = lam * corr @ y + g_lin
         v_next = proj(y - step * grad)
         dv = v_next - v
@@ -179,6 +208,12 @@ def solve_qp_pgd(
         v = v_next
         if converged:
             break
+    # certificate: the projected-gradient step from the answer, in weight units (zero at the optimum)
+    resid = float(np.abs((v - proj(v - step * (lam * corr @ v + g_lin))) / d).max())
+    if info is not None:
+        info.update({"iterations": it, "converged": bool(converged), "residual": resid})
+    if not converged and resid > KKT_TOL:
+        raise SolverNotConverged(f"FISTA stopped after {it} iterations with residual {resid:.2e}", {"iterations": it, "residual": resid})
     w = v / d + lb
     w = np.clip(w, lb, ub)
     return w / w.sum()
@@ -219,9 +254,26 @@ def solve_qp_slsqp(
             cons.append({"type": "ineq", "fun": (lambda w, m=m, lo=lo: m @ w - lo), "jac": (lambda w, m=m: m)})
         if hi is not None and hi < 1:
             cons.append({"type": "ineq", "fun": (lambda w, m=m, hi=hi: hi - m @ w), "jac": (lambda w, m=m: -m)})
-    x0 = solve_qp_pgd(sigma, mu, lam, lb, ub, max_iter=2000, tol=1e-8) if w0 is None else np.asarray(w0, dtype=float)
+    if w0 is None:
+        try:
+            x0 = solve_qp_pgd(sigma, mu, lam, lb, ub, max_iter=2000, tol=1e-8)
+        except SolverNotConverged:  # a warm start only; SLSQP is checked below
+            x0 = np.clip(np.full(n, 1.0 / n), lb, ub)
+    else:
+        x0 = np.asarray(w0, dtype=float)
     res = minimize(f, x0, jac=g, bounds=list(zip(lb, ub)), constraints=cons, method="SLSQP", options={"maxiter": 2000, "ftol": 1e-15})
     w = np.clip(res.x, lb, ub)
+    # fail closed: SLSQP sometimes reports a line-search warning at the optimum, so accept a non-success
+    # status only when the answer is feasible and no worse than the warm start
+    viol = abs(w.sum() - 1.0)
+    for mask, lo, hi in group_bounds or []:
+        s = float(np.asarray(mask, dtype=float) @ w)
+        viol = max(viol, (lo or 0.0) - s, s - (hi if hi is not None else 1.0))
+    if viol > 1e-7 or (not res.success and f(w) > f(np.clip(x0, lb, ub)) + 1e-12):
+        raise SolverNotConverged(
+            f"SLSQP did not converge: {res.message} (constraint violation {viol:.1e})",
+            {"message": str(res.message), "violation": float(viol)},
+        )
     return w / w.sum()
 
 

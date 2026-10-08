@@ -14,6 +14,7 @@ export_web_spec                   JSON hand-off for the browser prototype.
 """
 
 from .data import download_prices, load_prices, to_monthly_returns
+from .errors import InfeasibleConstraints, SolverNotConverged
 from .estimators import (
     black_litterman_posterior,
     equilibrium_returns,
@@ -30,6 +31,8 @@ from .solver import project_capped_simplex, solve_qp
 __all__ = [
     "RoboKitOptimizer",
     "OptimizationResult",
+    "InfeasibleConstraints",
+    "SolverNotConverged",
     "RiskProfiles",
     "download_prices",
     "load_prices",

@@ -82,6 +82,35 @@ def price_stats(close: pd.DataFrame, volume: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+JUMP_LOG = float(np.log(2.0))  # a one-month doubling or halving
+JUMP_FROM = "2000-01-01"  # the history the engine and the web page use
+
+
+def price_jumps(R: pd.DataFrame, U: pd.DataFrame, candidates: pd.Series) -> dict[str, tuple]:
+    """Funds whose monthly total return at least doubled or halved in a month when similar funds did not.
+
+    "Similar funds" are the candidates of the same market and asset class (at least five with data that
+    month); the gap is measured in log returns, so +100% and -50% count the same. A move this size is
+    either a data error, such as a unit consolidation priced as a return, or a fund too narrow for a
+    long-term portfolio; in both cases its history would dominate the risk estimate. Crypto is exempt.
+    Returns {ticker: (month, return, peer median return)} for the largest such month of each fund."""
+    Rw = R[R.index >= JUMP_FROM]
+    L = np.log1p(Rw.where(Rw > -1))
+    pool = U[candidates & U.yahoo.isin(Rw.columns) & (U.asset_class != "Crypto")]
+    out: dict[str, tuple] = {}
+    for _, g in pool.groupby(["market", "asset_class"]):
+        cols = list(g.yahoo)
+        peer = L[cols].median(axis=1)
+        n = L[cols].notna().sum(axis=1)
+        for t in cols:
+            gap = (L[t] - peer).abs().where((L[t].abs() >= JUMP_LOG) & (n >= 5))
+            gap = gap[gap >= JUMP_LOG]
+            if len(gap):
+                d = gap.idxmax()
+                out[t] = (d, float(np.expm1(L.at[d, t])), float(np.expm1(peer[d])))
+    return out
+
+
 def build_universe(save: bool = True) -> pd.DataFrame:
     L = dedupe_canada(load_listings())
     C = classify(L)
@@ -119,6 +148,14 @@ def build_universe(save: bool = True) -> pd.DataFrame:
             why.append("no size or trading data")
         reasons.append("; ".join(why))
     U["excluded_because"] = reasons
+    # price-history integrity: a one-month doubling or halving that similar funds did not share
+    jumps = price_jumps(monthly_returns(close), U, U["excluded_because"] == "")
+    for t, (d, r, peer) in jumps.items():
+        i = U.index[U.yahoo == t]
+        U.loc[i, "excluded_because"] = (
+            f"its price history moved {r:+.0%} in {pd.Timestamp(d):%b %Y} while similar funds moved {peer:+.0%}: "
+            "either a data error such as an unadjusted unit split, or a fund too narrow for a long-term portfolio"
+        )
     U["eligible"] = U["excluded_because"] == ""
     # Funds that pass but carry extra risk are allowed only as satellites (see engine guardrails).
     U["satellite_only"] = U["eligible"] & (

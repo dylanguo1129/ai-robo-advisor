@@ -9,7 +9,7 @@ const mk = { CA: new Market(core, JSON.parse(readFileSync(new URL('data/ca.json'
 let fails = 0;
 for (const c of core.reference_cases) {
   const q = c.request; const t0 = Date.now();
-  const p = buildPortfolio(mk[q.market], { risk_level: q.risk_level, satellites: q.satellites || [], views: q.views || [], swaps: q.swaps || {}, hedgeUsEquity: !!q.hedge_us_equity, fixedWeights: q.fixed_weights || null, minimums: q.minimums || {}, resample: false });
+  const p = buildPortfolio(mk[q.market], { risk_level: q.risk_level, satellites: q.satellites || [], views: q.views || [], swaps: q.swaps || {}, hedgeUsEquity: !!q.hedge_us_equity, fixedWeights: q.fixed_weights || null, minimums: q.minimums || {}, maxWeight: q.max_weight ?? 0.5, onInfeasible: q.on_infeasible || 'refuse', sleeves: q.sleeves ?? null, minWeight: q.min_weight ?? 0.02, satelliteMaxEach: q.satellite_max_each ?? 0.10, ...(q.target_vol != null ? { targetVol: q.target_vol } : {}), resample: false });
   const js = Object.fromEntries(p.holdings.map(h => [h.ticker, h.weight]));
   const keys = new Set([...Object.keys(js), ...Object.keys(c.weights)]);
   let maxd = 0; for (const k of keys) maxd = Math.max(maxd, Math.abs((js[k] || 0) - (c.weights[k] || 0)));

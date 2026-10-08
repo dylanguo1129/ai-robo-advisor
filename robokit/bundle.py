@@ -223,7 +223,38 @@ def reference_cases() -> list:
         dict(market="US", risk_level=4),
         dict(market="CA", risk_level=4, satellites=["XIT.TO", "ZEB.TO"]),
         dict(
-            market="US", risk_level=3, views=[{"type": "relative", "long": "IAUM", "short": "BND", "difference": 0.02, "confidence": 0.6}]
+            market="US", risk_level=3, views=[{"type": "relative", "long": "GLDM", "short": "BND", "difference": 0.02, "confidence": 0.6}]
+        ),
+        dict(
+            market="CA",
+            risk_level=3,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
+        ),
+        dict(market="CA", risk_level=3, max_weight=0.05, on_infeasible="relax"),
+        dict(market="CA", target_vol=0.03),
+        # review regressions (v3): both engines must agree on the hard cases too
+        dict(market="CA", risk_level=2, sleeves=["ca_agg_bond", "ca_short_bond", "ca_global_bond", "ca_cash"]),
+        dict(
+            market="CA",
+            risk_level=4,
+            max_weight=0.131,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
+        ),
+        dict(market="CA", risk_level=4, max_weight=0.3, min_weight=0.2),
+        dict(market="US", risk_level=5, max_weight=0.3, min_weight=0.1),
+        dict(market="CA", risk_level=5, satellites=["XIT.TO"], minimums={"XIT.TO": 0.15}, satellite_max_each=0.10, on_infeasible="relax"),
+        dict(
+            market="CA",
+            risk_level=5,
+            views=[{"type": "relative", "long": "VFV.TO", "short": "XIC.TO", "difference": 0.02, "confidence": 0.5}],
+        ),
+        dict(market="CA", risk_level=3, max_weight=0.094, on_infeasible="relax"),
+        dict(
+            market="CA",
+            risk_level=2.5,
+            max_weight=0.1,
+            min_weight=0.2,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
         ),
         dict(market="CA", risk_level=3, hedge_us_equity=True),
         dict(market="CA", risk_level=4, swaps={"ca_us_equity": "VSP.TO"}),

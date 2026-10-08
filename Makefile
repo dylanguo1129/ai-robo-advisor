@@ -31,6 +31,7 @@ test-web:  ## browser-engine tests (node)
 	node web/test_assistant.mjs
 	node web/test_engine.mjs
 	node web/test_robokit.mjs
+	node web/test_safety.mjs
 
 test-ui:  ## browser regression tests (Playwright; needs a Chromium-based browser: python -m playwright install chromium)
 	$(PY) -m pytest -m ui -q tests/ui
