@@ -586,34 +586,61 @@ def build_portfolio(req: Request | dict) -> dict:
             relax_order=relax_order,
         )
 
-    views_info, lam, band, dropped, relaxations, views_applied = None, None, None, [], [], False
+    views_info, lam, band, dropped, relaxations, views_applied, calibration = None, None, None, [], [], False, None
     if fixed:  # the person's own weights: no optimisation, same report
         w = pd.Series({t: fixed.get(t, 0.0) for t in tickers}, dtype=float)
         w = w[w > 0] / w[w > 0].sum()
     else:
         try:
-            lam, _, reach = _calibrate(lambda lam_: solve(opt, lam_), tv)
+            lam_point, _, _ = _calibrate(lambda lam_: solve(opt, lam_), tv)
         except InfeasibleConstraints as e:
             raise _plain_infeasible(e, sat_cap) from None
-        if reach:
-            notes.append(reach)
-        res = solve(opt, lam, resample=req.resample, n_boot=req.n_boot)
-        relaxations = list(res.relaxations)
         # the limits as applied (relaxed ones included): smaller lists tried when dropping small positions must fit inside them
         _, ub_a, _ = opt._bounds(tickers, req.max_weight, forced, list(req.exclude or []), caps, on_inf, relax_order)
         caps_applied = {t: float(u) for t, u in zip(tickers, ub_a)}
-        group_applied = group
-        for r in relaxations:
-            if r["limit"] == "group" and group:
-                group_applied = {"satellites": (ok_sats, 0.0, r["applied"])}
-        w, res, dropped = _drop_small(
-            res,
-            req,
-            forced,
-            lambda tick: solve(opt, lam, tick, req.resample, req.n_boot, caps_applied, group_applied, "raise"),
-            tickers,
-            notes,
+
+        def final(lam_):
+            """The mix the person gets at this lambda: resampled, then the minimum position applied. The bootstrap is
+            seeded the same way on every call, so every lambda sees the same resampled histories."""
+            res_ = solve(opt, lam_, resample=req.resample, n_boot=req.n_boot)
+            rel_ = list(res_.relaxations)
+            grp_ = group
+            for r in rel_:
+                if r["limit"] == "group" and group:
+                    grp_ = {"satellites": (ok_sats, 0.0, r["applied"])}
+            notes_ = []
+            w_, res_, dropped_ = _drop_small(
+                res_,
+                req,
+                forced,
+                lambda tick: solve(opt, lam_, tick, req.resample, req.n_boot, caps_applied, grp_, "raise"),
+                tickers,
+                notes_,
+            )
+            return {
+                "lam": float(lam_),
+                "w": w_,
+                "res": res_,
+                "dropped": dropped_,
+                "notes": notes_,
+                "relaxations": rel_,
+                "group": grp_,
+                "vol": _mix_vol(w_, opt.sigma),
+            }
+
+        fin, calibration = _calibrate_final(final, tv, final(lam_point))
+        lam, w, res, dropped, relaxations, group_applied = (
+            fin["lam"],
+            fin["w"],
+            fin["res"],
+            fin["dropped"],
+            fin["relaxations"],
+            fin["group"],
         )
+        reach = _reach_note(tv, fin["vol"], lam)
+        if reach:
+            notes.append(reach)
+        notes.extend(fin["notes"])
         band = res.weight_band
         if cash_t is not None and float(w.get(cash_t, 0.0)) > 0.5:
             c = float(w[cash_t])
@@ -798,6 +825,7 @@ def build_portfolio(req: Request | dict) -> dict:
             "target_vol": None if tv is None else round(tv, 4),
             "achieved_vol": round(vol, 4),
             "lambda": None if lam is None else round(float(lam), 4),
+            "calibration": calibration,
             "source": level_src,
             "chosen_level": req.risk_level,
             "cash_cap": prof.cash_cap(lvl10),
@@ -942,9 +970,95 @@ def _drop_small(res, req: Request, forced: dict, resolve, tickers: list[str], no
     return w, res, dropped
 
 
+LAM_LO, LAM_HI = 0.05, 2000.0
+CAL_TOL = 5e-5  # final-pipeline volatility within 0.005 points of the target
+CAL_MAX = 8  # final-pipeline evaluations at most (each one is a full resampled build)
+
+
+def _mix_vol(w: pd.Series, sigma: pd.DataFrame) -> float:
+    """Volatility of the held mix (weights above 1e-6, renormalised) under the model covariance."""
+    w = w[w > 1e-6]
+    w = w / w.sum()
+    s = sigma.loc[w.index, w.index].to_numpy()
+    return float(np.sqrt(w.to_numpy() @ s @ w.to_numpy()))
+
+
+def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
+    """Risk aversion for the mix the person gets, not for the single solve (Scherer 2002: averaging resampled
+    portfolios and dropping small positions move the risk off the target the single solve was calibrated to).
+
+    Safeguarded secant on f(u) = log(vol / target), u = log(lambda), starting from the single-solve lambda. The first
+    step assumes vol is proportional to 1/lambda; later steps use the secant, replaced by the middle of the bracket
+    when they leave it. Every evaluation uses the same bootstrap draws, so f is a deterministic function of lambda.
+    The closest mix seen is kept. web/robokit.js calibrateFinal is the same algorithm."""
+    lu, hu = float(np.log(LAM_LO)), float(np.log(LAM_HI))
+    best, evals, seen = first, 1, {float(np.log(first["lam"]))}
+    a = b = None  # bracket: a = largest u with vol above target, b = smallest u with vol below
+
+    def f_of(fx):
+        return float(np.log(max(fx["vol"], 1e-12) / target))
+
+    def mark(u, f):
+        nonlocal a, b
+        if f > 0:
+            a = u if a is None else max(a, u)
+        elif f < 0:
+            b = u if b is None else min(b, u)
+
+    u0 = float(np.log(first["lam"]))
+    f0 = f_of(first)
+    mark(u0, f0)
+    u1 = min(hu, max(lu, u0 + f0))
+    while abs(best["vol"] - target) > CAL_TOL and evals < CAL_MAX and u1 not in seen:
+        cur = final(float(np.exp(u1)))
+        evals += 1
+        seen.add(u1)
+        f1 = f_of(cur)
+        mark(u1, f1)
+        if abs(cur["vol"] - target) < abs(best["vol"] - target):
+            best = cur
+        if f1 == f0:
+            if a is None or b is None:
+                break
+            u2 = 0.5 * (a + b)
+        else:
+            u2 = u1 - f1 * (u1 - u0) / (f1 - f0)
+        if a is not None and b is not None and not (a < u2 < b):
+            u2 = 0.5 * (a + b)
+        u0, f0, u1 = u1, f1, min(hu, max(lu, u2))
+    info = {
+        "method": "final pipeline (resampled, minimum position applied), secant on log lambda",
+        "lambda_single_solve": round(first["lam"], 4),
+        "evaluations": evals,
+        "target_vol": round(target, 6),
+        "achieved_vol": round(best["vol"], 6),
+        "within_tolerance": bool(abs(best["vol"] - target) <= CAL_TOL),
+    }
+    return best, info
+
+
+def _reach_note(target: float, vol: float, lam: float) -> dict | None:
+    """Say so when the mix cannot be brought to the level's target (checked on the final mix)."""
+    if vol < target - 0.005 and lam <= LAM_LO * (1 + 1e-9):
+        return _note(
+            f"The funds on this list cannot reach the {target:.1%} volatility this level aims for; the riskiest mix they allow is {vol:.1%}."
+        )
+    if vol > target + 0.005 and lam >= LAM_HI * (1 - 1e-9):
+        return _note(
+            f"Even the steadiest mix of these funds swings about {vol:.1%} a year, above the {target:.1%} this level aims for. "
+            "Adding cash or short-term bonds would bring it down."
+        )
+    if abs(vol - target) > 0.005:
+        return _note(
+            f"This mix swings about {vol:.1%} a year against the {target:.1%} this level aims for: with the minimum position size, "
+            "the risk moves in steps as funds enter or leave the mix."
+        )
+    return None
+
+
 def _calibrate(solve, target: float) -> tuple[float, float, dict | None]:
     """Bisection on log(lambda): volatility falls as lambda rises."""
-    lo, hi = 0.05, 2000.0
+    lo, hi = LAM_LO, LAM_HI
     v_lo = solve(lo).exp_vol
     v_hi = solve(hi).exp_vol
     if target >= v_lo:

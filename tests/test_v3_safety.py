@@ -244,14 +244,14 @@ def test_tools_relax_limits_on_request():
 
 
 # ------------------------------------------------------------------ the reference mix (local data); v3 safety left the point mix unchanged
-REFERENCE_L3 = {  # v3: the resampling draws come from the generator both engines share (optimizer/rng.py)
-    "VFV.TO": 0.2280,
-    "ZAG.TO": 0.1994,
-    "XIC.TO": 0.1606,
-    "CASH.TO": 0.0984,
-    "FLUR.NE": 0.0937,
-    "XSB.TO": 0.0914,
-    "VBU.NE": 0.0663,
+REFERENCE_L3 = {  # v3: shared draws (optimizer/rng.py) and lambda calibrated on the final pipeline
+    "VFV.TO": 0.2283,
+    "ZAG.TO": 0.1996,
+    "XIC.TO": 0.1607,
+    "CASH.TO": 0.0975,
+    "FLUR.NE": 0.0938,
+    "XSB.TO": 0.0915,
+    "VBU.NE": 0.0664,
     "VEE.TO": 0.0395,
     "XRE.TO": 0.0227,
 }

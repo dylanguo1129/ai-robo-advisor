@@ -33,8 +33,10 @@ from . import __version__, cma, glossary
 from . import profile as prof
 from .config import OUTPUT_DIR, ROOT
 from .engine import ONE_FUND, SLEEVE_CAPS, Request, _load, build_portfolio, returns_in, risk_free, snapshot_id, us_rates
+from .errors import RoboKitInputError
 from .history import PROXIES, proxies_for
 from .projection import DISCLOSURE as PROJ_DISCLOSURE
+from .rebalance import rebalance
 from .shelf import PRIOR, candidates, prior_share, sleeves_for
 from .signals import market_flags, news_digest
 from .stress import SCENARIOS
@@ -265,6 +267,51 @@ def qis_checks() -> list:
     return out
 
 
+def rebalance_cases() -> list:
+    """Rebalancer inputs and Python outputs for the JavaScript parity test: hand-made accounts plus seeded random ones."""
+    T = {"XIC.TO": 0.3, "ZAG.TO": 0.4, "VFV.TO": 0.25, "CASH.TO": 0.05}
+    P = {"XIC.TO": 40.12, "ZAG.TO": 13.9, "VFV.TO": 150.3, "CASH.TO": 50.0, "OLD": 20.0}
+    U = {"XIC.TO": 300, "ZAG.TO": 500, "VFV.TO": 40, "CASH.TO": 20, "OLD": 50}
+    cases = [
+        dict(targets=T, units={}, prices=P, opts=dict(flow=25_000.0)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=5_000.0)),
+        dict(targets=T, units=U, prices=P, opts=dict()),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=-8_000.0)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=5_000.0, cash_reserve=500.0, min_trade=0.0)),
+        dict(targets=T, units=U, prices=P, opts=dict(whole_units=False, min_trade=0.0)),
+        dict(targets=T, units={"XIC.TO": 200, "ZAG.TO": 760, "VFV.TO": 44, "CASH.TO": 26}, prices=P, opts=dict(flow=60.0)),
+        dict(targets=T, units={}, prices=P, opts=dict(flow=1_000_000.0, adv={"XIC.TO": 5_000_000.0, "ZAG.TO": 100_000_000.0})),
+    ]
+    r = Mulberry32(2026)
+    for _ in range(40):
+        k = 2 + int(r() * 6)
+        names = [f"F{i}" for i in range(k)]
+        raw = [0.05 + r() for _ in names]
+        w = [round(v / sum(raw), 4) for v in raw]
+        w[-1] = round(1 - sum(w[:-1]), 4)
+        prices = {t: round(5 + 295 * r(), 2) for t in names}
+        units = {t: float(int(400 * r())) for t in names if r() < 0.8}
+        held = sum(units[t] * prices[t] for t in units)
+        u = r()
+        flow = 0.0 if u < 0.3 else round(100 + 20_000 * r(), 2) if u < 0.65 else -round(0.9 * r() * held, 2)
+        cases.append(
+            dict(
+                targets=dict(zip(names, w)),
+                units=units,
+                prices=prices,
+                opts=dict(cash=round(500 * r(), 2), flow=flow, min_trade=[0.0, 25.0, 100.0][int(r() * 3)]),
+            )
+        )
+    out = []
+    for c in cases:
+        try:
+            res = rebalance(c["targets"], c["units"], c["prices"], **c["opts"])
+        except RoboKitInputError as e:
+            res = {"error": str(e)}
+        out.append({**c, "result": res})
+    return out
+
+
 def reference_cases() -> list:
     """Python results with resampling off, for the JavaScript parity test."""
     cases = [
@@ -326,6 +373,7 @@ def reference_cases() -> list:
                 "weights": {h["ticker"]: h["weight"] for h in p["holdings"]},
                 "volatility": p["stats"]["volatility"],
                 "lambda": p["risk"]["lambda"],
+                "calibration": p["risk"]["calibration"],
                 "target_vol": p["risk"]["target_vol"],
                 "window": p["window"],
                 "planning_return_net": {h["ticker"]: h["planning_return_net"] for h in p["holdings"]},
@@ -362,6 +410,7 @@ def resampled_cases() -> list:
                 "weights": {h["ticker"]: h["weight"] for h in p["holdings"]},
                 "bands": {h["ticker"]: h["band"] for h in p["holdings"]},
                 "volatility": p["stats"]["volatility"],
+                "calibration": p["risk"]["calibration"],
                 "projection": {
                     k: pr.get(k) for k in ("final", "one_year", "yearly", "by_holding_period", "withdrawal", "chance_need_to_adjust")
                 },
@@ -428,6 +477,7 @@ def export_bundle(with_reference: bool = True) -> dict:
         "reference_cases": reference_cases() if with_reference else [],
         "resampled_cases": resampled_cases() if with_reference else [],
         "qis_checks": qis_checks() if with_reference else [],
+        "rebalance_cases": rebalance_cases() if with_reference else [],
     }
     (WEB_DATA / "core.json").write_text(json.dumps(core, separators=(",", ":"), default=str), encoding="utf-8")
     if with_reference:  # test fixture only: not part of the published page data

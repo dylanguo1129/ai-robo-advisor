@@ -1,7 +1,7 @@
 // Parity test: the browser engine (web/robokit.js) against the Python engine (reference cases in web/data/core.json).
 // Run: node web/test_robokit.mjs
 import { readFileSync } from 'node:fs';
-import { Market, buildPortfolio, scoreProfile, oneFund } from './robokit.js';
+import { Market, buildPortfolio, scoreProfile, oneFund, rebalance } from './robokit.js';
 import { mulberry32, qis } from './engine.js';
 
 const here = new URL('.', import.meta.url);
@@ -28,7 +28,10 @@ for (const c of core.reference_cases) {
     return JSON.stringify([[...out].sort(), rest]); };
   const sameNotes = !c.notes || JSON.stringify(p.notes) === JSON.stringify(c.notes) || (c.checks.includes('near_duplicate') && unheld(p.notes) === unheld(c.notes));
   const sameChecks = !c.checks || JSON.stringify(p.checks.map(x => x.id)) === JSON.stringify(c.checks);
-  const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks;
+  // final-pipeline calibration: the same number of steps and the same volatility reached (null for own weights)
+  const pc = p.risk.calibration, cc = c.calibration;
+  const sameCal = (pc == null) === (cc == null) && (pc == null || (pc.evaluations === cc.evaluations && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance));
+  const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks && sameCal;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  dvol=${dv.toExponential(2)}  dstress=${ds.toExponential(2)}  window ${p.window.months}/${c.window.months}  ${Date.now() - t0} ms`);
   if (!ok) console.log('   js', js, p.notes, p.checks.map(x => x.id), '\n   py', c.weights, c.notes, c.checks);
@@ -50,7 +53,9 @@ for (const c of core.resampled_cases || []) {
   for (const h of C.by_holding_period) { const z = P.by_holding_period.find(v => v.years === h.years); for (const k of ['p10', 'p50', 'p90']) dr = Math.max(dr, z ? Math.abs(z[k] - h[k]) : Infinity); }
   if (C.chance_need_to_adjust != null) dr = Math.max(dr, Math.abs(P.chance_need_to_adjust - C.chance_need_to_adjust));
   if (C.withdrawal) dr = Math.max(dr, Math.abs(P.withdrawal.chance_lasts - C.withdrawal.chance_lasts), Math.abs(P.withdrawal.p50_months - C.withdrawal.p50_months) / C.withdrawal.months);
-  const ok = maxd <= 2e-3 && maxb <= 5e-3 && Math.abs(p.stats.volatility - c.volatility) <= 1e-3 && dr <= 5e-3 && dm <= 5e-3;
+  const pc = p.risk.calibration, cc = c.calibration;
+  const sameCal = pc.evaluations === cc.evaluations && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance;
+  const ok = maxd <= 2e-3 && maxb <= 5e-3 && Math.abs(p.stats.volatility - c.volatility) <= 1e-3 && dr <= 5e-3 && dm <= 5e-3 && sameCal;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} resampled ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  max|dband|=${maxb.toExponential(2)}  projection: returns ${dr.toExponential(2)}, money ${dm.toExponential(2)}  ${Date.now() - t0} ms`);
 }
@@ -62,6 +67,21 @@ for (const c of core.qis_checks || []) {
   const ok = md / mx < 1e-10; if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} QIS T=${c.t} N=${c.n}  max|dSigma|/max|Sigma| = ${(md / mx).toExponential(2)}`);
 }
+// rebalancer: the same orders as Python on hand-made and seeded random accounts (robokit/bundle.py rebalance_cases)
+const camel = { cash: 'cash', flow: 'flow', min_trade: 'minTrade', cash_reserve: 'cashReserve', whole_units: 'wholeUnits', adv: 'adv' };
+let rb = 0, rbn = 0;
+for (const c of core.rebalance_cases || []) {
+  rbn++;
+  const o = Object.fromEntries(Object.entries(c.opts).map(([k, v]) => [camel[k], v])); let res;
+  try { res = rebalance(c.targets, c.units, c.prices, o); } catch (e) { res = { error: e.message }; }
+  const P = c.result; let ok;
+  if (P.error || res.error) ok = P.error === res.error;
+  else ok = res.rows.length === P.rows.length && res.rows.every((x, i) => x.ticker === P.rows[i].ticker && x.action === P.rows[i].action && Math.abs(x.units - P.rows[i].units) < 1e-9
+    && JSON.stringify(x.reason) === JSON.stringify(P.rows[i].reason) && (x.liquidity_flag ?? null) === (P.rows[i].liquidity_flag ?? null))
+    && Math.abs(res.cash_after - P.cash_after) <= 0.011 && Math.abs(res.traded - P.traded) <= 0.011 && JSON.stringify(res.notes) === JSON.stringify(P.notes);
+  if (!ok) { rb++; if (rb <= 3) console.log('   rebalance differs', JSON.stringify(c).slice(0, 300), '\n   js', JSON.stringify(res).slice(0, 600), '\n   py', JSON.stringify(P).slice(0, 600)); }
+}
+console.log(`${rb ? 'FAIL' : 'ok  '} rebalancer on ${rbn} accounts, ${rb} differ`); if (rb) fails++;
 // profile scorer: every Python-scored random answer set must come out identical
 const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
 let pf = 0;
