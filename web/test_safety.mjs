@@ -64,5 +64,12 @@ for (const resample of [false, true]) {
 { const p = build({ risk_level: 3, minWeight: 0.25 }); const s = p.holdings.reduce((a, h) => a + h.weight, 0); check(Math.abs(s - 1) < 1e-3 && p.holdings.length > 0, 'large min_weight keeps a valid portfolio'); }
 check(throwsKind({ risk_level: 3, sleeves: [] }, 'input'), 'no funds left is an input error');
 
+// examination round 1 (tests/test_v3_exam_r1.py has the Python side)
+check(throwsKind({ minimums: [0.1] }, 'input') && throwsKind({ fixedWeights: [1] }, 'input'), 'a list where a map belongs is an input error');
+{ const p = build({ risk_level: 3, swaps: { ca_us_equity: 'BTCC-B.TO' } });  // a crypto fund cannot take a broad fund's slot
+  check(p.holdings.every(h => h.ticker !== 'BTCC-B.TO') && p.notes.some(n => n.en.includes('only as one of your own picks')), 'a satellite-only fund is not swapped into a core slot'); }
+{ const p = build({ risk_level: 3, swaps: { ca_us_equity: 'ZAG.TO' } });  // a bond fund cannot fill the US equity slot
+  check(p.notes.some(n => n.en.includes('does not hold what the slot holds')), 'a swap must keep the asset class and region of the slot'); }
+
 console.log(fails ? `${fails} safety check(s) FAILED` : 'all safety checks passed');
 if (fails) process.exit(1);

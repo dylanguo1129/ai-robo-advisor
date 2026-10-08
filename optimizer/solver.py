@@ -213,9 +213,8 @@ def solve_qp_pgd(
         info.update({"iterations": it, "converged": bool(converged), "residual": resid})
     if not converged and resid > KKT_TOL:
         raise SolverNotConverged(f"FISTA stopped after {it} iterations with residual {resid:.2e}", {"iterations": it, "residual": resid})
-    w = v / d + lb
-    w = np.clip(w, lb, ub)
-    return w / w.sum()
+    w = np.clip(v / d + lb, lb, ub)
+    return np.clip(w / w.sum(), lb, ub)  # the sum is 1 to rounding already; the clip keeps every bound exactly
 
 
 def solve_qp_slsqp(
@@ -273,7 +272,7 @@ def solve_qp_slsqp(
             f"SLSQP did not converge: {res.message} (constraint violation {viol:.1e})",
             {"message": str(res.message), "violation": float(viol)},
         )
-    return w / w.sum()
+    return np.clip(w / w.sum(), lb, ub)
 
 
 def solve_qp(

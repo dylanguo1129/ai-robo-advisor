@@ -502,5 +502,5 @@ def call(name: str, args: dict | None = None) -> dict:
         return {"error": "The optimizer did not reach an answer, so nothing was built.", "details": e.details}
     except TypeError as e:
         return {"error": f"bad arguments for {name}: {e}"}
-    except (ValueError, KeyError, IndexError) as e:
+    except (ValueError, KeyError, IndexError, AttributeError) as e:
         return {"error": f"{type(e).__name__}: {e}"}

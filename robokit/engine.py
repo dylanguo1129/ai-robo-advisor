@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, fields, replace
 from functools import lru_cache
 
@@ -76,7 +77,9 @@ class Request:
     market: str = "CA"
     risk_level: float | None = None  # 1..5 (Conservative .. Aggressive growth)
     target_vol: float | None = None
-    profile: str | None = None  # 'low' | 'mid' | 'high': the brief's presets (levels 2 / 3 / 4)
+    profile: str | None = (
+        None  # risk appetite 'low' | 'mid' | 'high' = levels 2 / 3 / 4 (or 'high_aversion' | 'mid_aversion' | 'low_aversion')
+    )
     prefer_esg: bool = False
     hedge_us_equity: bool = False
     sleeves: list[str] | None = None
@@ -188,6 +191,9 @@ def validate_request(req: Request | dict) -> Request:
         setattr(req, name, list(v))
     if not isinstance(req.swaps or {}, dict):
         raise RoboKitInputError("swaps must map a slot to a ticker.", {"field": "swaps"})
+    for k in ("minimums", "fixed_weights"):
+        if getattr(req, k) is not None and not isinstance(getattr(req, k), dict):
+            raise RoboKitInputError(f"{k} must map tickers to shares.", {"field": k})
     mins = {t: _share(v, f"minimum for {t}") for t, v in (req.minimums or {}).items()}
     if sum(mins.values()) > 1 + 1e-9:
         raise RoboKitInputError(f"The minimums add up to {_pct(sum(mins.values()))}, more than 100%.", {"field": "minimums"})
@@ -280,8 +286,39 @@ def data_source() -> str:
     return "local" if (DATA_DIR / "universe.pkl").exists() and (DATA_DIR / "close_monthly.pkl").exists() else "snapshot"
 
 
-@lru_cache(maxsize=1)
+_AS_OF: list = []  # active as-of dates (evaluation only; the product never sets one)
+
+
+@contextmanager
+def as_of(date, mode: str = "fixed"):
+    """Build as if today were the end of ``date``'s month (evaluation only).
+
+    mode 'strict': returns, exchange rates and interest rates stop there before anything is computed, so every
+    estimate, stand-in and back-fill uses only what was known then; a fund with no history yet cannot be used (pair it
+    with a point-in-time shelf and ``research={'stand_ins': False}``).
+    mode 'fixed': today's funds keep their stand-in histories (chosen with today's data, a disclosed look-ahead), but
+    the returns used for estimation, and the interest rate, stop at the as-of month.
+    Fund metadata (the list, fees, sizes, eligibility) is today's in both modes."""
+    if mode not in ("fixed", "strict"):
+        raise ValueError("mode must be 'fixed' or 'strict'")
+    _AS_OF.append((pd.Timestamp(date) + pd.offsets.MonthEnd(0), mode))
+    try:
+        yield
+    finally:
+        _AS_OF.pop()
+
+
 def _load():
+    U, R, fx, ctx = _load_all()
+    if not _AS_OF:
+        return U, R, fx, ctx
+    d, mode = _AS_OF[-1]
+    ctx_d = ctx.loc[:d] if len(ctx) else ctx
+    return (U, R.loc[:d], fx.loc[:d], ctx_d) if mode == "strict" else (U, R, fx, ctx_d)
+
+
+@lru_cache(maxsize=1)
+def _load_all():
     if data_source() == "snapshot":  # fresh clone: run from the committed web snapshot (robokit/snapshot.py)
         from . import snapshot
 
@@ -298,7 +335,7 @@ def _load():
 
 def reload() -> None:
     """Drop cached data (after a data refresh)."""
-    _load.cache_clear()
+    _load_all.cache_clear()
 
 
 @lru_cache(maxsize=1)
@@ -373,13 +410,17 @@ def common_window(X: pd.DataFrame, max_months: int = MAX_WINDOW) -> pd.DataFrame
     return X.dropna(how="any").tail(max_months)
 
 
-def build_returns(market: str, shelf: pd.DataFrame, core: list[str], sats: list[str]) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+def build_returns(
+    market: str, shelf: pd.DataFrame, core: list[str], sats: list[str], max_months: int = MAX_WINDOW, stand_ins: bool = True
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Returns in the portfolio currency with young histories extended: (window, full, notes)."""
     U, R, fx, ctx = _load()
     fx_r = fx.pct_change()
     X = returns_in(market, core + sats)
     hedged = dict(zip(U.yahoo, U.hedged.astype(bool)))
     notes: dict[str, list] = {}
+    if not stand_ins:  # evaluation only: each fund's own history, nothing extended
+        return common_window(X, max_months), X, notes
     for _, row in shelf.iterrows():
         t = row.ticker
         proxies = proxies_for(row.sleeve, hedged.get(t, False), lambda x: hedged.get(x, False))
@@ -395,7 +436,7 @@ def build_returns(market: str, shelf: pd.DataFrame, core: list[str], sats: list[
         X[t] = s.reindex(X.index)
         if info:
             notes[t] = [info]
-    return common_window(X), X, notes
+    return common_window(X, max_months), X, notes
 
 
 def equity_vol(X: pd.DataFrame, shelf: pd.DataFrame) -> float | None:
@@ -537,6 +578,19 @@ def select_funds(req: Request, notes: list[dict] | None = None) -> tuple[pd.Data
         elif not bool(meta.at[t, "eligible"]):
             why = meta.at[t, "excluded_because"]
             notes.append(_note(f"{t} was not swapped in ({why}), so the slot keeps {keep}."))
+        elif bool(meta.at[t, "satellite_only"]):  # crypto, thematic and other narrow funds: own picks only, with their caps
+            notes.append(
+                _note(
+                    f"{t} can be held only as one of your own picks, not in place of a broad fund, so the slot keeps {keep}. Add it as an own pick instead."
+                )
+            )
+        elif (meta.at[t, "asset_class"], meta.at[t, "region"]) != (meta.at[keep, "asset_class"], meta.at[keep, "region"]):
+            notes.append(
+                _note(
+                    f"{t} ({meta.at[t, 'asset_class']}, {meta.at[t, 'region']}) does not hold what the slot holds "
+                    f"({meta.at[keep, 'asset_class']}, {meta.at[keep, 'region']}), so the slot keeps {keep}. Add it as an own pick instead."
+                )
+            )
         else:
             shelf.loc[shelf.sleeve == k, ["ticker", "fund", "mer", "aum"]] = [t, meta.at[t, "name"], meta.at[t, "mer"], meta.at[t, "aum"]]
     shelf = shelf[shelf.ticker.notna() & ~shelf.ticker.isin(req.exclude)]
@@ -560,7 +614,19 @@ def _last_price(meta: pd.DataFrame, t: str, home: str) -> tuple[float | None, st
 
 
 # ------------------------------------------------------------------ main entry
-def build_portfolio(req: Request | dict) -> dict:
+RESEARCH_KEYS = {"cov_method", "mu_method", "sleeve_caps", "calibrate", "prior", "block_length", "max_window", "stand_ins"}
+
+
+def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict | None = None) -> dict:
+    """The portfolio for a request. ``lean`` stops after the weights (no prices, crisis replays or projections) and
+    ``research`` changes one component for an ablation or a sensitivity test; both are for the evaluation
+    (scripts/run_v3_evaluation.py), never set by the product. research keys: cov_method ('auto' | 'lw_cc' | 'lw_id' |
+    'qis' | 'sample'), mu_method ('equilibrium' | 'sample' | 'james_stein'), sleeve_caps (False drops the sleeve and
+    cash caps, keeping the per-fund maximum), calibrate ('final' | 'single'), prior ({sleeve: share}), block_length
+    (months), max_window (months), stand_ins (False: each fund's own history only)."""
+    research = dict(research or {})
+    if set(research) - RESEARCH_KEYS:
+        raise RoboKitInputError(f"unknown research switches: {sorted(set(research) - RESEARCH_KEYS)}", {"field": "research"})
     req = validate_request(req)
     U, R, fx, _ = _load()
     meta = U.set_index("yahoo")
@@ -603,7 +669,11 @@ def build_portfolio(req: Request | dict) -> dict:
         why = "; ".join(n["en"] for n in notes) or "none of them is in the fund list"
         raise RoboKitInputError(f"None of the funds in your own weights can be used: {why}", {"kind": "no_funds"})
 
-    X, X_full, history_notes = build_returns(req.market, shelf, core, ok_sats)
+    max_window = int(research.get("max_window", MAX_WINDOW))
+    X, X_full, history_notes = build_returns(req.market, shelf, core, ok_sats, max_window, bool(research.get("stand_ins", True)))
+    if _AS_OF and _AS_OF[-1][1] == "fixed":  # today's funds and stand-ins; only the months up to the as-of date
+        X_full = X_full.loc[: _AS_OF[-1][0]]
+        X = common_window(X_full, max_window)
     if len(X) < MIN_WINDOW:
         raise RoboKitInputError(
             f"These funds share only {len(X)} months of history; at least {MIN_WINDOW} are needed.",
@@ -620,8 +690,9 @@ def build_portfolio(req: Request | dict) -> dict:
             tv, level_src = prof.risk_share(lvl10) * eq_vol, "suggested level (suitability checks on)"
 
     prior = pd.Series(0.0, index=tickers)
+    share = (lambda k: float(research["prior"].get(k, 0.0))) if "prior" in research else (lambda k: prior_share(req.market, k))
     for _, row in shelf.iterrows():
-        prior[row.ticker] += prior_share(req.market, row.sleeve)
+        prior[row.ticker] += share(row.sleeve)
     if prior.sum() <= 0:
         prior[:] = 1.0
     prior = prior / prior.sum()
@@ -630,7 +701,16 @@ def build_portfolio(req: Request | dict) -> dict:
 
     rf, rf_src = risk_free(req.market)
     opt = RoboKitOptimizer(
-        X, rf=rf, prior_weights=prior, delta=DELTA, w_max=req.max_weight, cash_ticker=cash_t, cash_max=1.0, mu_method="equilibrium"
+        X,
+        rf=rf,
+        prior_weights=prior,
+        delta=DELTA,
+        w_max=req.max_weight,
+        cash_ticker=cash_t,
+        cash_max=1.0,
+        mu_method=research.get("mu_method", "equilibrium"),
+        cov_method=research.get("cov_method", "auto"),
+        block_length=research.get("block_length", 6),
     ).fit()
 
     sat_cap = req.satellite_cap if req.satellite_cap is not None else prof.satellite_cap(lvl10)
@@ -641,6 +721,8 @@ def build_portfolio(req: Request | dict) -> dict:
         caps[t] = req.crypto_max_each if meta.at[t, "asset_class"] == "Crypto" else req.satellite_max_each
     if cash_t is not None and prof.cash_cap(lvl10) < 1.0:
         caps[cash_t] = prof.cash_cap(lvl10)
+    if research.get("sleeve_caps", True) is False:  # ablation: only the per-fund maximum (and own-pick caps) remain
+        caps = {t: c for t, c in caps.items() if t in ok_sats}
     # when the limits cannot all hold: refuse (default), or relax in this order and say so
     on_inf = "relax" if req.on_infeasible == "relax" else "raise"
     relax_order = [core, ok_sats]
@@ -703,7 +785,19 @@ def build_portfolio(req: Request | dict) -> dict:
                 "vol": _mix_vol(w_, opt.sigma),
             }
 
-        fin, calibration = _calibrate_final(final, tv, final(lam_point))
+        if research.get("calibrate", "final") == "single":  # ablation: lambda from the single solve, as in v2
+            fin = final(lam_point)
+            calibration = {
+                "method": "single solve (v2)",
+                "lambda_single_solve": round(lam_point, 4),
+                "evaluations": 1,
+                "outcome": "single solve",
+                "target_vol": round(tv, 6),
+                "achieved_vol": round(fin["vol"], 6),
+                "within_tolerance": bool(abs(fin["vol"] - tv) <= CAL_TOL),
+            }
+        else:
+            fin, calibration = _calibrate_final(final, tv, final(lam_point))
         lam, w, res, dropped, relaxations, group_applied = (
             fin["lam"],
             fin["w"],
@@ -712,7 +806,7 @@ def build_portfolio(req: Request | dict) -> dict:
             fin["relaxations"],
             fin["group"],
         )
-        reach = _reach_note(tv, fin["vol"], lam)
+        reach = _reach_note(tv, fin["vol"], calibration["outcome"])
         if reach:
             notes.append(reach)
         notes.extend(fin["notes"])
@@ -777,6 +871,20 @@ def build_portfolio(req: Request | dict) -> dict:
     sig = opt.sigma.loc[w.index, w.index].to_numpy()
     wv = w.to_numpy()
     vol = float(np.sqrt(wv @ sig @ wv))
+    if lean:  # the evaluation needs the weights and how they were reached, nothing shown to a person
+        return {
+            "weights": {t: float(v) for t, v in w.items()},
+            "volatility": vol,
+            "target_vol": tv,
+            "lambda": lam,
+            "calibration": calibration,
+            "stock_market_vol": eq_vol,
+            "covariance": opt.cov_info.get("method"),
+            "window": {"start": str(X.index.min().date()), "end": str(X.index.max().date()), "months": int(len(X))},
+            "returns": X,
+            "relaxations": relaxations,
+            "notes": notes,
+        }
     model_ret = rf + float(opt.mu_excess.loc[w.index].to_numpy() @ wv)
     rc = wv * (sig @ wv) / (vol**2) if vol > 0 else wv * 0
     if fixed:  # the level these weights behave like: their volatility as a share of the stock market's
@@ -1044,7 +1152,7 @@ def _drop_small(res, req: Request, forced: dict, resolve, tickers: list[str], no
         notes.append(
             _note(
                 f"Dropped because {'each' if n > 1 else 'it'} would have held less than {pct}: "
-                + ", ".join(dropped)
+                + ", ".join(sorted(dropped, key=tickers.index))  # list order, not round order (a fund on the line may go a round later)
                 + ". The other funds were re-optimised."
             )
         )
@@ -1084,7 +1192,8 @@ def rating_check(rating: dict) -> dict:
 
 LAM_LO, LAM_HI = 0.05, 2000.0
 CAL_TOL = 5e-5  # final-pipeline volatility within 0.005 points of the target
-CAL_MAX = 8  # final-pipeline evaluations at most (each one is a full resampled build)
+CAL_MAX = 30  # final-pipeline evaluations at most (each one is a full resampled build); typical requests take 2-4
+CAL_WIDTH = 1e-5  # a bracket narrower than this in log lambda (0.001% in lambda, about 1e-6 in volatility) isolates a jump
 
 
 def _mix_vol(w: pd.Series, sigma: pd.DataFrame) -> float:
@@ -1099,49 +1208,74 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
     """Risk aversion for the mix the person gets, not for the single solve (Scherer 2002: averaging resampled
     portfolios and dropping small positions move the risk off the target the single solve was calibrated to).
 
-    Safeguarded secant on f(u) = log(vol / target), u = log(lambda), starting from the single-solve lambda. The first
-    step assumes vol is proportional to 1/lambda; later steps use the secant, replaced by the middle of the bracket
-    when they leave it. Every evaluation uses the same bootstrap draws, so f is a deterministic function of lambda.
-    The closest mix seen is kept. web/robokit.js calibrateFinal is the same algorithm."""
+    f(u) = log(vol / target) at u = log(lambda) falls as lambda rises, but the minimum position makes it jump where a
+    fund enters or leaves, and caps can make it flat. So the search brackets first, then narrows:
+    1. From the single-solve lambda, step towards the target (the first step assumes vol ~ 1/lambda; the step doubles
+       while the target is not bracketed) until one evaluated mix is above the target and one below, or a bound of
+       lambda is reached (the target is then out of reach).
+    2. Inside the bracket, Illinois regula falsi (Dowell and Jarratt 1971); the midpoint replaces a point within 1% of
+       either end, or any point when the bracket did not halve over the last four steps, so it halves at least every
+       four steps (on the ten standard mixes this takes 23 evaluations in all, against 34 when checked every two).
+    It stops within CAL_TOL of the target, when the bracket is narrower than CAL_WIDTH in log lambda (a jump: no mix in
+    between), at a bound, or after CAL_MAX evaluations; the closest mix seen is kept. Every evaluation uses the same
+    bootstrap draws, so f is a deterministic function of lambda. web/robokit.js calibrateFinal is the same algorithm."""
     lu, hu = float(np.log(LAM_LO)), float(np.log(LAM_HI))
-    best, evals, seen = first, 1, {float(np.log(first["lam"]))}
-    a = b = None  # bracket: a = largest u with vol above target, b = smallest u with vol below
+    best, evals = first, 1
 
     def f_of(fx):
         return float(np.log(max(fx["vol"], 1e-12) / target))
 
-    def mark(u, f):
-        nonlocal a, b
-        if f > 0:
-            a = u if a is None else max(a, u)
-        elif f < 0:
-            b = u if b is None else min(b, u)
-
-    u0 = float(np.log(first["lam"]))
-    f0 = f_of(first)
-    mark(u0, f0)
-    u1 = min(hu, max(lu, u0 + f0))
-    while abs(best["vol"] - target) > CAL_TOL and evals < CAL_MAX and u1 not in seen:
-        cur = final(float(np.exp(u1)))
+    u, f = float(np.log(first["lam"])), f_of(first)
+    a = fa = b = fb = None  # bracket: a has vol above target (f > 0), b below (f < 0), a < b
+    if f > 0:
+        a, fa = u, f
+    elif f < 0:
+        b, fb = u, f
+    step, side, widths, outcome = max(abs(f), 0.05), 0, [], "limit"
+    while True:
+        if abs(best["vol"] - target) <= CAL_TOL:
+            outcome = "within tolerance"
+            break
+        if evals >= CAL_MAX:
+            break
+        if a is None or b is None:  # 1. bracket
+            nxt = min(hu, max(lu, u + (step if f > 0 else -step)))
+            if nxt == u:
+                outcome = "out of reach"
+                break
+            u, step = nxt, 2 * step
+        else:  # 2. narrow
+            width = b - a
+            if width < CAL_WIDTH:
+                outcome = "jump"
+                break
+            u = b - fb * (b - a) / (fb - fa)
+            if not (a + 0.01 * width < u < b - 0.01 * width) or (len(widths) >= 4 and width > 0.5 * widths[-4]):
+                u = 0.5 * (a + b)
+            widths.append(width)
+        cur = final(float(np.exp(u)))
         evals += 1
-        seen.add(u1)
-        f1 = f_of(cur)
-        mark(u1, f1)
+        f = f_of(cur)
         if abs(cur["vol"] - target) < abs(best["vol"] - target):
             best = cur
-        if f1 == f0:
-            if a is None or b is None:
-                break
-            u2 = 0.5 * (a + b)
-        else:
-            u2 = u1 - f1 * (u1 - u0) / (f1 - f0)
-        if a is not None and b is not None and not (a < u2 < b):
-            u2 = 0.5 * (a + b)
-        u0, f0, u1 = u1, f1, min(hu, max(lu, u2))
+        if a is None or b is None:
+            if f > 0 and (a is None or u > a):
+                a, fa = u, f
+            elif f < 0 and (b is None or u < b):
+                b, fb = u, f
+        elif f > 0:  # Illinois: an end kept twice in a row has its value halved
+            if side == 1:
+                fb *= 0.5
+            a, fa, side = u, f, 1
+        elif f < 0:
+            if side == -1:
+                fa *= 0.5
+            b, fb, side = u, f, -1
     info = {
-        "method": "final pipeline (resampled, minimum position applied), secant on log lambda",
+        "method": "final pipeline (resampled, minimum position applied): bracket, then Illinois regula falsi on log lambda",
         "lambda_single_solve": round(first["lam"], 4),
         "evaluations": evals,
+        "outcome": outcome,
         "target_vol": round(target, 6),
         "achieved_vol": round(best["vol"], 6),
         "within_tolerance": bool(abs(best["vol"] - target) <= CAL_TOL),
@@ -1149,13 +1283,13 @@ def _calibrate_final(final, target: float, first: dict) -> tuple[dict, dict]:
     return best, info
 
 
-def _reach_note(target: float, vol: float, lam: float) -> dict | None:
-    """Say so when the mix cannot be brought to the level's target (checked on the final mix)."""
-    if vol < target - 0.005 and lam <= LAM_LO * (1 + 1e-9):
+def _reach_note(target: float, vol: float, outcome: str) -> dict | None:
+    """Say so when the final mix is more than half a point from the level's target, and why (the calibration outcome)."""
+    if outcome == "out of reach" and vol < target - 0.005:
         return _note(
             f"The funds on this list cannot reach the {target:.1%} volatility this level aims for; the riskiest mix they allow is {vol:.1%}."
         )
-    if vol > target + 0.005 and lam >= LAM_HI * (1 - 1e-9):
+    if outcome == "out of reach" and vol > target + 0.005:
         return _note(
             f"Even the steadiest mix of these funds swings about {vol:.1%} a year, above the {target:.1%} this level aims for. "
             "Adding cash or short-term bonds would bring it down."

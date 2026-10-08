@@ -8,6 +8,9 @@ const here = new URL('.', import.meta.url);
 const core = JSON.parse(readFileSync(new URL('data/core.json', here)));
 const mk = { CA: new Market(core, JSON.parse(readFileSync(new URL('data/ca.json', here)))), US: new Market(core, JSON.parse(readFileSync(new URL('data/us.json', here)))) };
 let fails = 0;
+// at a jump of the minimum-position rule the last bisection step depends on the 15th digit of log(lambda): one more
+// or fewer evaluation, the same side of the jump
+const sameSteps = (x, y) => x.outcome === y.outcome && (x.outcome === 'jump' ? Math.abs(x.evaluations - y.evaluations) <= 2 : x.evaluations === y.evaluations);
 for (const c of core.reference_cases) {
   const q = c.request; const t0 = Date.now();
   const p = buildPortfolio(mk[q.market], { risk_level: q.risk_level, satellites: q.satellites || [], views: q.views || [], swaps: q.swaps || {}, hedgeUsEquity: !!q.hedge_us_equity, fixedWeights: q.fixed_weights || null, minimums: q.minimums || {}, maxWeight: q.max_weight ?? 0.5, onInfeasible: q.on_infeasible || 'refuse', answers: q.answers ?? null, enforceSuitability: !!q.enforce_suitability, acknowledgedAboveSuggestion: !!q.acknowledged_above_suggestion, sleeves: q.sleeves ?? null, minWeight: q.min_weight ?? 0.02, satelliteMaxEach: q.satellite_max_each ?? 0.10, ...(q.target_vol != null ? { targetVol: q.target_vol } : {}), resample: false });
@@ -30,8 +33,8 @@ for (const c of core.reference_cases) {
   const sameChecks = !c.checks || JSON.stringify(p.checks.map(x => x.id)) === JSON.stringify(c.checks);
   // final-pipeline calibration: the same number of steps and the same volatility reached (null for own weights)
   const pc = p.risk.calibration, cc = c.calibration;
-  const sameCal = (pc == null) === (cc == null) && (pc == null || (pc.evaluations === cc.evaluations && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance));
-  const sameRating = !c.ni81_102 || (p.stats.ni81_102.rating === c.ni81_102.rating && Math.abs(p.stats.ni81_102.std_10y - c.ni81_102.std_10y) <= 1e-4 && p.stats.ni81_102.months === c.ni81_102.months);
+  const sameCal = (pc == null) === (cc == null) && (pc == null || (sameSteps(pc, cc) && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance));
+  const sameRating = !c.ni81_102 || (p.stats.ni81_102.rating === c.ni81_102.rating && Math.abs(p.stats.ni81_102.std_10y - c.ni81_102.std_10y) <= 1e-4 + 1e-12 && p.stats.ni81_102.months === c.ni81_102.months);
   const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks && sameCal && sameRating;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  dvol=${dv.toExponential(2)}  dstress=${ds.toExponential(2)}  window ${p.window.months}/${c.window.months}  ${Date.now() - t0} ms`);
@@ -55,7 +58,7 @@ for (const c of core.resampled_cases || []) {
   if (C.chance_need_to_adjust != null) dr = Math.max(dr, Math.abs(P.chance_need_to_adjust - C.chance_need_to_adjust));
   if (C.withdrawal) dr = Math.max(dr, Math.abs(P.withdrawal.chance_lasts - C.withdrawal.chance_lasts), Math.abs(P.withdrawal.p50_months - C.withdrawal.p50_months) / C.withdrawal.months);
   const pc = p.risk.calibration, cc = c.calibration;
-  const sameCal = pc.evaluations === cc.evaluations && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance;
+  const sameCal = sameSteps(pc, cc) && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance;
   const ok = maxd <= 2e-3 && maxb <= 5e-3 && Math.abs(p.stats.volatility - c.volatility) <= 1e-3 && dr <= 5e-3 && dm <= 5e-3 && sameCal;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} resampled ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  max|dband|=${maxb.toExponential(2)}  projection: returns ${dr.toExponential(2)}, money ${dm.toExponential(2)}  ${Date.now() - t0} ms`);

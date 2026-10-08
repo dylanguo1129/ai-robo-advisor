@@ -14,11 +14,11 @@ The rules, in the order they run:
    the optimal policy trades to the edge of the no-trade region (Donohue and Yip 2003). The other side of those
    trades is spread over the funds still inside their bands, by the same rule as a cash flow. A fund held but not in
    the mix has a target and a band of zero, so it is sold.
-3. Whole units. Buys round down and sells round up (never more than held), so the cash is always enough. Trades
-   under ``min_trade`` dollars are skipped unless a withdrawal needs them; if skipping leaves the cash short, buys
-   are trimmed one unit at a time (the most overweight fund first).
-4. Residual cash. One unit at a time goes to the fund furthest below target whose unit price fits, while buying it
-   brings that fund closer to target, keeping ``cash_reserve`` in cash.
+3. Whole units. Buys round down and sells round up (never more than held). Trades under ``min_trade`` dollars are
+   skipped unless a withdrawal needs them. The cash must cover the orders and their estimated cost; if it does not,
+   buys are trimmed one unit at a time (the most overweight fund first), then sells added.
+4. Residual cash. One unit at a time goes to the fund furthest below target whose unit price and cost fit, while
+   buying it brings that fund closer to target, keeping ``cash_reserve`` in cash.
 5. Cost and liquidity. The estimated cost is ``cost_bps`` of the amount traded. When average daily dollar volumes
    are given, each order is shown as a share of its fund's volume and flagged above ``adv_limit``.
 
@@ -198,8 +198,10 @@ def rebalance(
             q[i] = 0.0
             reason[i].append("under the minimum trade")
 
-    def cash_after() -> float:
-        return avail - sum(q[i] * px[i] for i in range(n))
+    rate = cost_bps / 1e4
+
+    def cash_after() -> float:  # after the orders and their estimated cost
+        return avail - sum(q[i] * px[i] for i in range(n)) - rate * sum(abs(q[i]) * px[i] for i in range(n))
 
     def dev(i: int) -> float:  # dollars above target after the orders
         return (held[i] + q[i]) * px[i] - goal[i]
@@ -210,13 +212,13 @@ def rebalance(
         buys = [i for i in range(n) if q[i] > 0]
         if buys:
             i = max(buys, key=lambda k: (dev(k), -k))
-            q[i] -= 1.0 if whole_units else min(q[i], (cash_reserve - cash_after()) / px[i])
+            q[i] -= 1.0 if whole_units else min(q[i], (cash_reserve - cash_after()) / (px[i] * (1 + rate)))
         else:
             sellable = [i for i in range(n) if held[i] + q[i] > 0]
             if not sellable:
                 break
             i = max(sellable, key=lambda k: (dev(k), -k))
-            q[i] -= 1.0 if whole_units else min(held[i] + q[i], (cash_reserve - cash_after()) / px[i])
+            q[i] -= 1.0 if whole_units else min(held[i] + q[i], (cash_reserve - cash_after()) / (px[i] * (1 - rate)))
     if cash_after() < cash_reserve - 1e-6:
         raise RoboKitInputError("The holdings cannot be sold for enough cash to pay the withdrawal.", {"field": "flow"})
 
@@ -224,7 +226,11 @@ def rebalance(
     if whole_units:
         for _ in range(100_000):
             spare = cash_after() - cash_reserve
-            ok = [i for i in range(n) if t_w[i] > 0 and px[i] <= spare + 1e-9 and -dev(i) >= px[i] / 2 and (q[i] > 0 or px[i] >= min_trade)]
+            ok = [
+                i
+                for i in range(n)
+                if t_w[i] > 0 and px[i] * (1 + rate) <= spare + 1e-9 and -dev(i) >= px[i] / 2 and (q[i] > 0 or px[i] >= min_trade)
+            ]
             if not ok:
                 break
             i = max(ok, key=lambda k: (-dev(k), -k))

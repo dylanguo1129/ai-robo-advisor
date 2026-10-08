@@ -370,6 +370,7 @@ def reference_cases() -> list:
         dict(market="CA", risk_level=3, hedge_us_equity=True),
         dict(market="CA", risk_level=4, swaps={"ca_us_equity": "VSP.TO"}),
         dict(market="US", risk_level=4, swaps={"us_equity": "TQQQ", "us_reit": "NOPE"}),
+        dict(market="US", risk_level=3, swaps={"us_equity": "BITO", "us_reit": "GLDM", "us_agg_bond": "VGSH"}),
         dict(market="CA", risk_level=4, fixed_weights={"VFV.TO": 0.4, "XIC.TO": 0.3, "ZAG.TO": 0.3}),
         dict(market="US", risk_level=5, satellites=["QQQ", "SCHD", "BITO"]),
         dict(market="US", risk_level=4, satellites=["BITO"], minimums={"BITO": 0.05}),

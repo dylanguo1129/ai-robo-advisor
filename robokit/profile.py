@@ -43,7 +43,9 @@ LEVELS = {
     4: "Growth",
     5: "Aggressive growth",
 }
-PRESETS = {"low": 2, "mid": 3, "high": 4}  # the brief's low/mid/high risk appetite (aversion is the reverse)
+# the brief's three settings. 'low' / 'mid' / 'high' name risk appetite; the *_aversion names say the same thing in the
+# brief's own terms (high risk aversion = low appetite = level 2), so a caller never has to guess which way they run
+PRESETS = {"low": 2, "mid": 3, "high": 4, "high_aversion": 2, "mid_aversion": 3, "low_aversion": 4}
 
 # ------------------------------------------------------------------ item bank
 # kind: gate | capacity | tolerance | knowledge | preference | amount. Points

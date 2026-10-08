@@ -8,7 +8,7 @@
  * seeded bootstrap, also used by the v1 engine test web/test_engine.mjs), which must be published next to it.
  * Works in the browser, in a Web Worker and in Node.
  */
-import { chooseCovariance, projectWeightedCappedSimplex, mulberry32, stationaryBootstrapRows } from './engine.js';
+import { chooseCovariance, projectWeightedCappedSimplex, mulberry32, stationaryBootstrapRows, symEig } from './engine.js';
 
 const EPS = 1e-12;
 export const MAX_WINDOW = 180;
@@ -76,6 +76,8 @@ export function validateRequest(r) {
   const nb = num(r.nBoot, 'n_boot'); if (nb !== Math.trunc(nb) || nb < 0 || nb > 5000) throw inputError(`n_boot must be a whole number from 0 to 5000; got ${r.nBoot}.`, 'n_boot'); r.nBoot = nb;
   const sd = num(r.seed, 'seed'); if (sd !== Math.trunc(sd)) throw inputError('seed must be a whole number.', 'seed'); r.seed = sd;
   for (const k of ['satellites', 'exclude']) { const v = r[k] || []; if (!Array.isArray(v) || !v.every(t => typeof t === 'string')) throw inputError(`${k} must be a list of tickers.`, k); r[k] = v; }
+  const isMap = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
+  for (const [k, name] of [['minimums', 'minimums'], ['fixedWeights', 'fixed_weights']]) if (r[k] != null && !isMap(r[k])) throw inputError(`${name} must map tickers to shares.`, name);
   const mins = {}; for (const [t, v] of Object.entries(r.minimums || {})) mins[t] = share(v, `minimum for ${t}`);
   const mt = sum(Object.values(mins)); if (mt > 1 + 1e-9) throw inputError(`The minimums add up to ${pctTxt(mt)}, more than 100%.`, 'minimums');
   const clash = Object.keys(mins).filter(t => mins[t] > 0 && r.exclude.includes(t)).sort();
@@ -194,6 +196,11 @@ export function shelfFor(M, { preferEsg = false, hedgeUsEquity = false, sleeves 
       const f = M.fund(sw);
       if (!f) notes.push({ en: `${sw} is not in the fund list, so the slot keeps ${t}.` });
       else if (!f.eligible) notes.push({ en: `${sw} was not swapped in (${f.excluded_because}), so the slot keeps ${t}.` });
+      else if (f.satellite_only) notes.push({ en: `${sw} can be held only as one of your own picks, not in place of a broad fund, so the slot keeps ${t}. Add it as an own pick instead.` });
+      else if (M.fund(t) && (f.asset_class !== M.fund(t).asset_class || f.region !== M.fund(t).region)) {
+        const g = M.fund(t);
+        notes.push({ en: `${sw} (${f.asset_class}, ${f.region}) does not hold what the slot holds (${g.asset_class}, ${g.region}), so the slot keeps ${t}. Add it as an own pick instead.` });
+      }
       else if (!M.series.has(sw)) notes.push({ en: `${sw} has no price history in this snapshot, so the slot keeps ${t}.` });
       else t = sw;
     }
@@ -265,7 +272,7 @@ function backfillRegressors(M, cols, gapMonths = 36) {
 
 /** Returns window for the chosen funds: { tickers, rows (month indices), X (T x N), full (Map ticker -> spliced series), notes } */
 export function buildReturns(M, shelf, sats) {
-  const tickers = [...shelf.map(s => s.ticker), ...sats];
+  const tickers = [...new Set([...shelf.map(s => s.ticker), ...sats])];  // a fund that fills two slots is one fund (as Python)
   const full = new Map(); const notes = {};
   for (const t of tickers) full.set(t, M.returnsIn(t) || new Float64Array(M.T).fill(NaN));
   for (const row of shelf) {
@@ -313,12 +320,6 @@ function projectGroup(x, a, cap, total, mask, gcap) {
   return out;
 }
 
-function maxEig(A) {
-  const n = A.length; let v = new Float64Array(n).fill(1 / Math.sqrt(n)), lam = 0;
-  for (let k = 0; k < 500; k++) { const Av = matvec(A, v); const nr = Math.sqrt(dot(Av, Av)); if (nr < EPS) return 0; const prev = lam; lam = nr; for (let i = 0; i < n; i++) v[i] = Av[i] / nr; if (k > 20 && Math.abs(lam - prev) < 1e-13 * lam) break; }
-  return lam;
-}
-
 function greedy(mu, lb, ub) { const w = Float64Array.from(lb); let room = 1 - sum(w); const order = [...mu.keys()].sort((i, j) => mu[j] - mu[i]); for (const i of order) { const t = Math.min(ub[i] - w[i], room); w[i] += t; room -= t; if (room <= EPS) break; } return w; }
 
 /** minimize (lam/2) w'Sw - mu'w  s.t. sum w = 1, lb <= w <= ub, sum(w[mask]) <= gcap */
@@ -341,7 +342,7 @@ export function solveQPG(sigma, mu, lam, lb, ub, mask = null, gcap = 1, maxIter 
     ghi = Math.max(gcap - lbG, 0);
   }
   const proj = (z) => projectGroup(z, a, capv, mass, mask, ghi);
-  const step = 1 / Math.max(lam * maxEig(corr) * 1.02, EPS);  // 2% margin on the power-iteration estimate
+  const step = 1 / Math.max(lam * symEig(corr).values[n - 1], EPS);  // 1/L with L = lam x the largest eigenvalue, exactly as optimizer/solver.py
   let v = proj(d.map(di => (mass / n) * di)); let y = Float64Array.from(v), tk = 1, converged = false, it = 0;
   for (it = 1; it <= maxIter; it++) {
     const cy = matvec(corr, y);
@@ -359,7 +360,7 @@ export function solveQPG(sigma, mu, lam, lb, ub, mask = null, gcap = 1, maxIter 
     if (!(resid <= 1e-6)) throw new RoboKitError('The optimizer did not reach an answer, so nothing was built.', 'solver', { iterations: maxIter, residual: resid });
   }
   const w = v.map((vi, i) => Math.min(ub[i], Math.max(lb[i], vi / d[i] + lb[i])));
-  const s = sum(w); return w.map(x => x / s);
+  const s = sum(w); return w.map((x, i) => Math.min(ub[i], Math.max(lb[i], x / s)));  // the sum is 1 to rounding; the clip keeps every bound
 }
 
 function sub(A, idx) { return idx.map(i => idx.map(j => A[i][j])); }
@@ -446,38 +447,49 @@ function ratingCheck(rating) {
   return { id: 'regulator_rating', level: 'info', en: `On the scale funds use for their published risk rating (NI 81-102 Appendix F, 10-year standard deviation), this mix would rate ${rating.rating} (${pctTxt(rating.std_10y, 1)}).${short}` };
 }
 
-const LAM_LO = 0.05, LAM_HI = 2000, CAL_TOL = 5e-5, CAL_MAX = 8;  // as robokit/engine.py
+const LAM_LO = 0.05, LAM_HI = 2000, CAL_TOL = 5e-5, CAL_MAX = 30, CAL_WIDTH = 1e-5;  // as robokit/engine.py
 
-/** Risk aversion for the mix the person gets (robokit/engine.py _calibrate_final, same algorithm): safeguarded secant on
- *  log(vol / target) over log(lambda) from the single-solve lambda, the same bootstrap draws at every step, the
- *  closest mix seen kept. */
+/** Risk aversion for the mix the person gets (robokit/engine.py _calibrate_final, same algorithm): bracket the target
+ *  from the single-solve lambda, then Illinois regula falsi (Dowell and Jarratt 1971) on log(vol / target) over
+ *  log(lambda), safeguarded by bisection; the same bootstrap draws at every step; the closest mix seen kept. */
 function calibrateFinal(final, target, first) {
   const lu = Math.log(LAM_LO), hu = Math.log(LAM_HI);
-  let best = first, evals = 1; const seen = new Set([Math.log(first.lam)]);
-  let a = null, b = null;  // bracket: a = largest u with vol above target, b = smallest u with vol below
+  let best = first, evals = 1;
   const fOf = (fx) => Math.log(Math.max(fx.vol, 1e-12) / target);
-  const mark = (u, f) => { if (f > 0) a = a == null ? u : Math.max(a, u); else if (f < 0) b = b == null ? u : Math.min(b, u); };
-  let u0 = Math.log(first.lam), f0 = fOf(first); mark(u0, f0);
-  let u1 = Math.min(hu, Math.max(lu, u0 + f0));  // first step: vol roughly proportional to 1/lambda
-  while (Math.abs(best.vol - target) > CAL_TOL && evals < CAL_MAX && !seen.has(u1)) {
-    const cur = final(Math.exp(u1)); evals++; seen.add(u1);
-    const f1 = fOf(cur); mark(u1, f1);
+  let u = Math.log(first.lam), f = fOf(first);
+  let a = null, fa = null, b = null, fb = null;  // bracket: a has vol above target (f > 0), b below (f < 0), a < b
+  if (f > 0) { a = u; fa = f; } else if (f < 0) { b = u; fb = f; }
+  let step = Math.max(Math.abs(f), 0.05), side = 0, outcome = 'limit'; const widths = [];
+  for (;;) {
+    if (Math.abs(best.vol - target) <= CAL_TOL) { outcome = 'within tolerance'; break; }
+    if (evals >= CAL_MAX) break;
+    if (a == null || b == null) {  // 1. bracket
+      const nxt = Math.min(hu, Math.max(lu, u + (f > 0 ? step : -step)));
+      if (nxt === u) { outcome = 'out of reach'; break; }
+      u = nxt; step *= 2;
+    } else {  // 2. narrow: Illinois regula falsi, midpoint when too close to an end or the bracket did not halve
+      const width = b - a;
+      if (width < CAL_WIDTH) { outcome = 'jump'; break; }
+      u = b - fb * (b - a) / (fb - fa);
+      if (!(a + 0.01 * width < u && u < b - 0.01 * width) || (widths.length >= 4 && width > 0.5 * widths[widths.length - 4])) u = 0.5 * (a + b);
+      widths.push(width);
+    }
+    const cur = final(Math.exp(u)); evals++; f = fOf(cur);
     if (Math.abs(cur.vol - target) < Math.abs(best.vol - target)) best = cur;
-    let u2;
-    if (f1 === f0) { if (a == null || b == null) break; u2 = 0.5 * (a + b); }
-    else u2 = u1 - f1 * (u1 - u0) / (f1 - f0);
-    if (a != null && b != null && !(a < u2 && u2 < b)) u2 = 0.5 * (a + b);
-    u0 = u1; f0 = f1; u1 = Math.min(hu, Math.max(lu, u2));
+    if (a == null || b == null) {
+      if (f > 0 && (a == null || u > a)) { a = u; fa = f; } else if (f < 0 && (b == null || u < b)) { b = u; fb = f; }
+    } else if (f > 0) { if (side === 1) fb *= 0.5; a = u; fa = f; side = 1; }  // Illinois: an end kept twice has its value halved
+    else if (f < 0) { if (side === -1) fa *= 0.5; b = u; fb = f; side = -1; }
   }
-  return { best, info: { method: 'final pipeline (resampled, minimum position applied), secant on log lambda', lambda_single_solve: round(first.lam),
-    evaluations: evals, target_vol: round(target, 6), achieved_vol: round(best.vol, 6), within_tolerance: Math.abs(best.vol - target) <= CAL_TOL } };
+  return { best, info: { method: 'final pipeline (resampled, minimum position applied): bracket, then Illinois regula falsi on log lambda', lambda_single_solve: round(first.lam),
+    evaluations: evals, outcome, target_vol: round(target, 6), achieved_vol: round(best.vol, 6), within_tolerance: Math.abs(best.vol - target) <= CAL_TOL } };
 }
 
 /** Say so when the mix cannot be brought to the level's target (checked on the final mix). */
-function reachNote(target, vol, lam) {
+function reachNote(target, vol, outcome) {
   const p1 = (x) => `${(x * 100).toFixed(1)}%`;
-  if (vol < target - 0.005 && lam <= LAM_LO * (1 + 1e-9)) return { en: `The funds on this list cannot reach the ${p1(target)} volatility this level aims for; the riskiest mix they allow is ${p1(vol)}.` };
-  if (vol > target + 0.005 && lam >= LAM_HI * (1 - 1e-9)) return { en: `Even the steadiest mix of these funds swings about ${p1(vol)} a year, above the ${p1(target)} this level aims for. Adding cash or short-term bonds would bring it down.` };
+  if (outcome === 'out of reach' && vol < target - 0.005) return { en: `The funds on this list cannot reach the ${p1(target)} volatility this level aims for; the riskiest mix they allow is ${p1(vol)}.` };
+  if (outcome === 'out of reach' && vol > target + 0.005) return { en: `Even the steadiest mix of these funds swings about ${p1(vol)} a year, above the ${p1(target)} this level aims for. Adding cash or short-term bonds would bring it down.` };
   if (Math.abs(vol - target) > 0.005) return { en: `This mix swings about ${p1(vol)} a year against the ${p1(target)} this level aims for: with the minimum position size, the risk moves in steps as funds enter or leave the mix.` };
   return null;
 }
@@ -813,18 +825,19 @@ export function rebalance(targets, units = {}, prices = {}, { cash = 0, flow = 0
   const neededSell = q.map((qi, i) => flow < 0 && flowTrade[i] < 0 && qi < 0);  // sells that pay a withdrawal
   const reason = tick.map(() => []);
   for (let i = 0; i < n; i++) if (q[i] && Math.abs(q[i] * px[i]) < minTrade && !neededSell[i]) { q[i] = 0; reason[i].push('under the minimum trade'); }
-  const cashAfter = () => { let s = avail; for (let i = 0; i < n; i++) s -= q[i] * px[i]; return s; };
+  const rate = costBps / 1e4;
+  const cashAfter = () => { let s = avail, g = 0; for (let i = 0; i < n; i++) { s -= q[i] * px[i]; g += Math.abs(q[i]) * px[i]; } return s - rate * g; };  // after the orders and their cost
   const dev = (i) => (held[i] + q[i]) * px[i] - goal[i];  // dollars above target after the orders
   const argmax = (idx, key) => idx.reduce((b, k) => (b == null || key(k) > key(b) ? k : b), null);  // ties: the first fund
   const cap = 10 * n + Math.trunc(q.reduce((s, x) => s + Math.abs(x), 0)) + 1;
   for (let it = 0; it < cap; it++) {  // trim buys, then sell, until the cash covers the orders
     if (cashAfter() >= cashReserve - 1e-9) break;
     const buys = tick.map((_, i) => i).filter(i => q[i] > 0);
-    if (buys.length) { const i = argmax(buys, dev); q[i] -= wholeUnits ? 1 : Math.min(q[i], (cashReserve - cashAfter()) / px[i]); }
+    if (buys.length) { const i = argmax(buys, dev); q[i] -= wholeUnits ? 1 : Math.min(q[i], (cashReserve - cashAfter()) / (px[i] * (1 + rate))); }
     else {
       const sellable = tick.map((_, i) => i).filter(i => held[i] + q[i] > 0);
       if (!sellable.length) break;
-      const i = argmax(sellable, dev); q[i] -= wholeUnits ? 1 : Math.min(held[i] + q[i], (cashReserve - cashAfter()) / px[i]);
+      const i = argmax(sellable, dev); q[i] -= wholeUnits ? 1 : Math.min(held[i] + q[i], (cashReserve - cashAfter()) / (px[i] * (1 - rate)));
     }
   }
   if (cashAfter() < cashReserve - 1e-6) throw inputError('The holdings cannot be sold for enough cash to pay the withdrawal.', 'flow');
@@ -832,7 +845,7 @@ export function rebalance(targets, units = {}, prices = {}, { cash = 0, flow = 0
   if (wholeUnits) {
     for (let it = 0; it < 100000; it++) {
       const spare = cashAfter() - cashReserve;
-      const ok = tick.map((_, i) => i).filter(i => tw[i] > 0 && px[i] <= spare + 1e-9 && -dev(i) >= px[i] / 2 && (q[i] > 0 || px[i] >= minTrade));
+      const ok = tick.map((_, i) => i).filter(i => tw[i] > 0 && px[i] * (1 + rate) <= spare + 1e-9 && -dev(i) >= px[i] / 2 && (q[i] > 0 || px[i] >= minTrade));
       if (!ok.length) break;
       const i = argmax(ok, k => -dev(k)); q[i] += 1;
       if (!reason[i].includes('residual cash')) reason[i].push('residual cash');
@@ -1063,7 +1076,7 @@ export function buildPortfolio(M, req = {}) {
         else if (keptSmall.length) fnotes.push(note(`Kept under ${pc} because the other funds' limits cannot hold the rest: ${keptSmall.map(i => tickers[i]).join(', ')}.`));
         if (drops.length) {
           const k = drops.length;
-          fnotes.push(note(`Dropped because ${k > 1 ? 'each' : 'it'} would have held less than ${pc}: ${drops.join(', ')}. The other funds were re-optimised.`));
+          fnotes.push(note(`Dropped because ${k > 1 ? 'each' : 'it'} would have held less than ${pc}: ${[...drops].sort((x, y) => tickers.indexOf(x) - tickers.indexOf(y)).join(', ')}. The other funds were re-optimised.`));  // list order, not round order
         }
       }
       return { lam: lamX, wMap: wm, bandMap: bm, dropped: drops, notes: fnotes, relaxations: rel, boundsApplied: bApplied, gcapApplied: gcap, vol: mixVol(wm) };
@@ -1072,7 +1085,7 @@ export function buildPortfolio(M, req = {}) {
     const best = fin.best; calibration = fin.info;
     lam = best.lam; wMap = best.wMap; bandMap = best.bandMap; relaxations = best.relaxations; dropped.push(...best.dropped);
     const boundsApplied = best.boundsApplied, gcapApplied = best.gcapApplied;
-    const reach = reachNote(tv, best.vol, lam); if (reach) notes.push(reach);
+    const reach = reachNote(tv, best.vol, calibration.outcome); if (reach) notes.push(reach);
     notes.push(...best.notes);
     if (cashT && (wMap.get(cashT) || 0) > 0.5) {  // as optimizer/portfolio.py
       notes.push(note(`${pctTxt(wMap.get(cashT))} sits in the cash-like ETF: at this risk aversion the model prefers safety over the small extra return of the other funds.`));
