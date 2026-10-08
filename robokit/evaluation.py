@@ -176,7 +176,10 @@ def hold_path(builds: list[dict], realised: pd.DataFrame, cost: float = COST) ->
         tick = list(hold.columns)
         w = np.array([b["weights"].get(t, 0.0) for t in tick])
         w = w / w.sum()
-        hold = hold.fillna(0.0) if hold.isna().any().any() else hold
+        held = [t for t, x in zip(tick, w) if x > 0]
+        if hold[held].isna().any().any():  # a held fund without a return: fail closed, never count it as flat
+            raise ValueError(f"missing returns for held funds after {start.date()}: {sorted(hold[held].columns[hold[held].isna().any()])}")
+        hold = hold.fillna(0.0)  # funds with no weight
         g, n, t = _hold(hold, w, cost)
         reb = 0.5 * float(np.abs(w - prev).sum()) if prev is not None else 0.0
         n[0] -= cost * reb
@@ -255,6 +258,8 @@ def compare(a: pd.Series, b: pd.Series, cash: pd.Series, block: int = 6, n_boot:
     mtr = es.min_track_record(ra, sr_star=sr_b)
     return {
         "months": int(len(idx)),
+        "sharpe_robokit": float(ra.mean() / ra.std(ddof=1) * math.sqrt(12)),
+        "sharpe_other": float(rb.mean() / rb.std(ddof=1) * math.sqrt(12)),
         "sharpe_diff_annual": lw["diff"] * math.sqrt(12),
         "ci95_annual": [lw["ci95"][0] * math.sqrt(12), lw["ci95"][1] * math.sqrt(12)],
         "p_two_sided": lw["p"],
@@ -264,6 +269,17 @@ def compare(a: pd.Series, b: pd.Series, cash: pd.Series, block: int = 6, n_boot:
         "min_track_record_months": mtr,
         "track_record_long_enough": bool(len(idx) >= mtr),
     }
+
+
+def reading(c: dict) -> str:
+    """The pre-registered reading of one confirmatory comparison (RESEARCH_LOG section 10, E1), from its numbers."""
+    if not c["track_record_long_enough"] and not (c["p_holm"] < 0.05 or c["p_noninferior_holm"] < 0.05):
+        return "too short to tell"
+    if c["p_holm"] < 0.05 and c["sharpe_diff_annual"] < 0:
+        return "benchmark better"
+    if c["p_noninferior_holm"] < 0.05:
+        return "robokit not worse by more than 0.10"
+    return "inconclusive"
 
 
 def strict_realised(market: str, builds: list[dict]) -> pd.DataFrame:

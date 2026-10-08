@@ -36,6 +36,7 @@ def account_path(
     cash = start_value
     v_prev = start_value
     rows = []
+    largest = {t: 0.0 for t in tick}  # the largest order placed in each fund (dollars)
     for m in months:
         tgt_date = max(d for d in dates if d < m)
         tgt = {t: float(targets[tgt_date].get(t, 0.0)) for t in tick}
@@ -57,8 +58,8 @@ def account_path(
         else:
             if rule == "monthly":
                 kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0}
-            elif rule == "annual":
-                kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0} if m.month == 1 else {"band_abs": 1.0, "band_rel": 1.0}
+            elif rule == "annual":  # back to target in January; otherwise no band can trigger (a band of 100 points)
+                kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0} if m.month == 1 else {"band_abs": 1.0, "band_rel": 1e9}
             else:
                 kw = {}
             res = rebalance(
@@ -66,6 +67,7 @@ def account_path(
             )
             for row in res["rows"]:
                 units[row["ticker"]] = row["units_after"]
+                largest[row["ticker"]] = max(largest[row["ticker"]], row["amount"])
             cash = res["cash_after"]
             traded = res["traded"]
             cost = res["estimated_cost"]
@@ -87,7 +89,7 @@ def account_path(
         )
         v_prev = v_after
     df = pd.DataFrame(rows).set_index("month")
-    return {"path": df}
+    return {"path": df, "largest_order": largest}
 
 
 def summarise_account(df: pd.DataFrame, ideal: pd.DataFrame | None) -> dict:
@@ -113,11 +115,16 @@ def summarise_account(df: pd.DataFrame, ideal: pd.DataFrame | None) -> dict:
 
 
 def own_prices(market: str, tickers: list[str]) -> pd.DataFrame:
-    """Month-end adjusted closes (dividends reinvested in the price) in the portfolio currency, from the month every
-    fund has one."""
-    U, R, fx, _ = E._load_all()
-    X = returns_in(market, tickers).dropna(how="any")
-    return 100.0 * (1 + X).cumprod()
+    """Month-end adjusted closes at their real price levels, from the month every fund has one (the reference funds
+    trade in the portfolio's currency). Adjusted closes before today are scaled down by later distributions, so
+    early unit prices are somewhat lower than traded then: stated with the results."""
+    from .config import DATA_DIR
+
+    close = pd.read_pickle(DATA_DIR / "close_monthly.pkl")[tickers]
+    home = "CAD" if market == "CA" else "USD"
+    if any(E.currency_of(t) != home for t in tickers):
+        raise ValueError("E6 expects every reference fund to trade in the portfolio's currency")
+    return close.dropna(how="any")
 
 
 # ------------------------------------------------------------------ E7: data and input rules
@@ -133,6 +140,34 @@ def jump_screen_at(threshold_log: float) -> dict:
     finally:
         UV.JUMP_LOG = old
     return {t: {"month": str(pd.Timestamp(v[0]).date()), "return": float(v[1]), "peer_median": float(v[2])} for t, v in flagged.items()}
+
+
+def jump_screen_self_excluded(threshold_log: float) -> dict:
+    """The screen with the fund itself left out of its peers' median and count (at least five other funds): the
+    stricter reading of "similar funds", reported beside the rule as built."""
+    U, R, _, _ = E._load_all()
+    why = U["excluded_because"].fillna("")
+    cand = (why == "") | why.str.startswith("its price history moved")
+    Rw = R[R.index >= UV.JUMP_FROM]
+    L = np.log1p(Rw.where(Rw > -1))
+    pool = U[cand & U.yahoo.isin(Rw.columns) & (U.asset_class != "Crypto")]
+    out = {}
+    for _, g in pool.groupby(["market", "asset_class"]):
+        cols = list(g.yahoo)
+        for t in cols:
+            others = [c for c in cols if c != t]
+            peer = L[others].median(axis=1)
+            n = L[others].notna().sum(axis=1)
+            gap = (L[t] - peer).abs().where((L[t].abs() >= threshold_log) & (n >= 5))
+            gap = gap[gap >= threshold_log]
+            if len(gap):
+                d = gap.idxmax()
+                out[t] = {
+                    "month": str(pd.Timestamp(d).date()),
+                    "return": float(np.expm1(L.at[d, t])),
+                    "peer_median": float(np.expm1(peer[d])),
+                }
+    return out
 
 
 def crisis_standin_holdout() -> list[dict]:
@@ -227,10 +262,13 @@ def standin_holdout(market: str) -> list[dict]:
     rows = []
     for _, row in shelf.iterrows():
         t = row.ticker
-        for p, _conv in proxies_for(row.sleeve, hedged.get(t, False), lambda x: hedged.get(x, False)):
+        for p, conv in proxies_for(row.sleeve, hedged.get(t, False), lambda x: hedged.get(x, False)):
             if p.startswith("RATE:") or p not in R.columns:
                 continue
-            X = returns_in(market, [t, p]).dropna(how="any")
+            # the stand-in exactly as the engine uses it: converted to the portfolio currency only when its rule says so
+            own = returns_in(market, [t])[t]
+            sp = returns_in(market, [p])[p] if conv else R[p]
+            X = pd.concat([own.rename(t), sp.rename(p)], axis=1).dropna(how="any")
             if len(X) < 24:
                 continue
             a, b = X[t].to_numpy(), X[p].to_numpy()

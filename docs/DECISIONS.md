@@ -17,13 +17,13 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Test: each reference fund's 5-year return against the issuer's published figure | E7(d) |
+| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Test: gaps are never filled (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure | E7(e) |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation) | policy |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: windows 120 / 180 / all | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test: known-truth simulation with 36 / 60 / 120 / 180 months | E3(i) |
-| D9 | Data-integrity screen: a month that doubles or halves a fund while 5+ same-class peers do not marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move | E7(a) |
+| D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
 
 ## 2. Universe and reference shelf
 
@@ -32,7 +32,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D7 | Liquidity screens | 36 months history; AUM 20M CAD / 50M USD; daily value traded 50k CAD / 250k USD | Policy; test: every reference fund's margin over each screen | E7(c) |
 | D8 | No leveraged, inverse, single-stock or depositary-receipt funds | | Source: CSA Staff Notice 31-342 (online advisers use "unleveraged exchange traded funds"), docs/research/regulation.md R5.4 | done |
 | D10 | Crypto, thematic, covered-call and other narrow funds are own picks only (satellite caps), never a core slot | | Source: 31-342 as D8; test: tests/test_v3_exam_r1.py (a crypto fund cannot take a core slot) | done |
-| D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; test: the point-in-time shelf (E2) shows how much today's choice matters | E2 |
+| D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; tests: every slot's top five candidates checked as broad, low-cost index funds (E7(e)); the slots that change when the score's coefficients move (E5) | E5, E7(e) |
 | D12 | The ranking score | +1.0 log AUM, +0.5 log volume, -1.5 fee, +0.5 history | Policy; test: each coefficient +/-50%, slots whose fund changes | E5 |
 
 ## 3. Expected returns
@@ -178,6 +178,24 @@ other: reject until a revised plan is reviewed again. The rulings, and what chan
 | The deflated Sharpe trial count was undefined | true | N = 54, enumerated |
 | Decisions still without evidence (section C of both reviews) | mostly true | added: stand-in and back-fill hold-outs (E8), the cash-cap ablation, per-fund maximum and yardstick sensitivities, minimum order 0/50/250, the crisis-episode rule, classification and shelf audits, unit fixtures (tests/test_v3_fixtures.py); the self-check vignette study is scoped out as the suitability layer |
 | Subperiod tail risk from one year of data | true | removed; full-sample CVaR with its tail count |
+
+**Stage 1, second round (8 Oct 2026), on the revised plan and its code.** One examiner: accept after required
+changes; the other: reject before execution (its captured review held only an addendum of six blockers; it reviews
+again in full). The rulings, after each point was checked against the repository:
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The data layer (robokit/data) is missing | false: present in the repository, left out of the review copy; the dry run and smoke runs import it | the next review copy includes it |
+| E3's truths use months that E1 later tests | true | truths built only from months before each market's first E1 estimation date (computed by E1's own rule) |
+| E6 used synthetic prices starting at 100 | true | real adjusted closes at their price levels |
+| The "annual" rule could still trade between Januaries | true | no band can trigger outside January |
+| The largest-order share of volume was computed, not measured | true | measured from the orders the shipped bands place on a 1,000,000 account |
+| The projection-path rule was not executed, and 0.25 points is 0.0025 | true | applied by the code and recorded with the locked defaults |
+| The confirmatory readings were left to a person | true | written into results.json by code, from the pre-registered rule |
+| The US 60/40 prior missed two bond slots | true | slots by asset class; every prior variant must sum to one |
+| E8 converted a stand-in that the engine uses unconverted | true | each stand-in tested exactly as the engine uses it |
+| The jump screen's "five peers" include the fund itself | partly true: the code is consistent, the description was not | description corrected; the stricter reading reported in E7(a) |
+| "All months" was coded as 300; a missing return counted as flat; median error by asset class, and the ex-ante gap per strategy, missing; untracked files ignored; two evidence mappings wrong (D1, D11) | true | all fixed |
 
 ## Sources checked for this register
 

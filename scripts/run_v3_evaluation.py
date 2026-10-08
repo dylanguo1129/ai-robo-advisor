@@ -57,7 +57,11 @@ def provenance(allow_dirty: bool) -> dict:
     def git(*a):
         return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
 
-    dirty = git("status", "--porcelain", "--untracked-files=no")
+    dirty = "\n".join(
+        line
+        for line in git("status", "--porcelain").splitlines()
+        if line[3:].startswith(("scripts/", "robokit/", "optimizer/", "tests/")) or not line.startswith("??")
+    )
     if dirty and not allow_dirty:
         sys.exit("The working tree has uncommitted changes: commit the protocol before the registered run.\n" + dirty)
     import scipy
@@ -138,6 +142,7 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
 
     # the QIS switch study (sub-study ii)
     qtruths = qis_truths()
+    qmeta = {"months": qtruths.pop("_months"), "funds": qtruths.pop("_funds"), "end": SIM.truth_end("US")}
     qtasks = [(name, S, ratio, rep) for name, S in qtruths.items() for ratio in (0.1, 0.2, 0.25, 0.3, 0.4, 0.6) for rep in range(reps)]
     q = pd.DataFrame(pmap(SIM.qis_switch_sample, qtasks, chunksize=25))
     qsum = {
@@ -166,7 +171,8 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
     result = {
         "summary": summary,
         "resampling_rule": {**rule, "drop_resampling": drop_resampling},
-        "qis_switch": {"by_ratio": qsum, "tests": tests, "switch": switch},
+        "qis_switch": {"by_ratio": qsum, "tests": tests, "switch": switch, "truth": qmeta},
+        "truth_months": SIM._truth_cache()["truth_months"],
         "errors": int(len(errors)),
         "error_examples": errors.head(5).to_dict(orient="records") if len(errors) else [],
         "replications": reps,
@@ -178,11 +184,12 @@ def qis_truths() -> dict:
     """Two truths for the QIS study, 20 funds drawn once (seed 20261008) from the 43-fund US list: constant-correlation
     shrinkage (structure that favours linear shrinkage) and the sample covariance (no imposed structure)."""
     shelf, core, _ = E.select_funds(Request(market="US"))
-    pool = list(dict.fromkeys(core + WIDE_US))
+    end = SIM.truth_end("US")  # only months before the US walk-forward tests anything
+    pool = [t for t in dict.fromkeys(core + WIDE_US) if E.returns_in("US", [t])[t].loc[:end].notna().sum() >= 120]
     rng = np.random.default_rng(20261008)
     pick = list(rng.choice(pool, size=20, replace=False))
-    X = E.returns_in("US", pick).dropna(how="any").to_numpy()
-    return {"constant_correlation": choose_covariance(X, "lw_cc")[0], "sample": np.cov(X.T, ddof=1)}
+    X = E.returns_in("US", pick).loc[:end].dropna(how="any").to_numpy()
+    return {"constant_correlation": choose_covariance(X, "lw_cc")[0], "sample": np.cov(X.T, ddof=1), "_months": len(X), "_funds": pick}
 
 
 # ================================================================== E1 and E2
@@ -207,13 +214,19 @@ def walk_forward(market: str, locks: dict, strategies, levels_all, dates=None, m
     return {"shelf": sh, "dates": dates, "builds": builds}, [b for b in builds if "error" in b]
 
 
+PATH_ERRORS: list = []  # a held fund without a return stops that path; recorded, never filled in
+
+
 def analyse_paths(builds, realised, cash, strategies, levels) -> dict:
     paths = {}
     for s in strategies:
         for L in levels:
             bs = [b for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] == L]
             if bs:
-                paths[(s, L)] = EV.hold_path(bs, realised)
+                try:
+                    paths[(s, L)] = EV.hold_path(bs, realised)
+                except ValueError as e:
+                    PATH_ERRORS.append({"strategy": s, "level": L, "error": str(e)})
     return paths
 
 
@@ -267,6 +280,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     for (b, L), a, ani in zip(conf, adj, adj_ni):
         res["comparisons"][b][L]["p_holm"] = a
         res["comparisons"][b][L]["p_noninferior_holm"] = ani
+        res["comparisons"][b][L]["reading"] = EV.reading(res["comparisons"][b][L])
     for s in [x for x in strategies if x not in EV.CONFIRMATORY and x != "robokit"]:
         for L in EV.PRIMARY:
             if (s, L) in paths:
@@ -286,6 +300,12 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
             "best_benchmark": best,
             "benchmark": es.deflated_sharpe(b_ex, srs, N_TRIALS),
         }
+    res["ex_ante_gap"] = {}
+    for s in strategies:
+        for L in EV.PRIMARY:
+            g = [abs(b["ex_ante_vol"] - b["target"]) for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] == L]
+            if g:
+                res["ex_ante_gap"].setdefault(s, {})[L] = {"mean": float(np.mean(g)), "max": float(np.max(g))}
     # the calibration ablation: ex-ante gap to target, robokit against single-solve lambda
     gaps = {}
     for s in ("robokit", "single_lambda"):
@@ -400,9 +420,11 @@ def stage_e4(market: str, locks: dict) -> dict:
 
 # ================================================================== E5 sensitivities
 def prior_variant(market: str, home: float | None = None, sixty_forty: bool = False) -> dict:
+    from robokit.shelf import SLEEVES
+
     p = dict(PRIOR[market])
-    eq_keys = [k for k in p if "equity" in k]
-    bond_keys = [k for k in p if "bond" in k]
+    eq_keys = [k for k in p if SLEEVES[k].asset_class == "Equity"]
+    bond_keys = [k for k in p if SLEEVES[k].asset_class == "Fixed income"]
     if home is not None and market == "CA":
         eq = sum(p[k] for k in eq_keys)
         others = [k for k in eq_keys if k != "ca_equity"]
@@ -413,9 +435,14 @@ def prior_variant(market: str, home: float | None = None, sixty_forty: bool = Fa
     if sixty_forty:
         for k in ("ca_reit", "ca_gold", "us_reit", "us_gold"):
             p.pop(k, None)
+        e = sum(p[k] for k in eq_keys)
+        for k in eq_keys:
+            p[k] = p[k] / e * 0.60
         b = sum(p[k] for k in bond_keys)
         for k in bond_keys:
             p[k] = p[k] / b * 0.40
+    if abs(sum(p.values()) - 1.0) > 1e-9:
+        raise ValueError(f"prior variant sums to {sum(p.values())}")
     return p
 
 
@@ -445,7 +472,7 @@ def e5_today(market: str, locks: dict) -> dict:
     pw = es.politis_white_block(pw_x)
     out["politis_white_block"] = pw
     out["block_length"] = {str(b): diff(lean(research={"block_length": b})) for b in (3, 12, max(1, round(pw)))}
-    out["window"] = {str(w): diff(lean(research={"max_window": w})) for w in (120, 300)}
+    out["window"] = {str(w): diff(lean(research={"max_window": w})) for w in (120, 100_000)}  # 100,000: no cap (all months)
     if market == "CA":
         out["home_bias"] = {str(h): diff(lean(research={"prior": prior_variant(market, home=h)})) for h in (0.0, 0.2, 0.4)}
     out["sixty_forty_prior"] = diff(lean(research={"prior": prior_variant(market, sixty_forty=True)}))
@@ -490,6 +517,14 @@ def e5_today(market: str, locks: dict) -> dict:
             p5 = [project(X[tick].to_numpy(), w, g, n_paths=paths, seed=s)["one_year"]["p5"] for s in range(1, 11)]
             proj.setdefault(str(L), {})[str(paths)] = {"se": float(np.std(p5, ddof=1) / math.sqrt(10)), "values": p5}
     out["projection_se"] = proj
+    # the rule (numerical accuracy only): 0.25 points = 0.0025 in the decimal returns projection.py reports
+    over = [L for L in proj if proj[L]["2000"]["se"] > 0.0025]
+    out["projection_rule"] = {
+        "threshold": 0.0025,
+        "over_at_2000": over,
+        "paths": 5000 if over else 2000,
+        "still_over_at_5000": [L for L in over if proj[L]["5000"]["se"] > 0.0025],
+    }
     return out
 
 
@@ -497,7 +532,7 @@ E5_WALK = {
     "block_3": {"block_length": 3},
     "block_12": {"block_length": 12},
     "window_120": {"max_window": 120},
-    "window_all": {"max_window": 300},
+    "window_all": {"max_window": 100_000},
     "home_0": "home:0.0",
     "home_20": "home:0.2",
     "home_40": "home:0.4",
@@ -550,16 +585,20 @@ def stage_e6(market: str, e1_builds: list) -> dict:
             )
         out["accounts"][key] = res
     U = E._load_all()[0].set_index("yahoo")
+    big = AU.account_path(targets, prices, 1_000_000.0, 0.0, "bands")["largest_order"]
     out["largest_order_share_of_daily_volume"] = {
-        t: (1_000_000 * 0.5 / float(U.at[t, "dollar_volume"])) if pd.notna(U.at[t, "dollar_volume"]) else None for t in sh.tickers
+        t: (big[t] / float(U.at[t, "dollar_volume"])) if pd.notna(U.at[t, "dollar_volume"]) else None for t in sh.tickers
     }
-    out["note"] = "the share of daily volume is for an order of half of a 1,000,000 account, the largest order a reference mix would place"
+    out["note"] = "each fund's largest order on a 1,000,000 account under the shipped bands, over its average daily traded value (today's)"
     return out
 
 
 # ================================================================== E7 and E8
 def stage_e7() -> dict:
-    out = {"jump_screen": {str(round(k, 4)): AU.jump_screen_at(k) for k in (math.log(1.5), math.log(2), math.log(3))}}
+    out = {
+        "jump_screen": {str(round(k, 4)): AU.jump_screen_at(k) for k in (math.log(1.5), math.log(2), math.log(3))},
+        "jump_screen_self_excluded_ln2": AU.jump_screen_self_excluded(math.log(2)),
+    }
     h = pd.DataFrame(AU.crisis_standin_holdout())
     h["abs_error"] = (h.actual - h.standin).abs()
     out["crisis_standins"] = {
@@ -567,7 +606,10 @@ def stage_e7() -> dict:
             ep: {"mae": float(g.abs_error.mean()), "median_ae": float(g.abs_error.median()), "n": int(len(g))}
             for ep, g in h.groupby("episode")
         },
-        "by_asset_class": {ac: {"mae": float(g.abs_error.mean()), "n": int(len(g))} for ac, g in h.groupby("asset_class")},
+        "by_asset_class": {
+            ac: {"mae": float(g.abs_error.mean()), "median_ae": float(g.abs_error.median()), "n": int(len(g))}
+            for ac, g in h.groupby("asset_class")
+        },
     }
     out["liquidity_margins"] = {m: AU.liquidity_margins(m) for m in ("CA", "US")}
     out["crisis_episode_rule"] = {m: AU.crisis_episode_rule(m) for m in ("CA", "US")}
@@ -641,6 +683,7 @@ def main():
     for m in ("CA", "US"):
         today = e5_today(m, locks)
         results["E5"][m] = {"today": today, "walk_forward": e5_walk(m, locks, today["politis_white_block"])}
+        results["locked_defaults"].setdefault("projection_paths", {})[m] = today["projection_rule"]["paths"]
         save()
     # E6 uses the E1 level-3 robokit targets (rebuilt here from the same deterministic builds)
     results["E6"] = {}
@@ -651,6 +694,7 @@ def main():
         save()
     results["E7"] = stage_e7()
     results["E8"] = stage_e8()
+    results["path_errors"] = PATH_ERRORS
     results["provenance"]["finished"] = time.strftime("%Y-%m-%d %H:%M:%S")
     results["provenance"]["seconds"] = round(time.time() - t0)
     (OUT / "results.json").write_text(json.dumps(clean(results), indent=1))

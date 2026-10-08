@@ -40,11 +40,20 @@ STAY = (0.97, 0.85)  # calm, stress
 STRESS_MULT = 2.5
 
 
+def truth_end(market: str) -> str:
+    """The first E1 estimation date: every month the walk-forward tests comes after it."""
+    from .evaluation import december_dates, reference_shelf
+
+    return str(december_dates(reference_shelf(market).full)[0].date())
+
+
 def truth(market: str = "CA") -> dict:
-    """The fixed ingredients of the simulation (computed once from today's data)."""
+    """The fixed ingredients of the simulation. The covariance uses only months before the walk-forward (E1) tests
+    anything, so the defaults E3 locks are not informed by E1's test period; the planning returns are 2026
+    assumptions, not past returns."""
     shelf, core, _ = select_funds(Request(market=market))
     _, full, _ = build_returns(market, shelf, core, [])
-    X = full[core].dropna(how="any")
+    X = full[core].dropna(how="any").loc[: truth_end(market)]
     S_m, _ = choose_covariance(X.to_numpy(), "lw_cc")
     prior = pd.Series(0.0, index=core)
     for _, r in shelf.iterrows():
@@ -78,6 +87,7 @@ def truth(market: str = "CA") -> dict:
         "caps": caps,
         "cash": cash,
         "start": X.index[0],
+        "truth_months": [str(X.index[0].date()), str(X.index[-1].date()), int(len(X))],
     }
 
 
