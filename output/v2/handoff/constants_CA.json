@@ -1,0 +1,87 @@
+{
+ "market": "CA",
+ "engine_version": "2.2.0",
+ "data_snapshot": "00a560f4a6d3",
+ "data_source": "local",
+ "history_window": [
+  "2011-09-30",
+  "2026-08-31"
+ ],
+ "months": 180,
+ "risk_free": 0.0235,
+ "risk_free_source": "Canada 3-month T-bill, Bank of Canada, Sep 2026",
+ "delta": 2.5,
+ "covariance": {
+  "method": "lw_cc",
+  "concentration_ratio": 0.05555555555555555,
+  "n_assets": 10,
+  "n_obs": 180,
+  "shrinkage": 0.15913838346292838,
+  "condition_number": 4126.947617908164
+ },
+ "objective": "maximize mu'w - (lambda/2) w'Sigma w, weights sum to 1, no shorting",
+ "min_weight_rule": "funds under min_weight_per_fund are dropped and the problem is solved again at the same lambda (up to 3 rounds); the weights in risk_aversion are after this step",
+ "weights_note": "the weights in risk_aversion are one estimate (resampling off); the product averages 200 resampled histories at the same lambda, so its weights differ by a few tenths of a point",
+ "risk_aversion": {
+  "low": {
+   "level": 4.0,
+   "label": "Growth",
+   "target_volatility": 0.0856,
+   "lambda": 2.0784,
+   "cash_cap": 0.15,
+   "weights": {
+    "VFV.TO": 0.3245,
+    "ZAG.TO": 0.2046,
+    "XIC.TO": 0.2042,
+    "FLUR.NE": 0.1311,
+    "XRE.TO": 0.0559,
+    "VEE.TO": 0.0483,
+    "VALT.TO": 0.0313
+   }
+  },
+  "mid": {
+   "level": 3.0,
+   "label": "Balanced",
+   "target_volatility": 0.0642,
+   "lambda": 2.8831,
+   "cash_cap": 0.15,
+   "weights": {
+    "VFV.TO": 0.2281,
+    "ZAG.TO": 0.1988,
+    "XIC.TO": 0.1605,
+    "CASH.TO": 0.1011,
+    "FLUR.NE": 0.0937,
+    "XSB.TO": 0.0885,
+    "VBU.NE": 0.0668,
+    "VEE.TO": 0.0397,
+    "XRE.TO": 0.0226
+   }
+  },
+  "high": {
+   "level": 2.0,
+   "label": "Cautious",
+   "target_volatility": 0.0428,
+   "lambda": 4.3727,
+   "cash_cap": 0.3,
+   "weights": {
+    "CASH.TO": 0.3,
+    "XSB.TO": 0.183,
+    "VFV.TO": 0.1501,
+    "XIC.TO": 0.1157,
+    "ZAG.TO": 0.1103,
+    "FLUR.NE": 0.0623,
+    "VBU.NE": 0.0529,
+    "VEE.TO": 0.0258
+   }
+  }
+ },
+ "max_weight_per_fund": 0.5,
+ "min_weight_per_fund": 0.02,
+ "sleeve_caps": {
+  "VEE.TO": 0.15,
+  "XRE.TO": 0.1,
+  "VALT.TO": 0.1
+ },
+ "level_rule": "target volatility = level / 5 x volatility of the stock part of the policy prior",
+ "note": "Lambda is calibrated on this shelf. On another shortlist the engine re-solves it to hit the same target volatility."
+}

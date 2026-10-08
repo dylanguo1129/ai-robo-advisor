@@ -1,0 +1,87 @@
+{
+ "market": "US",
+ "engine_version": "2.2.0",
+ "data_snapshot": "00a560f4a6d3",
+ "data_source": "local",
+ "history_window": [
+  "2013-07-31",
+  "2026-08-31"
+ ],
+ "months": 158,
+ "risk_free": 0.040529999732971195,
+ "risk_free_source": "US 13-week T-bill, Yahoo ^IRX, Sep 2026",
+ "delta": 2.5,
+ "covariance": {
+  "method": "lw_cc",
+  "concentration_ratio": 0.06329113924050633,
+  "n_assets": 10,
+  "n_obs": 158,
+  "shrinkage": 0.10969094107161603,
+  "condition_number": 3231.998029286851
+ },
+ "objective": "maximize mu'w - (lambda/2) w'Sigma w, weights sum to 1, no shorting",
+ "min_weight_rule": "funds under min_weight_per_fund are dropped and the problem is solved again at the same lambda (up to 3 rounds); the weights in risk_aversion are after this step",
+ "weights_note": "the weights in risk_aversion are one estimate (resampling off); the product averages 200 resampled histories at the same lambda, so its weights differ by a few tenths of a point",
+ "risk_aversion": {
+  "low": {
+   "level": 4.0,
+   "label": "Growth",
+   "target_volatility": 0.1102,
+   "lambda": 2.0703,
+   "cash_cap": 0.15,
+   "weights": {
+    "VOO": 0.4384,
+    "VXUS": 0.2004,
+    "BND": 0.1949,
+    "VWO": 0.0781,
+    "VNQ": 0.0576,
+    "GLDM": 0.0306
+   }
+  },
+  "mid": {
+   "level": 3.0,
+   "label": "Balanced",
+   "target_volatility": 0.0826,
+   "lambda": 2.8167,
+   "cash_cap": 0.15,
+   "weights": {
+    "VOO": 0.3243,
+    "BND": 0.1987,
+    "VXUS": 0.1472,
+    "SGOV": 0.0993,
+    "VWO": 0.0618,
+    "VGSH": 0.0583,
+    "SCHP": 0.056,
+    "BNDX": 0.0293,
+    "VNQ": 0.0252
+   }
+  },
+  "high": {
+   "level": 2.0,
+   "label": "Cautious",
+   "target_volatility": 0.0551,
+   "lambda": 4.25,
+   "cash_cap": 0.3,
+   "weights": {
+    "SGOV": 0.3,
+    "VOO": 0.2249,
+    "VGSH": 0.129,
+    "BND": 0.1162,
+    "VXUS": 0.0987,
+    "SCHP": 0.0517,
+    "VWO": 0.0408,
+    "BNDX": 0.0387
+   }
+  }
+ },
+ "max_weight_per_fund": 0.5,
+ "min_weight_per_fund": 0.02,
+ "sleeve_caps": {
+  "VWO": 0.15,
+  "SCHP": 0.2,
+  "VNQ": 0.1,
+  "GLDM": 0.1
+ },
+ "level_rule": "target volatility = level / 5 x volatility of the stock part of the policy prior",
+ "note": "Lambda is calibrated on this shelf. On another shortlist the engine re-solves it to hit the same target volatility."
+}

@@ -1,0 +1,11 @@
+ticker,sleeve,asset_class,mer,prior_weight,expected_excess_return,expected_total_return,volatility
+VOO,us_equity,Equity,0.0003,0.372,0.031757,0.072287,0.144134
+VXUS,us_intl_equity,Equity,0.0005,0.162,0.030729,0.071259,0.144913
+VWO,us_em_equity,Equity,0.0006,0.066,0.02906,0.06959,0.157408
+BND,us_agg_bond,Fixed income,0.0003,0.22,0.006289,0.046819,0.047283
+VGSH,us_short_treasury,Fixed income,0.0003,0.06,0.000884,0.041414,0.014817
+SCHP,us_tips,Fixed income,0.0003,0.04,0.006803,0.047333,0.048183
+BNDX,us_intl_bond,Fixed income,0.0007,0.03,0.005153,0.045683,0.040412
+VNQ,us_reit,Real estate,0.0013,0.03,0.030077,0.070607,0.17053
+GLDM,us_gold,Commodity,0.001,0.02,0.00973,0.05026,0.155976
+SGOV,us_cash,Cash,0.0009,0.0,0.000105,0.040635,0.00572
