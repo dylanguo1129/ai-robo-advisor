@@ -131,7 +131,8 @@ def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
     return {"mean": m, "se": se, "lo95_one_sided": m - q * se, "hi95_one_sided": m + q * se, "p": p, "n": int(n)}
 
 
-FAMILY = {"CA": "confirmatory", "US": "exploratory"}  # RESEARCH_LOG section 10, power: stated in advance
+FAMILY = {"CA": "confirmatory", "US": "exploratory"}
+ONE_LEVEL = "descriptive: one level with its own 90% interval; the registered reading covers levels 2-4 together"  # RESEARCH_LOG section 10, power: stated in advance
 REGISTERED_TRUTH = {"CA": ["2004-12-31", "2009-12-31", 61], "QIS": ["2009-01-31", "2018-12-31", 120]}  # RESEARCH_LOG section 10, E3
 
 
@@ -289,12 +290,14 @@ PATH_ERRORS: list = []  # a held fund without a return stops that path; recorded
 
 
 def schedule_of(attempted: list, leading_skips: bool = False) -> list:
-    """The estimation dates a path must have: every date attempted; with ``leading_skips`` (E2, registered: a date
-    whose shelf lacks 36 months of own history is skipped) only those from the first date that built."""
+    """The estimation dates a path must have: every date attempted. With ``leading_skips`` (E2's one registered
+    exception), a date refused for short common own history (kind "short_history") before the first date that built
+    is left out; any other failure stays on the schedule, so the path stops."""
     dates = sorted(b["task"][1] for b in attempted)
     if leading_skips:
         ok = sorted(b["task"][1] for b in attempted if "weights" in b)
-        dates = [d for d in dates if ok and d >= ok[0]]
+        skip = {b["task"][1] for b in attempted if ok and b["task"][1] < ok[0] and b.get("kind") == "short_history"}
+        dates = [d for d in dates if d not in skip]
     return dates
 
 
@@ -384,8 +387,8 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     res["regulator_rating"] = {L: E.ni81_102_rating(p["net"].to_numpy()) for L, p in rk.items()}  # realised paths, last 120 months
     res["risk_delivery"] = {
         "primary": EV.risk_delivery(rk, EV.PRIMARY) if all(L in rk for L in EV.PRIMARY) else gone,
-        "level_1": EV.risk_delivery(rk, (1,)) if 1 in rk else gone,
-        "level_5": EV.risk_delivery(rk, (5,)) if 5 in rk else gone,
+        "level_1": {**EV.risk_delivery(rk, (1,)), "role": ONE_LEVEL} if 1 in rk else gone,
+        "level_5": {**EV.risk_delivery(rk, (5,)), "role": ONE_LEVEL} if 5 in rk else gone,
     }
     res["risk_delivery_other"] = {
         s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L] for L in EV.PRIMARY if (s, L) in paths} for s in strategies if s != "robokit"

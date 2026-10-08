@@ -21,7 +21,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
-| D5 | Estimation window: the latest 180 months every fund has | 180 | Test: windows 120 / 180 / all | E5(w) |
+| D5 | Estimation window: the latest 180 months every fund has | 180 | Test: 120 and all months against the 180 default (E5) | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
 | D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 in size and at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
 
@@ -316,6 +316,15 @@ required changes.
 | E2's leading skips listed any early failure, not only the registered short-history refusals | true | each failure records its kind; leading skips keep only short-history refusals |
 | Nothing tested that the E3 locks reach the evaluation builds | true | each build records its covariance method and calibration label; a test checks both switches end to end |
 | D16 claimed an E5 test, D23 a 2% arm that is the default, D29 a window test for the yardstick | true | register corrected to the tests that exist |
+
+**Stage 1, eleventh round (8 Oct 2026).** The same reviewer as rounds 8-10. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| Sub-study (i)'s shorter histories were not the first months of the 180-month ones in world b (the Student t scale draws start at different points of the stream), so window lengths were not paired | true | one 192-month path per replication, shorter studies take its first months; the 180-month histories, and so the main grid, are unchanged; tested |
+| E2's schedule skipped any failure before the first build, not only short-history refusals | true (the round-10 fix reached the listing, not the schedule) | only short-history refusals are skipped; any other failure stops the path; the test that encoded the old behaviour corrected |
+| D5 listed 180 months as a sensitivity arm | true | worded against the 180 default |
+| Levels 1 and 5 carried the registered reading's labels | true | labelled descriptive |
 
 ## Sources checked for this register
 

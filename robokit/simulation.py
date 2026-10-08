@@ -249,13 +249,25 @@ def method_weights(tr: dict, returns: np.ndarray, method: str, level: float, see
         return {"w": w, "band": q["band"], "outcome": q["calibration"]["outcome"] if q["calibration"] else None}
 
 
+FULL_MONTHS = 192  # the longest study: 180 months, plus 12 for the re-estimate a year later
+
+
+def history(tr: dict, world: str, rep: int, months: int) -> np.ndarray:
+    """The simulated history for (world, rep): one FULL_MONTHS path, of which a study of ``months`` takes the first
+    months + 12. Common random numbers: every method and every window length sees the same draws, so the 36-, 60- and
+    120-month histories are the first months of the 180-month one."""
+    if months + 12 > FULL_MONTHS:
+        raise ValueError(f"at most {FULL_MONTHS - 12} months")
+    rng = np.random.default_rng([20261008, ord(world), rep])
+    return simulate(tr, world, FULL_MONTHS, rng)[: months + 12]
+
+
 def replicate(task: tuple) -> list[dict]:
     """One simulated history: every method at one level. task = (world, rep, level, methods, months). Common random
-    numbers: the history depends only on (world, rep), so every method sees the same data."""
+    numbers: the history depends only on (world, rep) (``history``)."""
     world, rep, level, methods, months = task
     tr = TRUTH or _truth_cache()
-    rng = np.random.default_rng([20261008, ord(world), rep])
-    hist = simulate(tr, world, months + 12, rng)
+    hist = history(tr, world, rep, months)
     opt = true_optimum(tr, world, level)
     opt_mp = true_optimum_minpos(tr, world, level)
     out = []

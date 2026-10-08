@@ -191,10 +191,12 @@ def test_the_runner_stops_a_path_with_a_failed_build_and_records_it():
     rv.PATH_ERRORS.clear()
     assert rv.safe_path([*ok, failed], R, "E1", "CA", "s", 3) is None
     assert rv.PATH_ERRORS and rv.PATH_ERRORS[0]["stage"] == "E1" and "2020-12-31" in rv.PATH_ERRORS[0]["error"]
-    early = {"task": (None, "2018-12-31", 3, "s", "strict"), "error": "short history"}
+    early = {"task": (None, "2018-12-31", 3, "s", "strict"), "error": "short history", "kind": "short_history"}
     assert rv.safe_path([early, *ok], R, "E2", "CA", "s", 3, leading_skips=True) is not None  # a leading skip is registered
     assert rv.safe_path([early, *ok, failed], R, "E2", "CA", "s", 3, leading_skips=True) is None  # a later gap is not
     assert rv.schedule_of([early, *ok], leading_skips=True) == ["2019-12-31", "2021-12-31"]
+    other = {"task": (None, "2018-12-31", 3, "s", "strict"), "error": "solver", "kind": None}
+    assert rv.safe_path([other, *ok], R, "E2", "CA", "s", 3, leading_skips=True) is None  # only short history is skipped
     assert rv.clean({"x": float("inf"), "y": float("-inf"), "z": float("nan")}) == {"x": "inf", "y": "-inf", "z": None}
 
 
@@ -299,3 +301,16 @@ def test_the_e3_locks_reach_the_evaluation_builds():
     assert b["calibration_method"].startswith("final pipeline (single solve,") and b["covariance"] == "qis"
     b = EV.build_at(("CA", "2020-12-31", 3, "robokit", "fixed", {}))
     assert b["calibration_method"].startswith("final pipeline (resampled,") and b["covariance"] == "lw_cc"
+
+
+@pytest.mark.parametrize("world", ["b", "c"])
+def test_shorter_e3_histories_are_the_first_months_of_the_full_one(world):
+    """Common random numbers across window lengths: the 36-, 60- and 120-month studies see the first months of the
+    replication's 180-month history (plus the 12 months for the re-estimate)."""
+    from robokit import simulation as SIM
+
+    tr = SIM._truth_cache()
+    full = SIM.history(tr, world, 3, 180)
+    assert full.shape[0] == 192
+    for T in (36, 60, 120):
+        assert np.array_equal(SIM.history(tr, world, 3, T), full[: T + 12])
