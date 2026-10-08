@@ -2,6 +2,7 @@
 // Run: node web/test_robokit.mjs
 import { readFileSync } from 'node:fs';
 import { Market, buildPortfolio, scoreProfile, oneFund } from './robokit.js';
+import { mulberry32, qis } from './engine.js';
 
 const here = new URL('.', import.meta.url);
 const core = JSON.parse(readFileSync(new URL('data/core.json', here)));
@@ -19,12 +20,47 @@ for (const c of core.reference_cases) {
     for (const s of p.stress) { const py = c.stress[s.scenario]; if (py === undefined || (py === null) !== (s.portfolio_return === null)) { ds = Infinity; continue; } if (py !== null) ds = Math.max(ds, Math.abs(s.portfolio_return - py)); }
     if (p.stress.length !== Object.keys(c.stress).length) ds = Infinity;
   }
-  const sameNotes = !c.notes || JSON.stringify(p.notes) === JSON.stringify(c.notes);
+  // near-duplicate funds (VOO and IVV) split by differences below the solver's tolerance: one engine may give a twin a
+  // sliver it then drops as small, the other exactly zero. Same funds unheld either way; other notes must match exactly.
+  const unheld = (ns) => { const out = new Set(), rest = [];
+    for (const n of ns) { const m = n.en.match(/^Dropped because each would have held less than [0-9.]+%: (.*)\. The other/); const z = n.en.match(/^(\S+) is not held: at this level the optimizer gave it no weight/);
+      if (m) m[1].split(', ').forEach(t => out.add(t)); else if (z) out.add(z[1]); else rest.push(n.en); }
+    return JSON.stringify([[...out].sort(), rest]); };
+  const sameNotes = !c.notes || JSON.stringify(p.notes) === JSON.stringify(c.notes) || (c.checks.includes('near_duplicate') && unheld(p.notes) === unheld(c.notes));
   const sameChecks = !c.checks || JSON.stringify(p.checks.map(x => x.id)) === JSON.stringify(c.checks);
   const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  dvol=${dv.toExponential(2)}  dstress=${ds.toExponential(2)}  window ${p.window.months}/${c.window.months}  ${Date.now() - t0} ms`);
   if (!ok) console.log('   js', js, p.notes, p.checks.map(x => x.id), '\n   py', c.weights, c.notes, c.checks);
+}
+// resampled builds with projections: the engines share one random generator, so these agree to rounding
+const jsReq = (q) => ({ risk_level: q.risk_level, satellites: q.satellites || [], views: q.views || [], amount: q.amount ?? 10000, monthly: q.monthly_contribution ?? 0, years: q.years ?? 10, goal: q.goal ?? null });
+const relGap = (a, b) => Math.abs(a - b) / Math.max(1, Math.abs(b));
+for (const c of core.resampled_cases || []) {
+  const q = c.request; const t0 = Date.now();
+  const p = buildPortfolio(mk[q.market], jsReq(q));
+  const js = Object.fromEntries(p.holdings.map(h => [h.ticker, h])); let maxd = 0, maxb = 0;
+  for (const k of new Set([...Object.keys(js), ...Object.keys(c.weights)])) {
+    maxd = Math.max(maxd, Math.abs((js[k]?.weight || 0) - (c.weights[k] || 0)));
+    const bj = js[k]?.band, bp = c.bands[k]; if (bj && bp) maxb = Math.max(maxb, Math.abs(bj[0] - bp[0]), Math.abs(bj[1] - bp[1])); else if (!!bj !== !!bp) maxb = Infinity;
+  }
+  const P = p.projection, C = c.projection; let dr = 0, dm = 0;  // dr: largest gap in a return or a chance; dm: largest relative gap in money
+  for (const k of ['p5', 'p10', 'p50', 'p90', 'prob_loss']) dr = Math.max(dr, Math.abs(P.one_year[k] - C.one_year[k]));
+  for (const y of C.yearly) { const z = P.yearly.find(v => v.year === y.year); for (const k of ['p10', 'p50', 'p90']) dm = Math.max(dm, z ? relGap(z[k], y[k]) : Infinity); }
+  for (const h of C.by_holding_period) { const z = P.by_holding_period.find(v => v.years === h.years); for (const k of ['p10', 'p50', 'p90']) dr = Math.max(dr, z ? Math.abs(z[k] - h[k]) : Infinity); }
+  if (C.chance_need_to_adjust != null) dr = Math.max(dr, Math.abs(P.chance_need_to_adjust - C.chance_need_to_adjust));
+  if (C.withdrawal) dr = Math.max(dr, Math.abs(P.withdrawal.chance_lasts - C.withdrawal.chance_lasts), Math.abs(P.withdrawal.p50_months - C.withdrawal.p50_months) / C.withdrawal.months);
+  const ok = maxd <= 2e-3 && maxb <= 5e-3 && Math.abs(p.stats.volatility - c.volatility) <= 1e-3 && dr <= 5e-3 && dm <= 5e-3;
+  if (!ok) fails++;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} resampled ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  max|dband|=${maxb.toExponential(2)}  projection: returns ${dr.toExponential(2)}, money ${dm.toExponential(2)}  ${Date.now() - t0} ms`);
+}
+// QIS on the same generated inputs as Python (robokit/bundle.py qis_checks)
+for (const c of core.qis_checks || []) {
+  const r = mulberry32(c.seed); const X = Array.from({ length: c.t }, () => Array.from({ length: c.n }, () => (r() - 0.5) * 0.1));
+  const S = qis(X); let md = 0, mx = 0;
+  for (let i = 0; i < c.n; i++) for (let j = 0; j < c.n; j++) { md = Math.max(md, Math.abs(S[i][j] - c.sigma[i][j])); mx = Math.max(mx, Math.abs(c.sigma[i][j])); }
+  const ok = md / mx < 1e-10; if (!ok) fails++;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} QIS T=${c.t} N=${c.n}  max|dSigma|/max|Sigma| = ${(md / mx).toExponential(2)}`);
 }
 // profile scorer: every Python-scored random answer set must come out identical
 const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v));
@@ -38,8 +74,4 @@ for (const [code, share] of [['CA', 0.8], ['US', 0.6]]) { const o = oneFund(mk[c
 const P = scoreProfile(core.questions, { A2: 'yes', A3: 'no', B1: '10to19', B2: '10plus', B4: '10to25', B5: 'mostly', C1: '4', C2: 'wait', C3: '3', C4: 'both' });
 const okP = P.status === 'complete' && P.suggested_level === 3 && P.capacity === 5 && P.tolerance === 3;
 console.log(`${okP ? 'ok  ' : 'FAIL'} profile scorer`, P.suggested_level, P.capacity, P.tolerance); if (!okP) fails++;
-// resampled run: sums to one, bands present, timing
-const t1 = Date.now(); const R = buildPortfolio(mk.CA, { risk_level: 3, nBoot: 200 });
-const s = R.holdings.reduce((a, h) => a + h.weight, 0);
-console.log(`${Math.abs(s - 1) < 1e-3 && R.holdings.every(h => h.band) ? 'ok  ' : 'FAIL'} resampled CA level 3 in ${Date.now() - t1} ms, sum ${s.toFixed(4)}`);
 process.exit(fails ? 1 : 0);

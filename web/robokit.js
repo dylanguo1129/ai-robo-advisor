@@ -8,7 +8,7 @@
  * seeded bootstrap, also used by the v1 engine test web/test_engine.mjs), which must be published next to it.
  * Works in the browser, in a Web Worker and in Node.
  */
-import { ledoitWolfConstantCorrelation, projectWeightedCappedSimplex, mulberry32, stationaryBootstrapRows } from './engine.js';
+import { chooseCovariance, projectWeightedCappedSimplex, mulberry32, stationaryBootstrapRows } from './engine.js';
 
 const EPS = 1e-12;
 export const MAX_WINDOW = 180;
@@ -288,11 +288,11 @@ export function buildReturns(M, shelf, sats) {
 }
 
 // ------------------------------------------------------------------ estimation and solver
-function fit(X, prior, delta = DELTA) {
-  const { sigma: sm, shrink } = ledoitWolfConstantCorrelation(X);
+function fit(X, prior, delta = DELTA, method = 'auto') {
+  const { sigma: sm, shrink, method: used } = chooseCovariance(X, method);
   const sigma = sm.map(r => Array.from(r, v => v * 12));
   const mu = Array.from(matvec(sigma, prior), v => delta * v);
-  return { sigma, mu, shrink };
+  return { sigma, mu, shrink, method: used };
 }
 
 function projectGroup(x, a, cap, total, mask, gcap) {
@@ -421,7 +421,7 @@ function optimizeOn(est, lam, idx, bounds, satMask, satCap, { resample = false, 
   const rng = mulberry32(seed + 1); const T = X.length; const draws = [];
   for (let b = 0; b < nBoot; b++) {
     const rows = stationaryBootstrapRows(rng, T, 6); const Xb = Array.from(rows, r => X[r]);
-    let e = fit(Xb, prior);
+    let e = fit(Xb, prior, DELTA, est.method);
     if (blViews) e = blPosterior(e, blViews);
     draws.push(clean(solveQPG(sub(e.sigma, idx), idx.map(i => e.mu[i]), lam, lb, ub, hasMask ? mask : null, gcap)));
   }
@@ -927,7 +927,7 @@ export function buildPortfolio(M, req = {}) {
     mix: { asset_class: sortObj(mixClass), region: sortObj(mixRegion) },
     stress, projection: proj, views: viewsInfo, history: hist,
     method: { weights: isFixed ? 'your own weights' : 'constrained mean-variance',
-      expected_returns_for_weights: viewsApplied ? 'black_litterman (bounded)' : 'equilibrium', delta: DELTA, covariance: 'lw_cc', shrinkage: round(est.shrink),
+      expected_returns_for_weights: viewsApplied ? 'black_litterman (bounded)' : 'equilibrium', delta: DELTA, covariance: est.method, shrinkage: est.shrink == null ? null : round(est.shrink),
       resampled: !!r.resample && !isFixed, n_boot: r.resample && !isFixed ? r.nBoot : 0, prior: Object.fromEntries(tickers.map((t, i) => [t, round(priorN[i])]).filter(([, v]) => v > 0)), sleeve_caps: caps,
       on_infeasible: r.onInfeasible, relaxations },
     shelf: shelf.map(s => ({ sleeve: s.sleeve, label: s.label, ticker: s.ticker, alternatives: s.alternatives })),

@@ -39,9 +39,10 @@ KKT_TOL = 1e-6  # projected-gradient residual accepted when the iteration limit 
 def project_weighted_capped_simplex(x: np.ndarray, a: np.ndarray, cap: np.ndarray, total: float = 1.0, tol: float = 1e-13) -> np.ndarray:
     """Euclidean projection of ``x`` onto {v : a'v = total, 0 <= v <= cap}, a > 0.
 
-    KKT gives v_i = clip(x_i - tau a_i, 0, cap_i); a'v is non-increasing in
-    tau, so tau is found by bisection.
-    """
+    KKT gives v_i = clip(x_i - tau a_i, 0, cap_i). g(tau) = a'v(tau) is piecewise linear and non-increasing, with
+    breakpoints where a coordinate leaves its cap ((x_i - cap_i) / a_i) or reaches zero (x_i / a_i); tau is found
+    exactly by evaluating g at the sorted breakpoints and interpolating on the segment that contains ``total``
+    (``tol`` is kept for callers of the earlier bisection version)."""
     x = np.asarray(x, dtype=float)
     a = np.asarray(a, dtype=float)
     cap = np.asarray(cap, dtype=float)
@@ -49,18 +50,16 @@ def project_weighted_capped_simplex(x: np.ndarray, a: np.ndarray, cap: np.ndarra
         raise InfeasibleConstraints(
             f"infeasible: a'cap = {a @ cap:.4f} < {total}", {"kind": "caps", "capacity": float(a @ cap), "needed": float(total)}
         )
-    lo = float(((x - cap) / a).min()) - 1.0
-    hi = float((x / a).max()) + 1.0
-    for _ in range(200):
-        tau = 0.5 * (lo + hi)
-        s = a @ np.clip(x - tau * a, 0.0, cap)
-        if s > total:
-            lo = tau
-        else:
-            hi = tau
-        if hi - lo < tol:
-            break
-    v = np.clip(x - 0.5 * (lo + hi) * a, 0.0, cap)
+    if total <= 0:  # {a'v = 0, v >= 0} with a > 0 is the single point v = 0
+        return np.zeros_like(x)
+    bp = np.unique(np.concatenate([(x - cap) / a, x / a]))
+    g = (a * np.clip(x[None, :] - bp[:, None] * a[None, :], 0.0, cap[None, :])).sum(axis=1)
+    if total >= g[0] - 1e-15:  # every coordinate at its cap
+        tau = bp[0]
+    else:
+        k = int(np.nonzero(g >= total)[0][-1])
+        tau = bp[k] if g[k] == g[k + 1] else bp[k] + (g[k] - total) * (bp[k + 1] - bp[k]) / (g[k] - g[k + 1])
+    v = np.clip(x - tau * a, 0.0, cap)
     free = (v > 0) & (v < cap)
     gap = total - a @ v
     if free.any():  # exact budget fix on the interior coordinates

@@ -44,6 +44,7 @@ from .estimators import (
     james_stein_returns,
     market_risk_aversion,
 )
+from .rng import Mulberry32, stationary_rows
 from .solver import solve_qp
 
 ON_INFEASIBLE = ("raise", "relax")
@@ -556,14 +557,17 @@ class RoboKitOptimizer:
 
     def _resample_weights(self, tick, idx, lam, lb, ub, gb, n_boot, seed) -> np.ndarray:
         """Bootstrap the monthly history; re-estimate Sigma (and mu, through
-        the estimator) on each draw; re-solve; stack."""
-        rng = np.random.default_rng(seed)
+        the estimator) on each draw; re-solve; stack. The stationary draws come from
+        the generator both engines share (optimizer/rng.py; web/engine.js), seeded
+        ``seed + 1`` as the browser does, so both engines resample the same histories."""
         x_full = self.returns.to_numpy()
         t = x_full.shape[0]
+        shared = self.resample_method == "stationary"
+        rng = Mulberry32(seed + 1) if shared else np.random.default_rng(seed)
         w0 = self.prior_weights.to_numpy()
         out = np.zeros((n_boot, len(tick)))
         for b in range(n_boot):
-            rows = self._bootstrap_rows(rng, t)
+            rows = stationary_rows(rng, t, t, self.block_length) if shared else self._bootstrap_rows(rng, t)
             xb = x_full[rows]
             sig_b, _ = choose_covariance(xb, self.cov_info["method"])
             sig_b = sig_b * MONTHS_PER_YEAR

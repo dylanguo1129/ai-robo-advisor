@@ -243,17 +243,17 @@ def test_tools_relax_limits_on_request():
     assert "error" not in out and out["method"]["relaxations"]
 
 
-# ------------------------------------------------------------------ the reference mix is unchanged by v3 safety (local data)
-REFERENCE_L3 = {
-    "VFV.TO": 0.2281,
-    "ZAG.TO": 0.1993,
-    "XIC.TO": 0.1609,
-    "CASH.TO": 0.0991,
-    "FLUR.NE": 0.0938,
-    "XSB.TO": 0.0904,
-    "VBU.NE": 0.0664,
+# ------------------------------------------------------------------ the reference mix (local data); v3 safety left the point mix unchanged
+REFERENCE_L3 = {  # v3: the resampling draws come from the generator both engines share (optimizer/rng.py)
+    "VFV.TO": 0.2280,
+    "ZAG.TO": 0.1994,
+    "XIC.TO": 0.1606,
+    "CASH.TO": 0.0984,
+    "FLUR.NE": 0.0937,
+    "XSB.TO": 0.0914,
+    "VBU.NE": 0.0663,
     "VEE.TO": 0.0395,
-    "XRE.TO": 0.0226,
+    "XRE.TO": 0.0227,
 }
 
 

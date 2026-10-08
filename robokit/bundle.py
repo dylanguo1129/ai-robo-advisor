@@ -26,6 +26,9 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
+from optimizer.estimators import qis
+from optimizer.rng import Mulberry32
+
 from . import __version__, cma, glossary
 from . import profile as prof
 from .config import OUTPUT_DIR, ROOT
@@ -213,6 +216,55 @@ def reference_profiles(n: int = 400, seed: int = 5) -> list:
     return out
 
 
+WIDE_US = [
+    "VTI",
+    "IVV",
+    "SPY",
+    "QQQ",
+    "VUG",
+    "VEA",
+    "VTV",
+    "VO",
+    "IEFA",
+    "VB",
+    "SPYM",
+    "VGT",
+    "IEMG",
+    "VIG",
+    "IWF",
+    "IJH",
+    "XLK",
+    "SCHD",
+    "IJR",
+    "VT",
+    "RSP",
+    "VYM",
+    "VEU",
+    "ITOT",
+    "VXF",
+    "IWD",
+    "IWM",
+    "EFA",
+    "IVW",
+    "VV",
+    "SCHX",
+    "SCHF",
+    "VBR",
+    "SMH",
+]
+
+
+def qis_checks() -> list:
+    """QIS on inputs both engines can rebuild from the shared generator (row by row, uniform draws minus one half,
+    times 0.1), one case with fewer funds than months and one with more."""
+    out = []
+    for t, n, seed in ((30, 12, 11), (20, 28, 12)):
+        r = Mulberry32(seed)
+        x = np.array([[r() - 0.5 for _ in range(n)] for _ in range(t)]) * 0.1
+        out.append({"t": t, "n": n, "seed": seed, "sigma": qis(x).tolist()})
+    return out
+
+
 def reference_cases() -> list:
     """Python results with resampling off, for the JavaScript parity test."""
     cases = [
@@ -262,6 +314,8 @@ def reference_cases() -> list:
         dict(market="CA", risk_level=4, fixed_weights={"VFV.TO": 0.4, "XIC.TO": 0.3, "ZAG.TO": 0.3}),
         dict(market="US", risk_level=5, satellites=["QQQ", "SCHD", "BITO"]),
         dict(market="US", risk_level=4, satellites=["BITO"], minimums={"BITO": 0.05}),
+        # a wide list (43 funds over 158 months, N/T > 0.25): both engines switch to QIS
+        dict(market="US", risk_level=4, satellites=WIDE_US),
     ]
     out = []
     for c in cases:
@@ -278,6 +332,39 @@ def reference_cases() -> list:
                 "stress": {s["scenario"]: s["portfolio_return"] for s in p["stress"]},
                 "notes": p["notes"],
                 "checks": [c_["id"] for c_ in p["checks"]],
+            }
+        )
+    return out
+
+
+def resampled_cases() -> list:
+    """Python results with resampling and projections on (the defaults), for the JavaScript parity test. Both engines
+    draw from the same generator (optimizer/rng.py), so these agree to rounding rather than to Monte Carlo noise."""
+    cases = [
+        dict(market="CA", risk_level=3),
+        dict(market="CA", risk_level=1),
+        dict(market="US", risk_level=5),
+        dict(market="CA", risk_level=4, satellites=["XIT.TO"], amount=50_000.0, monthly_contribution=500.0, years=20, goal=300_000.0),
+        dict(market="US", risk_level=2, amount=400_000.0, monthly_contribution=-2_500.0, years=25),
+        dict(
+            market="CA",
+            risk_level=3,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
+        ),
+    ]
+    out = []
+    for c in cases:
+        p = build_portfolio(Request(**c))
+        pr = p["projection"]
+        out.append(
+            {
+                "request": c,
+                "weights": {h["ticker"]: h["weight"] for h in p["holdings"]},
+                "bands": {h["ticker"]: h["band"] for h in p["holdings"]},
+                "volatility": p["stats"]["volatility"],
+                "projection": {
+                    k: pr.get(k) for k in ("final", "one_year", "yearly", "by_holding_period", "withdrawal", "chance_need_to_adjust")
+                },
             }
         )
     return out
@@ -339,6 +426,8 @@ def export_bundle(with_reference: bool = True) -> dict:
         "context": {"flags": market_flags(), "news": news_digest()},
         "backtest": json.loads(bt.read_text()) if bt.exists() else None,
         "reference_cases": reference_cases() if with_reference else [],
+        "resampled_cases": resampled_cases() if with_reference else [],
+        "qis_checks": qis_checks() if with_reference else [],
     }
     (WEB_DATA / "core.json").write_text(json.dumps(core, separators=(",", ":"), default=str), encoding="utf-8")
     if with_reference:  # test fixture only: not part of the published page data
