@@ -393,8 +393,13 @@ def _z(x: pd.Series) -> pd.Series:
     return (x - x.mean()) / sd if sd and np.isfinite(sd) and sd > 0 else x * 0.0
 
 
-def candidates(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False) -> pd.DataFrame:
-    """Eligible funds that fit a sleeve, best first, with the score that ranked them."""
+SCORE = {"aum": 1.0, "volume": 0.5, "fee": -1.5, "history": 0.5, "esg": 0.75}  # the written ranking rule
+
+
+def candidates(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False, coef: dict | None = None) -> pd.DataFrame:
+    """Eligible funds that fit a sleeve, best first, with the score that ranked them. ``coef`` replaces the score's
+    coefficients (evaluation only: the sensitivity of the shelf to its ranking rule)."""
+    k = {**SCORE, **(coef or {})}
     u = universe[(universe.market == sleeve.market) & universe.eligible & (universe.asset_class == sleeve.asset_class)]
     u = u[u.region.isin(sleeve.regions)]
     name = u["name"].fillna("")
@@ -416,20 +421,22 @@ def candidates(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False)
     hist = c["history_months"].clip(upper=180)
     mer = c["mer"].fillna(c["mer"].median() if c["mer"].notna().any() else 0.005)
     c["score"] = (
-        1.0 * _z(np.log(c["aum"].fillna(1e6).clip(lower=1e6)))
-        + 0.5 * _z(np.log(c["dollar_volume"].fillna(1e3).clip(lower=1e3)))
-        - 1.5 * _z(mer)
-        + 0.5 * _z(hist)
-        + (0.75 if prefer_esg else 0.0) * c["esg"].astype(float)
+        k["aum"] * _z(np.log(c["aum"].fillna(1e6).clip(lower=1e6)))
+        + k["volume"] * _z(np.log(c["dollar_volume"].fillna(1e3).clip(lower=1e3)))
+        + k["fee"] * _z(mer)
+        + k["history"] * _z(hist)
+        + (k["esg"] if prefer_esg else 0.0) * c["esg"].astype(float)
     )
     return c.sort_values(["score", "history_months"], ascending=[False, False])
 
 
-def build_shelf(universe: pd.DataFrame, market: str, prefer_esg: bool = False, n_alternatives: int = 4) -> pd.DataFrame:
+def build_shelf(
+    universe: pd.DataFrame, market: str, prefer_esg: bool = False, n_alternatives: int = 4, coef: dict | None = None
+) -> pd.DataFrame:
     """One row per sleeve: the chosen fund, its runners-up, and the prior weight."""
     rows = []
     for s in sleeves_for(market):
-        c = candidates(universe, s, prefer_esg=prefer_esg)
+        c = candidates(universe, s, prefer_esg=prefer_esg, coef=coef)
         pick = c.iloc[0] if len(c) else None
         rows.append(
             {

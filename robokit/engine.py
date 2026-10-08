@@ -614,7 +614,20 @@ def _last_price(meta: pd.DataFrame, t: str, home: str) -> tuple[float | None, st
 
 
 # ------------------------------------------------------------------ main entry
-RESEARCH_KEYS = {"cov_method", "mu_method", "sleeve_caps", "calibrate", "prior", "block_length", "max_window", "stand_ins"}
+RESEARCH_KEYS = {
+    "cov_method",
+    "mu_method",
+    "sleeve_caps",
+    "cash_caps",
+    "calibrate",
+    "prior",
+    "block_length",
+    "max_window",
+    "stand_ins",
+    "delta",
+    "yardstick",
+    "cap_scale",
+}
 
 
 def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict | None = None) -> dict:
@@ -622,8 +635,11 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
     ``research`` changes one component for an ablation or a sensitivity test; both are for the evaluation
     (scripts/run_v3_evaluation.py), never set by the product. research keys: cov_method ('auto' | 'lw_cc' | 'lw_id' |
     'qis' | 'sample'), mu_method ('equilibrium' | 'sample' | 'james_stein'), sleeve_caps (False drops the sleeve and
-    cash caps, keeping the per-fund maximum), calibrate ('final' | 'single'), prior ({sleeve: share}), block_length
-    (months), max_window (months), stand_ins (False: each fund's own history only)."""
+    cash caps, keeping the per-fund maximum), cash_caps (False drops only the cash cap), calibrate ('final' |
+    'single'), prior ({sleeve: share}), block_length (months), max_window (months), stand_ins (False: each fund's own
+    history only), delta (equilibrium risk aversion), yardstick ({sleeve: weight}: the stock-market mix whose
+    volatility sets the level targets, in place of the policy-weighted equity slots), cap_scale (the sleeve caps
+    multiplied by this factor, at most 1)."""
     research = dict(research or {})
     if set(research) - RESEARCH_KEYS:
         raise RoboKitInputError(f"unknown research switches: {sorted(set(research) - RESEARCH_KEYS)}", {"field": "research"})
@@ -680,6 +696,12 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
             {"kind": "short_history", "months": int(len(X))},
         )
     eq_vol = market_vol(req.market, X, shelf, notes)
+    if "yardstick" in research:  # evaluation only: another stock-market mix as the yardstick
+        ys = {
+            shelf.loc[shelf.sleeve == k, "ticker"].iloc[0]: float(v) for k, v in research["yardstick"].items() if (shelf.sleeve == k).any()
+        }
+        yw = np.array(list(ys.values())) / sum(ys.values())
+        eq_vol = float(np.std(X[list(ys)].to_numpy() @ yw, ddof=1) * np.sqrt(12))
     lvl5, lvl10, tv, level_src = _level(req, eq_vol)
     suit = _suitability(req)
     suitability = None
@@ -704,7 +726,7 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
         X,
         rf=rf,
         prior_weights=prior,
-        delta=DELTA,
+        delta=float(research.get("delta", DELTA)),
         w_max=req.max_weight,
         cash_ticker=cash_t,
         cash_max=1.0,
@@ -716,13 +738,18 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
     sat_cap = req.satellite_cap if req.satellite_cap is not None else prof.satellite_cap(lvl10)
     forced = {t: float(v) for t, v in (req.minimums or {}).items() if t in tickers}
     group = {"satellites": (ok_sats, 0.0, sat_cap)} if ok_sats else None
-    caps = {row.ticker: min(SLEEVE_CAPS[row.sleeve], req.max_weight) for _, row in shelf.iterrows() if row.sleeve in SLEEVE_CAPS}
+    k_cap = float(research.get("cap_scale", 1.0))
+    caps = {
+        row.ticker: min(SLEEVE_CAPS[row.sleeve] * k_cap, 1.0, req.max_weight) for _, row in shelf.iterrows() if row.sleeve in SLEEVE_CAPS
+    }
     for t in ok_sats:
         caps[t] = req.crypto_max_each if meta.at[t, "asset_class"] == "Crypto" else req.satellite_max_each
     if cash_t is not None and prof.cash_cap(lvl10) < 1.0:
         caps[cash_t] = prof.cash_cap(lvl10)
     if research.get("sleeve_caps", True) is False:  # ablation: only the per-fund maximum (and own-pick caps) remain
         caps = {t: c for t, c in caps.items() if t in ok_sats}
+    if research.get("cash_caps", True) is False and cash_t is not None:  # ablation: no cash cap by level
+        caps.pop(cash_t, None)
     # when the limits cannot all hold: refuse (default), or relax in this order and say so
     on_inf = "relax" if req.on_infeasible == "relax" else "raise"
     relax_order = [core, ok_sats]
@@ -882,6 +909,7 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
             "covariance": opt.cov_info.get("method"),
             "window": {"start": str(X.index.min().date()), "end": str(X.index.max().date()), "months": int(len(X))},
             "returns": X,
+            "band": None if band is None else {t: (float(band.at[t, "q05"]), float(band.at[t, "q95"])) for t in band.index},
             "relaxations": relaxations,
             "notes": notes,
         }

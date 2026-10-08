@@ -1,0 +1,662 @@
+"""Run the pre-registered v3 evaluation once (docs/RESEARCH_LOG.md section 10). Every number the paper uses is
+written to output/v3/results.json; monthly paths go to output/v3/*.csv.
+
+Order (Stage 1 review): E3 first; its decision rules lock the defaults; E1, E2, E4, E5, E6, E7 and E8 then run on the
+locked configuration. Provenance (git commit, a clean working tree, the data snapshot, versions) is recorded and the
+run refuses to start from an uncommitted tree.
+
+  python scripts/run_v3_evaluation.py            the registered run (once)
+  python scripts/run_v3_evaluation.py --dry-run  a two-date check of the machinery into a temporary folder that is
+                                                 deleted; it prints counts only, never a result
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from optimizer.estimators import choose_covariance  # noqa: E402
+from robokit import audit as AU  # noqa: E402
+from robokit import engine as E  # noqa: E402
+from robokit import evalstats as es  # noqa: E402
+from robokit import evaluation as EV  # noqa: E402
+from robokit import simulation as SIM  # noqa: E402
+from robokit.bundle import WIDE_US  # noqa: E402
+from robokit.engine import Request, build_portfolio  # noqa: E402
+from robokit.projection import project  # noqa: E402
+from robokit.shelf import PRIOR, build_shelf  # noqa: E402
+
+WORKERS = max(1, min(28, (os.cpu_count() or 4) - 2))
+N_TRIALS = 54  # RESEARCH_LOG section 10: the trials counted for the deflated Sharpe ratio, enumerated there
+
+
+def pmap(fn, tasks, chunksize=1):
+    if WORKERS == 1:
+        return [fn(t) for t in tasks]
+    with ProcessPoolExecutor(WORKERS) as ex:
+        return list(ex.map(fn, tasks, chunksize=chunksize))
+
+
+def provenance(allow_dirty: bool) -> dict:
+    def git(*a):
+        return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+
+    dirty = git("status", "--porcelain", "--untracked-files=no")
+    if dirty and not allow_dirty:
+        sys.exit("The working tree has uncommitted changes: commit the protocol before the registered run.\n" + dirty)
+    import scipy
+
+    return {
+        "commit": git("rev-parse", "HEAD"),
+        "dirty": bool(dirty),
+        "data_snapshot": E.snapshot_id(),
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "scipy": scipy.__version__,
+        "workers": WORKERS,
+        "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def clean(o):
+    """JSON-safe: numpy scalars to floats, non-finite numbers to None, tuples to lists."""
+    if isinstance(o, dict):
+        return {str(k): clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [clean(v) for v in o]
+    if isinstance(o, (np.floating, float)):
+        return float(o) if math.isfinite(float(o)) else None
+    if isinstance(o, (np.integer,)):
+        return int(o)
+    if isinstance(o, (np.bool_,)):
+        return bool(o)
+    if isinstance(o, pd.Timestamp):
+        return str(o.date())
+    return o
+
+
+# ================================================================== E3: simulation and the locked defaults
+E3_METHODS = list(EV.ENGINE) + list(EV.OUTSIDE)
+
+
+def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
+    """Mean of paired differences, its standard error, and the one-sided p-value against ``margin``."""
+    from scipy import stats
+
+    m, se = float(np.mean(d)), float(np.std(d, ddof=1) / math.sqrt(len(d)))
+    t = (m - margin) / se if se > 0 else 0.0
+    p = float(stats.norm.sf(t)) if greater else float(stats.norm.cdf(t))
+    return {"mean": m, "se": se, "lo95_one_sided": m - 1.645 * se, "hi95_one_sided": m + 1.645 * se, "p": p, "n": int(len(d))}
+
+
+def stage_e3(reps: int) -> tuple[dict, dict]:
+    tasks = [(w, r, 3, E3_METHODS, 180) for w in "abc" for r in range(reps)]
+    tasks += [(w, r, L, ["robokit", "no_resample"], 180) for w in "abc" for r in range(reps) for L in (2, 4)]
+    tasks += [("b", r, 3, ["robokit"], T) for T in (36, 60, 120) for r in range(reps)]
+    rows = [x for chunk in pmap(SIM.replicate, tasks) for x in chunk]
+    df = pd.DataFrame(rows)
+    errors = df[df.get("error").notna()] if "error" in df else pd.DataFrame()
+    ok = df[df["loss_bp"].notna()] if "loss_bp" in df else df
+    summary = {}
+    for (w, L, m, T), g in ok.groupby(["world", "level", "method", "months"]):
+        summary.setdefault(w, {}).setdefault(int(L), {}).setdefault(int(T), {})[m] = {
+            "loss_bp": float(g.loss_bp.mean()),
+            "loss_bp_se": float(g.loss_bp.std(ddof=1) / math.sqrt(len(g))),
+            "vol_error": float(g.vol_error.mean()),
+            "abs_vol_error": float(g.vol_error.abs().mean()),
+            "distance": float(g.distance.mean()),
+            "turnover": float(g.turnover.mean()) if g.turnover.notna().any() else None,
+            "band_coverage": float(g.band_coverage.mean()) if "band_coverage" in g and g.band_coverage.notna().any() else None,
+            "calibration_outcomes": g.outcome.value_counts().to_dict() if g.outcome.notna().any() else None,
+            "n": int(len(g)),
+        }
+    # the resampling rule: drop resampling only if it costs more than 2 bp in both realistic worlds (b, c), level 3
+    rule = {}
+    for w in "abc":
+        a = ok[(ok.world == w) & (ok.level == 3) & (ok.months == 180) & (ok.method == "robokit")].set_index("rep").loss_bp
+        b = ok[(ok.world == w) & (ok.level == 3) & (ok.months == 180) & (ok.method == "no_resample")].set_index("rep").loss_bp
+        d = (a - b).dropna().to_numpy()  # positive: resampling costs certainty equivalent
+        rule[w] = one_sided(d, 2.0, greater=True)
+    drop_resampling = all(rule[w]["lo95_one_sided"] > 2.0 for w in ("b", "c"))
+
+    # the QIS switch study (sub-study ii)
+    qtruths = qis_truths()
+    qtasks = [(name, S, ratio, rep) for name, S in qtruths.items() for ratio in (0.1, 0.2, 0.25, 0.3, 0.4, 0.6) for rep in range(reps)]
+    q = pd.DataFrame(pmap(SIM.qis_switch_sample, qtasks, chunksize=25))
+    qsum = {
+        name: {
+            str(r): {"mean_rel": float(g.rel.mean()), "se": float(g.rel.std(ddof=1) / math.sqrt(len(g))), "n": int(len(g))}
+            for r, g in gg.groupby("n_over_t")
+        }
+        for name, gg in q.groupby("truth")
+    }
+    tests = {}
+    for name, gg in q.groupby("truth"):
+        rel = {r: g.rel.to_numpy() for r, g in gg.groupby("n_over_t")}
+        t1 = one_sided(rel[0.2], -0.01, greater=False)  # QIS better at 0.20 by more than 1%
+        t2 = one_sided(rel[0.25], 0.01, greater=True)  # QIS worse at 0.25 by more than 1%
+        t3 = one_sided(rel[0.3], -0.01, greater=False)  # QIS better at 0.30 by more than 1%
+        adj = es.holm([t1["p"], t2["p"], t3["p"]])
+        tests[name] = {
+            "qis_better_at_0.20": {**t1, "p_holm": adj[0]},
+            "qis_worse_at_0.25": {**t2, "p_holm": adj[1]},
+            "qis_better_at_0.30": {**t3, "p_holm": adj[2]},
+        }
+    lower = all(tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in tests)
+    raise_ = all(tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in tests)
+    switch = 0.20 if lower else (0.30 if raise_ else 0.25)
+    locks = {"resample": not drop_resampling, "qis_switch": switch}
+    result = {
+        "summary": summary,
+        "resampling_rule": {**rule, "drop_resampling": drop_resampling},
+        "qis_switch": {"by_ratio": qsum, "tests": tests, "switch": switch},
+        "errors": int(len(errors)),
+        "error_examples": errors.head(5).to_dict(orient="records") if len(errors) else [],
+        "replications": reps,
+    }
+    return result, locks
+
+
+def qis_truths() -> dict:
+    """Two truths for the QIS study, 20 funds drawn once (seed 20261008) from the 43-fund US list: constant-correlation
+    shrinkage (structure that favours linear shrinkage) and the sample covariance (no imposed structure)."""
+    shelf, core, _ = E.select_funds(Request(market="US"))
+    pool = list(dict.fromkeys(core + WIDE_US))
+    rng = np.random.default_rng(20261008)
+    pick = list(rng.choice(pool, size=20, replace=False))
+    X = E.returns_in("US", pick).dropna(how="any").to_numpy()
+    return {"constant_correlation": choose_covariance(X, "lw_cc")[0], "sample": np.cov(X.T, ddof=1)}
+
+
+# ================================================================== E1 and E2
+def locked_extra(strategy: str, locks: dict) -> dict:
+    extra = {}
+    if locks.get("qis_switch", 0.25) != 0.25 and strategy != "sample_cov":
+        extra["cov_method"] = f"auto:{locks['qis_switch']}"
+    if not locks.get("resample", True):
+        extra["_no_resample"] = True
+    return extra
+
+
+def walk_forward(market: str, locks: dict, strategies, levels_all, dates=None, mode="fixed", extra=None) -> tuple[dict, list]:
+    sh = EV.reference_shelf(market)
+    dates = dates or EV.december_dates(sh.full)
+    tasks = []
+    for d in dates:
+        for s in strategies:
+            for L in levels_all(s):
+                tasks.append((market, str(d.date()), L, s, mode, {**locked_extra(s, locks), **(extra or {})}))
+    builds = pmap(EV.build_at, tasks)
+    return {"shelf": sh, "dates": dates, "builds": builds}, [b for b in builds if "error" in b]
+
+
+def analyse_paths(builds, realised, cash, strategies, levels) -> dict:
+    paths = {}
+    for s in strategies:
+        for L in levels:
+            bs = [b for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] == L]
+            if bs:
+                paths[(s, L)] = EV.hold_path(bs, realised)
+    return paths
+
+
+def stage_e1(market: str, locks: dict, dry: bool) -> dict:
+    strategies = list(EV.ENGINE) + list(EV.OUTSIDE)
+    if dry:
+        strategies = ["robokit", "static_mix", "erc_cash"]
+    sh = EV.reference_shelf(market)
+    dates = EV.december_dates(sh.full)
+    if dry:
+        dates = dates[:2]
+    out, errors = walk_forward(market, locks, strategies, lambda s: (1, 2, 3, 4, 5) if s == "robokit" else EV.PRIMARY, dates)
+    builds = out["builds"]
+    realised = sh.full
+    cash = realised[sh.cash]
+    paths = analyse_paths(builds, realised, cash, strategies, (1, 2, 3, 4, 5))
+    res = {
+        "market": market,
+        "dates": [str(d.date()) for d in dates],
+        "errors": errors,
+        "strategies": {},
+        "comparisons": {},
+        "descriptive": {},
+    }
+    for (s, L), p in paths.items():
+        res["strategies"].setdefault(s, {})[L] = {**EV.describe(p, cash), "2020": EV.subperiod(p, 2020), "2022": EV.subperiod(p, 2022)}
+        p.to_csv(OUT / f"e1_{market}_{s}_L{L}.csv")
+    if dry:
+        return {"counts": {"builds": len(builds), "errors": len(errors), "paths": len(paths)}}
+    rk = {L: paths[("robokit", L)] for L in (1, 2, 3, 4, 5)}
+    res["risk_delivery"] = {
+        "primary": EV.risk_delivery(rk, EV.PRIMARY),
+        "level_1": EV.risk_delivery(rk, (1,)),
+        "level_5": EV.risk_delivery(rk, (5,)),
+    }
+    res["risk_delivery_other"] = {
+        s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L] for L in EV.PRIMARY if (s, L) in paths} for s in strategies if s != "robokit"
+    }
+    conf = []
+    for L in EV.PRIMARY:
+        for b in EV.CONFIRMATORY:
+            c = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
+            for blk in (3, 12):
+                c[f"p_two_sided_block{blk}"] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash, block=blk)[
+                    "p_two_sided"
+                ]
+            res["comparisons"].setdefault(b, {})[L] = c
+            conf.append((b, L))
+    adj = es.holm([res["comparisons"][b][L]["p_two_sided"] for b, L in conf])
+    adj_ni = es.holm([res["comparisons"][b][L]["p_noninferior"] for b, L in conf])
+    for (b, L), a, ani in zip(conf, adj, adj_ni):
+        res["comparisons"][b][L]["p_holm"] = a
+        res["comparisons"][b][L]["p_noninferior_holm"] = ani
+    for s in [x for x in strategies if x not in EV.CONFIRMATORY and x != "robokit"]:
+        for L in EV.PRIMARY:
+            if (s, L) in paths:
+                res["descriptive"].setdefault(s, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(s, L)]["net"], cash)
+    res["dsr"] = {}
+    for L in EV.PRIMARY:
+        srs = []
+        for s in strategies:
+            if (s, L) in paths:
+                ex = paths[(s, L)]["net"] - cash.reindex(paths[(s, L)].index).fillna(0.0)
+                srs.append(float(ex.mean() / ex.std(ddof=1)))
+        rk_ex = (paths[("robokit", L)]["net"] - cash.reindex(paths[("robokit", L)].index).fillna(0.0)).to_numpy()
+        best = max(EV.CONFIRMATORY, key=lambda b: res["strategies"][b][L]["sharpe"])
+        b_ex = (paths[(best, L)]["net"] - cash.reindex(paths[(best, L)].index).fillna(0.0)).to_numpy()
+        res["dsr"][L] = {
+            "robokit": es.deflated_sharpe(rk_ex, srs, N_TRIALS),
+            "best_benchmark": best,
+            "benchmark": es.deflated_sharpe(b_ex, srs, N_TRIALS),
+        }
+    # the calibration ablation: ex-ante gap to target, robokit against single-solve lambda
+    gaps = {}
+    for s in ("robokit", "single_lambda"):
+        g = [abs(b["ex_ante_vol"] - b["target"]) for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] in EV.PRIMARY]
+        gaps[s] = {"mean_abs_gap": float(np.mean(g)), "max_abs_gap": float(np.max(g)), "n": len(g)}
+    res["calibration_ablation"] = {
+        "ex_ante_gap": gaps,
+        "realised_ratio": {
+            s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L]["ratio"] for L in EV.PRIMARY} for s in ("robokit", "single_lambda")
+        },
+    }
+    res["calibration_outcomes"] = (
+        pd.Series([b.get("outcome") for b in builds if "weights" in b and b["task"][3] == "robokit"]).value_counts().to_dict()
+    )
+    res["unreachable_benchmarks"] = sum(1 for b in builds if "weights" in b and not b.get("reachable", True))
+    res["shelf"] = sh.tickers
+    return res
+
+
+def stage_e2(market: str, locks: dict) -> dict:
+    sh = EV.reference_shelf(market)
+    dates = EV.december_dates(sh.full)
+    strategies = ["robokit", "static_mix", "textbook_60"]
+    out, errors = walk_forward(market, locks, strategies, lambda s: EV.PRIMARY, dates, mode="strict")
+    builds = [b for b in out["builds"] if "weights" in b]
+    skipped = [b for b in out["builds"] if "error" in b]
+    realised = EV.strict_realised(market, builds)
+    cash = sh.full[sh.cash]  # the bill-extended cash series: the Sharpe reference, the same as E1
+    paths = analyse_paths(builds, realised, cash, strategies, EV.PRIMARY)
+    res = {
+        "market": market,
+        "skipped": len(skipped),
+        "skip_reasons": pd.Series([b["error"][:80] for b in skipped]).value_counts().to_dict(),
+        "strategies": {},
+        "comparisons": {},
+    }
+    for (s, L), p in paths.items():
+        res["strategies"].setdefault(s, {})[L] = EV.describe(p, cash)
+        p.to_csv(OUT / f"e2_{market}_{s}_L{L}.csv")
+    if all(("robokit", L) in paths for L in EV.PRIMARY):
+        res["risk_delivery"] = EV.risk_delivery({L: paths[("robokit", L)] for L in EV.PRIMARY}, EV.PRIMARY)
+        for b in ("static_mix", "textbook_60"):
+            for L in EV.PRIMARY:
+                if (b, L) in paths:
+                    res["comparisons"].setdefault(b, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
+    res["shelves"] = {b["task"][1]: sorted(b["weights"]) for b in builds if b["task"][3] == "robokit" and b["task"][2] == 3}
+    return res
+
+
+# ================================================================== E4 covariance estimators (descriptive)
+def stage_e4(market: str, locks: dict) -> dict:
+    sh = EV.reference_shelf(market)
+    dates = EV.december_dates(sh.full)
+    ests = ("sample", "lw_id", "lw_cc", "qis")
+    # target-risk portfolios of the shipped pipeline with only the estimator changed (level 3)
+    tasks = [
+        (market, str(d.date()), 3, "robokit", "fixed", {**locked_extra("robokit", locks), "cov_method": m}) for d in dates for m in ests
+    ]
+    builds = pmap(EV.build_at, tasks)
+    realised = sh.full
+    out = {"target_risk": {}, "min_variance": {}, "forecast": {}, "errors": sum(1 for b in builds if "error" in b)}
+    series_tr = {}
+    for m in ests:
+        bs = [b for t, b in zip(tasks, builds) if "weights" in b and t[5].get("cov_method") == m]
+        series_tr[m] = EV.hold_path(bs, realised)["net"]
+    # minimum-variance portfolios (non-cash funds, 50% cap) and the fixed-weight forecast check
+    series_mv = {m: [] for m in ests}
+    fc = {m: [] for m in ests}
+    risky = [t for t in sh.tickers if t != sh.cash]
+    w0 = sh.prior[risky] / sh.prior[risky].sum()
+    for d in dates:
+        win = realised.loc[:d].dropna(how="any").tail(180)[risky]
+        nxt = realised.loc[(realised.index > d)].head(12)[risky]
+        if len(nxt) == 0:
+            continue
+        for m in ests:
+            S = choose_covariance(win.to_numpy(), m)[0]
+            w = es.min_variance(S, cap=0.5)
+            past_mean = float(win.to_numpy().mean(axis=0) @ w)
+            r = nxt.to_numpy() @ w
+            series_mv[m].append(pd.DataFrame({"r": r, "loss": (r - past_mean) ** 2}, index=nxt.index))
+            pred = float(w0.to_numpy() @ S @ w0.to_numpy())
+            real = float(np.var(nxt.to_numpy() @ w0.to_numpy(), ddof=1)) if len(nxt) > 2 else np.nan
+            fc[m].append({"date": str(d.date()), "pred": pred, "real": real})
+    mv = {m: pd.concat(v) for m, v in series_mv.items() if v}
+    for m in ests:
+        r_tr = series_tr[m]
+        out["target_risk"][m] = {"ann_vol": float(r_tr.std(ddof=1) * math.sqrt(12)), "months": int(len(r_tr))}
+        out["min_variance"][m] = {"ann_vol": float(mv[m]["r"].std(ddof=1) * math.sqrt(12)), "mean_loss": float(mv[m]["loss"].mean())}
+        f = pd.DataFrame(fc[m]).dropna()
+        out["forecast"][m] = {
+            "mse": float(((f.pred - f.real) ** 2).mean()),
+            "qlike": float((f.real / f.pred - np.log(f.real / f.pred) - 1).mean()),
+            "years": int(len(f)),
+        }
+    base_mv = mv["lw_cc"]["loss"]
+    for m in ests:
+        if m == "lw_cc":
+            continue
+        idx = mv[m].index.intersection(base_mv.index)
+        out["min_variance"][m]["dm_vs_lw_cc"] = es.diebold_mariano(mv[m]["loss"].loc[idx].to_numpy(), base_mv.loc[idx].to_numpy())
+        a, b = series_tr[m], series_tr["lw_cc"]
+        idx = a.index.intersection(b.index)
+        la = (a.loc[idx] - a.loc[idx].mean()) ** 2
+        lb = (b.loc[idx] - b.loc[idx].mean()) ** 2
+        out["target_risk"][m]["dm_vs_lw_cc"] = es.diebold_mariano(la.to_numpy(), lb.to_numpy())
+    out["note"] = (
+        "descriptive: no back-test result changes a default (section 6 rule); the loss for minimum variance is centred on the past-window mean"
+    )
+    return out
+
+
+# ================================================================== E5 sensitivities
+def prior_variant(market: str, home: float | None = None, sixty_forty: bool = False) -> dict:
+    p = dict(PRIOR[market])
+    eq_keys = [k for k in p if "equity" in k]
+    bond_keys = [k for k in p if "bond" in k]
+    if home is not None and market == "CA":
+        eq = sum(p[k] for k in eq_keys)
+        others = [k for k in eq_keys if k != "ca_equity"]
+        o = sum(p[k] for k in others)
+        p["ca_equity"] = home * eq
+        for k in others:
+            p[k] = p[k] / o * (1 - home) * eq
+    if sixty_forty:
+        for k in ("ca_reit", "ca_gold", "us_reit", "us_gold"):
+            p.pop(k, None)
+        b = sum(p[k] for k in bond_keys)
+        for k in bond_keys:
+            p[k] = p[k] / b * 0.40
+    return p
+
+
+def e5_today(market: str, locks: dict) -> dict:
+    base_extra = {k: v for k, v in locked_extra("robokit", locks).items() if not k.startswith("_")}
+    base_req = {} if locks.get("resample", True) else {"resample": False}
+
+    def lean(level=3, req=None, research=None):
+        return build_portfolio(
+            Request(market=market, risk_level=level, **base_req, **(req or {})), lean=True, research={**base_extra, **(research or {})}
+        )
+
+    out = {}
+    base = lean()
+    out["base"] = {"weights": base["weights"], "volatility": base["volatility"], "target": base["target_vol"]}
+
+    def diff(q):
+        keys = set(q["weights"]) | set(base["weights"])
+        return {
+            "max_weight_change": max(abs(q["weights"].get(k, 0) - base["weights"].get(k, 0)) for k in keys),
+            "volatility": q["volatility"],
+            "holdings": len(q["weights"]),
+            "outcome": q["calibration"]["outcome"] if q["calibration"] else None,
+        }
+
+    pw_x = base["returns"].to_numpy() @ np.array([EV.reference_shelf(market).prior.get(t, 0.0) for t in base["returns"].columns])
+    pw = es.politis_white_block(pw_x)
+    out["politis_white_block"] = pw
+    out["block_length"] = {str(b): diff(lean(research={"block_length": b})) for b in (3, 12, max(1, round(pw)))}
+    out["window"] = {str(w): diff(lean(research={"max_window": w})) for w in (120, 300)}
+    if market == "CA":
+        out["home_bias"] = {str(h): diff(lean(research={"prior": prior_variant(market, home=h)})) for h in (0.0, 0.2, 0.4)}
+    out["sixty_forty_prior"] = diff(lean(research={"prior": prior_variant(market, sixty_forty=True)}))
+    out["cap_scale"] = {str(k): diff(lean(research={"cap_scale": k})) for k in (0.5, 2.0)}
+    out["min_weight"] = {str(m): diff(lean(req={"min_weight": m})) for m in (0.0, 0.01, 0.05)}
+    out["max_weight"] = {str(m): diff(lean(req={"max_weight": m})) for m in (0.35, 0.7)}
+    out["delta"] = {str(d): diff(lean(research={"delta": d})) for d in (1.0, 4.0)}
+    home_sleeve = "ca_equity" if market == "CA" else "us_equity"
+    out["yardstick_home_fund"] = diff(lean(research={"yardstick": {home_sleeve: 1.0}}))
+    # Monte Carlo spread of the weights: 10 seeds at 100, 200, 500 draws
+    spread = {}
+    for nb in (100, 200, 500):
+        ws = [lean(req={"n_boot": nb, "seed": s})["weights"] for s in range(1, 11)]
+        keys = sorted({k for w in ws for k in w})
+        sd = {k: float(np.std([w.get(k, 0.0) for w in ws], ddof=1)) for k in keys}
+        spread[str(nb)] = {"max_sd": max(sd.values()), "mean_sd": float(np.mean(list(sd.values())))}
+    out["draws_spread"] = spread
+    # the shelf's ranking rule, each coefficient moved by +/- 50%
+    U = E._load_all()[0]
+    ref = build_shelf(U, market).set_index("sleeve")
+    from robokit.shelf import SCORE
+
+    changes = {}
+    for k in ("aum", "volume", "fee", "history"):
+        for f in (0.5, 1.5):
+            alt = build_shelf(U, market, coef={k: SCORE[k] * f}).set_index("sleeve")
+            changed = [s for s in ref.index if ref.at[s, "ticker"] != alt.at[s, "ticker"]]
+            changes[f"{k}x{f}"] = {
+                "slots_changed": changed,
+                "fee_change": {s: float((alt.at[s, "mer"] or 0) - (ref.at[s, "mer"] or 0)) for s in changed},
+            }
+    out["shelf_score"] = changes
+    # projection precision: the Monte Carlo standard error of the one-year 5th percentile over 10 seeds
+    proj = {}
+    for L in (1, 2, 3, 4, 5):
+        q = lean(level=L)
+        X = q["returns"]
+        tick = list(q["weights"])
+        w = np.array([q["weights"][t] for t in tick])
+        g = np.full(len(tick), 0.05)
+        for paths in (2000, 5000):
+            p5 = [project(X[tick].to_numpy(), w, g, n_paths=paths, seed=s)["one_year"]["p5"] for s in range(1, 11)]
+            proj.setdefault(str(L), {})[str(paths)] = {"se": float(np.std(p5, ddof=1) / math.sqrt(10)), "values": p5}
+    out["projection_se"] = proj
+    return out
+
+
+E5_WALK = {
+    "block_3": {"block_length": 3},
+    "block_12": {"block_length": 12},
+    "window_120": {"max_window": 120},
+    "window_all": {"max_window": 300},
+    "home_0": "home:0.0",
+    "home_20": "home:0.2",
+    "home_40": "home:0.4",
+    "sixty_forty": "sixty_forty",
+    "yardstick_home_fund": "yardstick",
+}
+
+
+def e5_walk(market: str, locks: dict, pw: float) -> dict:
+    sh = EV.reference_shelf(market)
+    dates = EV.december_dates(sh.full)
+    variants = dict(E5_WALK)
+    variants["block_pw"] = {"block_length": max(1, round(pw))}
+    out = {}
+    for name, v in variants.items():
+        if isinstance(v, str) and v.startswith("home") and market != "CA":
+            continue
+        if isinstance(v, dict):
+            extra = v
+        elif v.startswith("home"):
+            extra = {"prior": prior_variant(market, home=float(v.split(":")[1]))}
+        elif v == "sixty_forty":
+            extra = {"prior": prior_variant(market, sixty_forty=True)}
+        elif v == "yardstick":
+            extra = {"yardstick": {("ca_equity" if market == "CA" else "us_equity"): 1.0}}
+        else:
+            extra = {}
+        res, errors = walk_forward(market, locks, ["robokit"], lambda s: (3,), dates, extra=extra)
+        builds = [b for b in res["builds"] if "weights" in b]
+        p = EV.hold_path(builds, sh.full)
+        out[name] = {**EV.describe(p, sh.full[sh.cash]), "risk_ratio": EV.risk_delivery({3: p}, (3,))[3], "errors": len(errors)}
+    return out
+
+
+# ================================================================== E6 rebalancing on an account
+def stage_e6(market: str, e1_builds: list) -> dict:
+    sh = EV.reference_shelf(market)
+    targets = {b["task"][1]: b["weights"] for b in e1_builds if "weights" in b and b["task"][3] == "robokit" and b["task"][2] == 3}
+    prices = AU.own_prices(market, sh.tickers)
+    out = {"from": str(prices.index[0].date()), "to": str(prices.index[-1].date()), "accounts": {}}
+    for start, flow in ((100_000.0, 0.0), (100_000.0, 500.0), (10_000.0, 500.0)):
+        key = f"{int(start)}_{int(flow)}"
+        ideal = AU.account_path(targets, prices, start, flow, "ideal")["path"]
+        res = {"ideal": AU.summarise_account(ideal, None)}
+        for rule in ("monthly", "bands", "annual"):
+            res[rule] = AU.summarise_account(AU.account_path(targets, prices, start, flow, rule)["path"], ideal)
+        for mt in (0.0, 250.0):
+            res[f"bands_min_trade_{int(mt)}"] = AU.summarise_account(
+                AU.account_path(targets, prices, start, flow, "bands", min_trade=mt)["path"], ideal
+            )
+        out["accounts"][key] = res
+    U = E._load_all()[0].set_index("yahoo")
+    out["largest_order_share_of_daily_volume"] = {
+        t: (1_000_000 * 0.5 / float(U.at[t, "dollar_volume"])) if pd.notna(U.at[t, "dollar_volume"]) else None for t in sh.tickers
+    }
+    out["note"] = "the share of daily volume is for an order of half of a 1,000,000 account, the largest order a reference mix would place"
+    return out
+
+
+# ================================================================== E7 and E8
+def stage_e7() -> dict:
+    out = {"jump_screen": {str(round(k, 4)): AU.jump_screen_at(k) for k in (math.log(1.5), math.log(2), math.log(3))}}
+    h = pd.DataFrame(AU.crisis_standin_holdout())
+    h["abs_error"] = (h.actual - h.standin).abs()
+    out["crisis_standins"] = {
+        "by_episode": {
+            ep: {"mae": float(g.abs_error.mean()), "median_ae": float(g.abs_error.median()), "n": int(len(g))}
+            for ep, g in h.groupby("episode")
+        },
+        "by_asset_class": {ac: {"mae": float(g.abs_error.mean()), "n": int(len(g))} for ac, g in h.groupby("asset_class")},
+    }
+    out["liquidity_margins"] = {m: AU.liquidity_margins(m) for m in ("CA", "US")}
+    out["crisis_episode_rule"] = {m: AU.crisis_episode_rule(m) for m in ("CA", "US")}
+    return out
+
+
+def stage_e8() -> dict:
+    return {
+        "standin_holdout": {m: AU.standin_holdout(m) for m in ("CA", "US")},
+        "backfill_holdout": {m: AU.backfill_holdout(m) for m in ("CA", "US")},
+    }
+
+
+# ================================================================== main
+def main():
+    global OUT
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--reps", type=int, default=500)
+    args = ap.parse_args()
+    if args.dry_run:
+        OUT = Path(tempfile.mkdtemp(prefix="v3_dry_"))
+        prov = provenance(allow_dirty=True)
+        locks = {"resample": True, "qis_switch": 0.25}
+        try:
+            counts = stage_e1("CA", locks, dry=True)["counts"]
+            sims = SIM.replicate(("b", 0, 3, ["robokit", "erc_cash"], 180))
+            print(
+                "dry run: E1 builds",
+                counts["builds"],
+                "errors",
+                counts["errors"],
+                "paths",
+                counts["paths"],
+                "| E3 rows",
+                len(sims),
+                "errors",
+                sum("error" in r for r in sims),
+                "| commit",
+                prov["commit"][:10],
+            )
+        finally:
+            shutil.rmtree(OUT, ignore_errors=True)
+        return
+    OUT = ROOT / "output" / "v3"
+    if (OUT / "results.json").exists():
+        sys.exit("output/v3/results.json exists: the registered evaluation runs once (section 6 rule).")
+    OUT.mkdir(parents=True, exist_ok=True)
+    results = {"provenance": provenance(allow_dirty=False)}
+    t0 = time.time()
+
+    def save():
+        results["provenance"]["seconds"] = round(time.time() - t0)
+        (OUT / "results.json.tmp").write_text(json.dumps(clean(results), indent=1))
+        os.replace(OUT / "results.json.tmp", OUT / "results.partial.json")
+
+    results["E3"], locks = stage_e3(args.reps)
+    results["locked_defaults"] = locks
+    save()
+    print("E3 done", round(time.time() - t0), "s; locked defaults", locks, flush=True)
+    results["E1"] = {}
+    for m in ("CA", "US"):
+        results["E1"][m] = stage_e1(m, locks, dry=False)
+        save()
+        print("E1", m, round(time.time() - t0), "s", flush=True)
+    results["E2"] = {m: stage_e2(m, locks) for m in ("CA", "US")}
+    save()
+    results["E4"] = {m: stage_e4(m, locks) for m in ("CA", "US")}
+    save()
+    results["E5"] = {}
+    for m in ("CA", "US"):
+        today = e5_today(m, locks)
+        results["E5"][m] = {"today": today, "walk_forward": e5_walk(m, locks, today["politis_white_block"])}
+        save()
+    # E6 uses the E1 level-3 robokit targets (rebuilt here from the same deterministic builds)
+    results["E6"] = {}
+    for m in ("CA", "US"):
+        sh = EV.reference_shelf(m)
+        res, _ = walk_forward(m, locks, ["robokit"], lambda s: (3,), EV.december_dates(sh.full))
+        results["E6"][m] = stage_e6(m, res["builds"])
+        save()
+    results["E7"] = stage_e7()
+    results["E8"] = stage_e8()
+    results["provenance"]["finished"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    results["provenance"]["seconds"] = round(time.time() - t0)
+    (OUT / "results.json").write_text(json.dumps(clean(results), indent=1))
+    (OUT / "results.partial.json").unlink(missing_ok=True)
+    print("done", round(time.time() - t0), "s", flush=True)
+
+
+if __name__ == "__main__":
+    main()
