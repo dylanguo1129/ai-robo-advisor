@@ -205,3 +205,39 @@ def test_the_stand_in_hold_out_compares_two_different_funds(market):
     rows = AU.standin_holdout(market)
     assert rows and all(r["fund"] != r["standin"] for r in rows)
     assert all(math.isfinite(r[k]) for r in rows for k in ("correlation", "tracking_error", "vol_ratio", "mean_gap_annual"))
+
+
+def test_account_summary_keeps_the_cost_of_investing_the_starting_cash():
+    """The first row is the month-end the starting cash is invested: its cost is chained into the first invested
+    month, so the summary's return includes it while no month out of the market is counted."""
+    idx = pd.date_range("2020-01-31", periods=7, freq="ME")
+    prices = pd.DataFrame({"A": 10.0, "B": 20.0}, index=idx)
+    t = {"2019-12-31": {"A": 0.6, "B": 0.4}}
+    df = AU.account_path(t, prices, 10_000.0, 0.0, "ideal", cost_bps=10.0)["path"]
+    s = AU.summarise_account(df, df)
+    assert s["months"] == 6 and s["ann_return"] == pytest.approx((1 - 1e-3) ** 2 - 1, rel=1e-9)
+    assert s["return_gap_vs_ideal"] == pytest.approx(0.0, abs=1e-15)
+
+
+def test_a_missing_cash_return_or_a_flat_series_fails_closed():
+    idx = pd.date_range("2020-01-31", periods=24, freq="ME")
+    rng = np.random.default_rng(5)
+    a = pd.Series(rng.normal(0.006, 0.03, 24), index=idx)
+    b = pd.Series(rng.normal(0.005, 0.03, 24), index=idx)
+    cash = pd.Series(0.002, index=idx)
+    holed = cash.copy()
+    holed.iloc[7] = np.nan
+    with pytest.raises(ValueError, match="no cash return"):
+        EV.compare(a, b, holed, n_boot=99)
+    with pytest.raises(ValueError, match="no cash return"):
+        EV.describe(pd.DataFrame({"net": a, "gross": a, "turn": 0.0, "target": 0.08}), holed)
+    with pytest.raises(ValueError, match="no variance"):
+        EV.compare(a, cash + 0.0, cash, n_boot=99)  # a series equal to cash has a constant (zero) excess return
+
+
+def test_too_short_to_tell_needs_robokit_ahead_whatever_the_track_record():
+    """A finite minimum track record with robokit behind cannot come out of compare (both Sharpe ratios use the same
+    months), but the reading checks the sign itself rather than rely on that."""
+    c = {"p_holm": 0.4, "p_noninferior_holm": 0.3, "sharpe_diff_annual": -0.05, "min_track_record_months": 400.0, "months": 200}
+    assert EV.reading(c) == "inconclusive"
+    assert EV.reading({**c, "sharpe_diff_annual": 0.05}) == "too short to tell"

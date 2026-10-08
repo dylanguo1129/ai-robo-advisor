@@ -206,9 +206,18 @@ def ann_return(r) -> float:
     return float(np.prod(1 + r) ** (12 / len(r)) - 1)
 
 
+def cash_on(cash: pd.Series, idx) -> pd.Series:
+    """The cash slot's monthly return on ``idx``. A missing month raises: an excess return must never assume a zero
+    rate (the same rule as a held fund's missing return)."""
+    c = cash.reindex(idx)
+    if c.isna().any():
+        raise ValueError(f"no cash return for {[str(d.date()) for d in c.index[c.isna()][:5]]}: an excess return would assume a zero rate")
+    return c
+
+
 def describe(path: pd.DataFrame, cash: pd.Series) -> dict:
     r = path["net"]
-    ex = r - cash.reindex(r.index).fillna(0.0)
+    ex = r - cash_on(cash, r.index)
     sd = float(ex.std(ddof=1))
     tail = es.cvar(r, 0.95)
     return {
@@ -261,8 +270,10 @@ def compare(a: pd.Series, b: pd.Series, cash: pd.Series, block: int = 6, n_boot:
     non-inferiority p-value (H0: a's annual Sharpe is worse by MARGIN_SR or more), Newey-West on the mean return
     difference, and the minimum track record for a's Sharpe to exceed b's."""
     idx = a.index.intersection(b.index)
-    c = cash.reindex(idx).fillna(0.0)
+    c = cash_on(cash, idx)
     ra, rb = (a.loc[idx] - c).to_numpy(), (b.loc[idx] - c).to_numpy()
+    if not (ra.std(ddof=1) > 0 and rb.std(ddof=1) > 0):
+        raise ValueError("an excess-return series with no variance has no Sharpe ratio to compare")
     lw = es.sharpe_diff_test(ra, rb, block=block, n_boot=n_boot, seed=seed, margin=MARGIN_SR / math.sqrt(12))
     nw = es.newey_west_t((a.loc[idx] - b.loc[idx]).to_numpy(), lags=6)
     sr_b = rb.mean() / rb.std(ddof=1)
@@ -292,7 +303,7 @@ def reading(c: dict) -> str:
     if c["p_noninferior_holm"] < 0.05:
         return "robokit not worse by more than 0.10"
     mtr = c.get("min_track_record_months")
-    if mtr is not None and math.isfinite(mtr) and c["months"] < mtr:
+    if c["sharpe_diff_annual"] > 0 and mtr is not None and math.isfinite(mtr) and c["months"] < mtr:
         return "too short to tell"
     return "inconclusive"
 

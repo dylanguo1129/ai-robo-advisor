@@ -53,3 +53,21 @@ def test_proposition_3_volatility_falls_as_lambda_rises(shelf):
     # pipeline's calibration brackets the target instead of assuming it (robokit/engine.py _calibrate_final)
     vols = [o.optimize(lam, resample=False).exp_vol for lam in np.geomspace(0.05, 2000, 60)]
     assert all(b <= a + 1e-10 for a, b in zip(vols, vols[1:]))
+
+
+def test_proposition_1_holds_through_the_final_pipeline():
+    """The mix the person gets (minimum position applied) at a given delta and lambda depends only on lambda / delta,
+    so with lambda calibrated to the volatility target, delta 1 and delta 4 give the same risk to within the
+    calibration tolerance (they differ only where each calibration stops inside its tolerance). This holds while
+    lambda stays inside its bounds [0.05, 2000], which are absolute, not relative to delta."""
+    from robokit.engine import CAL_TOL, Request, build_portfolio
+
+    req = Request(market="CA", risk_level=3, resample=False)
+    a = build_portfolio(req, lean=True, research={"delta": 1.0, "lambda": 1.0 * 1.3})
+    b = build_portfolio(req, lean=True, research={"delta": 4.0, "lambda": 4.0 * 1.3})
+    names = set(a["weights"]) | set(b["weights"])
+    assert max(abs(a["weights"].get(t, 0.0) - b["weights"].get(t, 0.0)) for t in names) < 1e-5
+    c1 = build_portfolio(req, lean=True, research={"delta": 1.0})
+    c4 = build_portfolio(req, lean=True, research={"delta": 4.0})
+    assert c1["calibration"]["within_tolerance"] and c4["calibration"]["within_tolerance"]
+    assert abs(c1["volatility"] - c4["volatility"]) <= 2 * CAL_TOL

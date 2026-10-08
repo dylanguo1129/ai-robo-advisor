@@ -44,7 +44,7 @@ Track A was reviewed adversarially before it was committed (a line-by-line revie
 
 ## Track D: risk-target accuracy (decided before any new test)
 
-D1. Calibrate lambda on the final pipeline (resampled, min-position applied) with the same random draws at every step, so every level hits its target within 0.01 points when reachable. Reason: Scherer (2002) critique of resampled portfolios drifting off target; the report's own level-5 miss. Decided on principle, not on a back-test.
+D1. Calibrate lambda on the final pipeline (resampled, min-position applied) with the same random draws at every step, so every level hits its target within 0.01 points when reachable (implemented with 0.005 points: docs/DECISIONS.md D31). Reason: Scherer (2002) critique of resampled portfolios drifting off target; the report's own level-5 miss. Decided on principle, not on a back-test.
 
 ## Track E: v3 evaluation (pre-registered in RESEARCH_LOG section 9 before it runs, then run once)
 

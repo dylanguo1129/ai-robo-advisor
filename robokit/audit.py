@@ -92,8 +92,18 @@ def account_path(
     return {"path": df, "largest_order": largest}
 
 
+def invested_returns(df: pd.DataFrame) -> pd.Series:
+    """Monthly returns from the first month the account is in the market. The first row is the month-end at which the
+    starting cash is invested (its return is only the cost of buying), so it is chained into the next month: the cost
+    stays in the return, and no month out of the market is counted."""
+    r = df["return"].iloc[1:].copy()
+    if len(r):
+        r.iloc[0] = (1 + df["return"].iloc[0]) * (1 + r.iloc[0]) - 1
+    return r
+
+
 def summarise_account(df: pd.DataFrame, ideal: pd.DataFrame | None) -> dict:
-    r = df["return"].iloc[1:]
+    r = invested_returns(df)
     out = {
         "months": int(len(r)),
         "ann_return": float(np.prod(1 + r) ** (12 / len(r)) - 1),
@@ -106,11 +116,10 @@ def summarise_account(df: pd.DataFrame, ideal: pd.DataFrame | None) -> dict:
         "annual_turnover": float((df["traded"] / df["value"]).sum() / 2 / (len(df) / 12)),
     }
     if ideal is not None:
-        d = (r - ideal["return"].reindex(r.index)).dropna()
+        ri = invested_returns(ideal)
+        d = (r - ri.reindex(r.index)).dropna()
         out["tracking_error_vs_ideal"] = float(d.std(ddof=1) * math.sqrt(12))
-        out["return_gap_vs_ideal"] = out["ann_return"] - float(
-            np.prod(1 + ideal["return"].iloc[1:]) ** (12 / len(ideal["return"].iloc[1:])) - 1
-        )
+        out["return_gap_vs_ideal"] = out["ann_return"] - float(np.prod(1 + ri) ** (12 / len(ri)) - 1)
     return out
 
 

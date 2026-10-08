@@ -17,10 +17,10 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Test: gaps are never filled (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure | E7(e) |
+| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Test: gaps are never filled (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | E7(e) |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
-| D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation) | policy |
+| D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: windows 120 / 180 / all | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
 | D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
@@ -32,7 +32,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D7 | Liquidity screens | 36 months history; AUM 20M CAD / 50M USD; daily value traded 50k CAD / 250k USD | Policy; test: every reference fund's margin over each screen | E7(c) |
 | D8 | No leveraged, inverse, single-stock or depositary-receipt funds | | Source: CSA Staff Notice 31-342 (online advisers use "unleveraged exchange traded funds"), docs/research/regulation.md R5.4 | done |
 | D10 | Crypto, thematic, covered-call and other narrow funds are own picks only (satellite caps), never a core slot | | Source: 31-342 as D8; test: tests/test_v3_exam_r1.py (a crypto fund cannot take a core slot) | done |
-| D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; tests: every slot's top five candidates checked as broad, low-cost index funds (E7(e)); the slots that change when the score's coefficients move (E5) | E5, E7(e) |
+| D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; tests: every slot's top five candidates checked as broad, low-cost index funds (E7(e): after the run, outside the script); the slots that change when the score's coefficients move (E5) | E5, E7(e) |
 | D12 | The ranking score | +1.0 log AUM, +0.5 log volume, -1.5 fee, +0.5 history | Policy; test: each coefficient +/-50%, slots whose fund changes | E5 |
 
 ## 3. Expected returns
@@ -40,9 +40,9 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D13 | Equilibrium returns from a written policy mix, not from fund sizes or past returns | 60% stocks, 35% bonds, 3% real estate, 2% gold | Source: Sharpe (1974) and He and Litterman (1999) for reverse optimisation; Doeswijk, Lam and Swinkels (2014): the market portfolio is "a natural benchmark for investors". Test: alternative priors | E5(w) |
-| D13b | 30% of equity in Canada | 0.18 / 0.60 | Source: Vanguard Investments Canada (25 June 2024): "a reasonable equity balance of around 30% home bias, in Canadian securities"; Canada is about 2.7% of world equity. The full report (minimum-variance analysis) is no longer online; its finding is quoted from press coverage only. Test: 0 / 20 / 30 / 40% | E5(w) |
+| D13b | 30% of equity in Canada | 0.18 / 0.60 | Source: Vanguard Investments Canada (25 June 2024): "a reasonable equity balance of around 30% home bias, in Canadian securities"; Canada is about 2.7% of world equity. The full report (minimum-variance analysis) is no longer online; its finding is quoted from press coverage only. Test: 0 / 20 / 40% against the 30% default | E5(w) |
 | D17 | pi = delta Sigma w_prior | | Source: Sharpe (1974); Black and Litterman (1992); He and Litterman (1999) | done |
-| D18 | delta = 2.5 | | Source: He and Litterman (1999): "we use delta = 2.5 as the risk aversion parameter representing the world average risk tolerance". Proof: with lambda calibrated to a volatility target the weights do not depend on delta (paper, Proposition 1); test: delta 1 / 2.5 / 4 give identical weights | E5 |
+| D18 | delta = 2.5 | | Source: He and Litterman (1999): "we use delta = 2.5 as the risk aversion parameter representing the world average risk tolerance". Proof: with lambda calibrated to a volatility target the weights do not depend on delta (paper, Proposition 1); tests: at fixed lambda / delta the weights are identical, in the optimizer and through the final pipeline (tests/test_v3_propositions.py); calibrated at delta 1 and 4, the model volatility agrees within twice the calibration tolerance (the same file, and E5) | done; E5 |
 
 ## 4. Risk model
 
@@ -78,7 +78,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D30 | First, lambda for the single solve: bisection on log lambda | [0.05, 2000], ratio 1.002 | Proof: the single solve's volatility falls as lambda rises (paper, Proposition 3) | done |
-| D31 | Then lambda for the mix the person gets (resampled, minimum position applied, the same draws every step): bracket, then Illinois regula falsi with a bisection safeguard | tolerance 0.005 points; bracket 1e-5 in log lambda; at most 30 evaluations | Source: Scherer (2002) for why; Dowell and Jarratt (1971) for the method. Test: 40 random single-solve requests and five resampled ones end within tolerance, at a proven jump or at a bound, each jump and bound re-checked by rebuilding at the lambdas its evidence names (tests/test_v3_calibration.py); in E1 any `limit` is listed as a failure. Test of the benefit: against single-solve calibration | E1 |
+| D31 | Then lambda for the mix the person gets (resampled, minimum position applied, the same draws every step): bracket, then Illinois regula falsi with a bisection safeguard | tolerance 0.005 points; bracket 1e-5 in log lambda; at most 30 evaluations | Source: Scherer (2002) for why; Dowell and Jarratt (1971) for the method. Test: 40 random single-solve requests and five resampled ones end within tolerance, at a proven jump or at a bound, each jump and bound re-checked by rebuilding at the lambdas its evidence names (tests/test_v3_calibration.py); in E1 any `limit` is listed as a failure. Test of the benefit: against single-solve calibration | done; E1 |
 | D32 | A note when the final mix is more than 0.5 points from target | | Policy (what is worth telling a person) | policy |
 
 ## 8. Resampling
@@ -118,7 +118,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 |---|---|---|---|---|
 | D49 | Bands with a destination | min(2 points, 25% of target); back to 7/8 of the band | Source: Vanguard (2024) "a threshold of 200 bps and a destination of 175 bps"; Donohue and Yip (2003) "back to the boundary of the no-trade region". Test: against monthly and annual | E6 |
 | D50 | Cash flows first | | Source: Vanguard (2010) "Rebalance with portfolio cash flows"; tests/test_v3_rebalance.py | done |
-| D51 | Minimum order and cost | $50; 10 bps | Policy (cost as in every back-test); source for small trades as D23 | policy |
+| D51 | Minimum order and cost | $50; 10 bps | Policy (cost as in every back-test); source for small trades as D23. Test: the shipped bands with minimum orders of 0, 50 and 250 on three account sizes (E6) | E6 |
 | D52 | Flag orders over 1% of daily volume | | Source (partial): Toth et al. (2011), impact = Y sigma sqrt(Q/V); at Q/V = 1% that is a tenth of a day's volatility, about the 10 bps cost assumed for a fund moving 1% a day. The threshold itself is policy | policy |
 
 ## 13. One model in two runtimes
@@ -234,6 +234,25 @@ next round records every message.
 | D31 cited 120 random requests; the test has 40, single-solve, and accepted the outcome label | partly true: 40 is the committed number (120 was an earlier probe), and the label alone proved nothing | each jump or bound carries its evidence in both engines, re-checked by rebuilding at the lambdas it names; five resampled requests added; any `limit` listed in E1 |
 | A rating on fewer than 120 months was labelled an Appendix F rating; tests/test_v3_rating.py absent | partly true: the build already said how many months it used; the test file exists but was left out of the review copy | an `appendix_f` flag (120 months or not) in both engines; 119/120-month boundary tests; the plan labels a short path an estimate; the review copy now has every test |
 | (Found by the authors' own smoke run, not by an examiner) E8(a) compared each slot's reference fund with itself, because the stand-in chain starts with the fund: a NaN correlation for five funds | true | the fund itself skipped; a test that every row compares two funds and every statistic is finite |
+
+**Stage 1, fifth round (8 Oct 2026).** Both reviews were captured in full. The usual second examiner's model pool had
+reached its monthly limit, so the second review came from a third model family, on the same brief and the same copy.
+Both examiners: accept after required changes (two each, no overlap).
+
+| Finding | Ruling | Change |
+|---|---|---|
+| A missing robokit path (even at level 1 or 5) returned early, dropping ratings, risk delivery, deflated Sharpe ratios and calibration counts the plan registers | true | every registered output computed from the paths that exist; a comparison without its paths enters Holm with p = 1 |
+| E6's summary dropped the month the starting cash is invested, so its cost left the return but stayed in total cost | true | that month is chained into the first invested month (the cost stays in the return; no month out of the market counted); tested |
+| A month without a cash return was treated as a zero rate | true | fails closed: describe and compare raise, the runner records the error |
+| A series with no variance would divide by zero in compare | partly true: numpy gives an infinite Sharpe ratio, not an exception, but silently | compare raises; recorded |
+| The deflated Sharpe ratio stores monthly Sharpe ratios beside annual ones | true (labelling) | labelled in the results |
+| E2's "skipped" counted every build failure, not the registered leading skips | true | `leading_skips` listed apart from `build_failures` |
+| The register pointed to RESEARCH_LOG section 10, which was not yet in the file; METHOD said 500 resampled histories; the design spec said 0.01 points | true | sections 9 and 10 now in RESEARCH_LOG; METHOD says 200; the spec notes 0.005 |
+| D18's test fixed lambda / delta but the plan claimed a calibrated test | true | a final-pipeline test at fixed lambda / delta and a calibrated check at delta 1 and 4 |
+| "Too short to tell" could be read with robokit behind | partly true: compare cannot produce a finite minimum track record with robokit behind (both Sharpe ratios use the same months, and the n - 1 correction scales both alike), but the rule relied on that | the reading checks the sign itself; tested |
+| E7(e) is in the plan but not in the script | partly true: the plan put it after the run, by a research lane, but did not say the script does not produce it | the plan and D1, D11 say so |
+| E3's rules used normal critical values | true (a 0.2% difference at 499 degrees of freedom) | Student t |
+| D13b listed a 30% home-bias test that is the default itself | partly true | worded as 0 / 20 / 40% against the 30% default |
 
 ## Sources checked for this register
 

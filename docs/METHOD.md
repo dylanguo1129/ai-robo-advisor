@@ -39,7 +39,7 @@ lam    = multiplier(profile) * delta      low 0.6 | mid 1.0 | high 2.5   (or cal
 w*     = argmin (lam/2) w'Sigma w - mu'w   s.t. sum w = 1, 0 <= w <= cap, client rules
         |
         v
-resampling: 500 stationary-bootstrap histories, re-estimate, re-solve, average; keep the 5-95% band
+resampling: 200 stationary-bootstrap histories, re-estimate, re-solve, average; keep the 5-95% band
         |
         v
 outputs: weights, expected return/vol, risk contributions, effective N, band, plain-language notes
@@ -90,7 +90,7 @@ Long-only, fully invested, 35% cap per ETF (cash ETF capped by `cash_max`, defau
 
 ### 3.6 Resampling (`RoboKitOptimizer.optimize(resample=True)`)
 
-The history is resampled 500 times with the stationary block bootstrap (Politis & Romano 1994; mean block six months, so volatility clustering survives), Sigma and mu are re-estimated on each draw, the problem re-solved, and the reported weights are the average with a 5–95% band per weight. This is Michaud's resampled efficiency and what Betterment does: "Averaging the allocation weights across the thousands of return samples gives a single set of allocation weights optimized to perform in the face of a wide range of market scenarios." The band is shown to the client as "how sure the model is". An optional Tu–Zhou blend with equal weights (`naive_blend`) exists; the grid shows it lowers turnover without improving risk-adjusted return, so it is off by default.
+The history is resampled 200 times (500 before v3) with the stationary block bootstrap (Politis & Romano 1994; mean block six months, so volatility clustering survives), Sigma and mu are re-estimated on each draw, the problem re-solved, and the reported weights are the average with a 5–95% band per weight. This is Michaud's resampled efficiency and what Betterment does: "Averaging the allocation weights across the thousands of return samples gives a single set of allocation weights optimized to perform in the face of a wide range of market scenarios." The band is shown to the client as "how sure the model is". An optional Tu–Zhou blend with equal weights (`naive_blend`) exists; the grid shows it lowers turnover without improving risk-adjusted return, so it is off by default.
 
 ### 3.7 What the interface receives
 

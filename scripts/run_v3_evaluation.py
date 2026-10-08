@@ -111,13 +111,16 @@ E3_METHODS = list(EV.ENGINE) + list(EV.OUTSIDE)
 
 
 def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
-    """Mean of paired differences, its standard error, and the one-sided p-value against ``margin``."""
+    """Mean of paired differences, its standard error, and the one-sided p-value against ``margin``: Student t with
+    n - 1 degrees of freedom (the replications are independent)."""
     from scipy import stats
 
-    m, se = float(np.mean(d)), float(np.std(d, ddof=1) / math.sqrt(len(d)))
+    n = len(d)
+    m, se = float(np.mean(d)), float(np.std(d, ddof=1) / math.sqrt(n))
     t = (m - margin) / se if se > 0 else 0.0
-    p = float(stats.norm.sf(t)) if greater else float(stats.norm.cdf(t))
-    return {"mean": m, "se": se, "lo95_one_sided": m - 1.645 * se, "hi95_one_sided": m + 1.645 * se, "p": p, "n": int(len(d))}
+    p = float(stats.t.sf(t, n - 1)) if greater else float(stats.t.cdf(t, n - 1))
+    q = float(stats.t.ppf(0.95, n - 1))
+    return {"mean": m, "se": se, "lo95_one_sided": m - q * se, "hi95_one_sided": m + q * se, "p": p, "n": int(n)}
 
 
 def stage_e3(reps: int) -> tuple[dict, dict]:
@@ -288,6 +291,14 @@ def past_centre(builds, realised, index) -> pd.Series:
     return out
 
 
+def described(p: pd.DataFrame, cash: pd.Series) -> dict:
+    """EV.describe with the 2020 and 2022 subperiods; a missing cash return is recorded, not raised."""
+    try:
+        return {**EV.describe(p, cash), "2020": EV.subperiod(p, 2020), "2022": EV.subperiod(p, 2022)}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
 def analyse_paths(builds, realised, cash, strategies, levels, stage: str, market: str, leading_skips: bool = False) -> dict:
     """One path per strategy and level, from every build attempted (failed ones included, so a gap is seen)."""
     paths = {}
@@ -323,7 +334,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         "descriptive": {},
     }
     for (s, L), p in paths.items():
-        res["strategies"].setdefault(s, {})[L] = {**EV.describe(p, cash), "2020": EV.subperiod(p, 2020), "2022": EV.subperiod(p, 2022)}
+        res["strategies"].setdefault(s, {})[L] = described(p, cash)
         p.to_csv(OUT / f"e1_{market}_{s}_L{L}.csv")
     if dry:
         return {"counts": {"builds": len(builds), "errors": len(errors), "paths": len(paths)}}
@@ -331,15 +342,14 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         (s, L) for s in ["robokit", *EV.CONFIRMATORY] for L in ((1, 2, 3, 4, 5) if s == "robokit" else EV.PRIMARY) if (s, L) not in paths
     ]
     res["missing_paths"] = [f"{s} level {L}" for s, L in missing]
-    if any(s == "robokit" for s, _ in missing):
-        res["stopped"] = "a robokit path is missing (see path_errors): no confirmatory analysis"
-        return res
-    rk = {L: paths[("robokit", L)] for L in (1, 2, 3, 4, 5)}
-    res["regulator_rating"] = {L: E.ni81_102_rating(rk[L]["net"].to_numpy()) for L in (1, 2, 3, 4, 5)}  # realised paths, last 120 months
+    # every registered output is computed from the paths that exist; one that needs a missing path says so
+    rk = {L: paths[("robokit", L)] for L in (1, 2, 3, 4, 5) if ("robokit", L) in paths}
+    gone = {"error": "the robokit path is missing (see path_errors)"}
+    res["regulator_rating"] = {L: E.ni81_102_rating(p["net"].to_numpy()) for L, p in rk.items()}  # realised paths, last 120 months
     res["risk_delivery"] = {
-        "primary": EV.risk_delivery(rk, EV.PRIMARY),
-        "level_1": EV.risk_delivery(rk, (1,)),
-        "level_5": EV.risk_delivery(rk, (5,)),
+        "primary": EV.risk_delivery(rk, EV.PRIMARY) if all(L in rk for L in EV.PRIMARY) else gone,
+        "level_1": EV.risk_delivery(rk, (1,)) if 1 in rk else gone,
+        "level_5": EV.risk_delivery(rk, (5,)) if 5 in rk else gone,
     }
     res["risk_delivery_other"] = {
         s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L] for L in EV.PRIMARY if (s, L) in paths} for s in strategies if s != "robokit"
@@ -347,18 +357,20 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     conf = []
     for L in EV.PRIMARY:
         for b in EV.CONFIRMATORY:
-            if (b, L) not in paths:
+            if (b, L) not in paths or L not in rk:
                 res["comparisons"].setdefault(b, {})[L] = {"error": "path missing (see path_errors)"}
                 continue
-            c = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
-            for blk in (3, 12):
-                c[f"p_two_sided_block{blk}"] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash, block=blk)[
-                    "p_two_sided"
-                ]
+            try:
+                c = EV.compare(rk[L]["net"], paths[(b, L)]["net"], cash)
+                for blk in (3, 12):
+                    c[f"p_two_sided_block{blk}"] = EV.compare(rk[L]["net"], paths[(b, L)]["net"], cash, block=blk)["p_two_sided"]
+            except ValueError as e:  # a month without a cash return, or a series with no variance: recorded
+                res["comparisons"].setdefault(b, {})[L] = {"error": str(e)}
+                continue
             res["comparisons"].setdefault(b, {})[L] = c
             conf.append((b, L))
-    # Holm over all 12 registered comparisons: one without a path enters with p = 1, so a missing path never makes
-    # the others easier to pass
+    # Holm over all 12 registered comparisons: one without a path (or with an error) enters with p = 1, so it never
+    # makes the others easier to pass
     family = [(b, L) for L in EV.PRIMARY for b in EV.CONFIRMATORY]
     adj = es.holm([res["comparisons"][b][L]["p_two_sided"] if (b, L) in conf else 1.0 for b, L in family])
     adj_ni = es.holm([res["comparisons"][b][L]["p_noninferior"] if (b, L) in conf else 1.0 for b, L in family])
@@ -371,23 +383,36 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         res["comparisons"][b][L]["reading"] = EV.reading(res["comparisons"][b][L])
     for s in [x for x in strategies if x not in EV.CONFIRMATORY and x != "robokit"]:
         for L in EV.PRIMARY:
-            if (s, L) in paths:
-                res["descriptive"].setdefault(s, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(s, L)]["net"], cash)
+            if (s, L) in paths and L in rk:
+                try:
+                    res["descriptive"].setdefault(s, {})[L] = EV.compare(rk[L]["net"], paths[(s, L)]["net"], cash)
+                except ValueError as e:
+                    res["descriptive"].setdefault(s, {})[L] = {"error": str(e)}
     res["dsr"] = {}
     for L in EV.PRIMARY:
-        srs = []
+        excess = {}
         for s in strategies:
             if (s, L) in paths:
-                ex = paths[(s, L)]["net"] - cash.reindex(paths[(s, L)].index).fillna(0.0)
-                srs.append(float(ex.mean() / ex.std(ddof=1)))
-        rk_ex = (paths[("robokit", L)]["net"] - cash.reindex(paths[("robokit", L)].index).fillna(0.0)).to_numpy()
-        res["dsr"][L] = {"robokit": es.deflated_sharpe(rk_ex, srs, N_TRIALS), "best_benchmark": None, "benchmark": None}
-        have = [b for b in EV.CONFIRMATORY if (b, L) in paths]  # a benchmark without a path cannot be the best one
+                try:
+                    excess[s] = (paths[(s, L)]["net"] - EV.cash_on(cash, paths[(s, L)].index)).to_numpy()
+                except ValueError:
+                    continue
+        if "robokit" not in excess:
+            res["dsr"][L] = gone if L not in rk else {"error": "a robokit month has no cash return"}
+            continue
+        srs = [float(x.mean() / x.std(ddof=1)) for x in excess.values() if x.std(ddof=1) > 0]
+        res["dsr"][L] = {
+            "units": "sr and sr0 are monthly Sharpe ratios (not annualised); dsr is a probability",
+            "robokit": es.deflated_sharpe(excess["robokit"], srs, N_TRIALS),
+            "best_benchmark": None,
+            "benchmark": None,
+        }
+        # the best confirmatory benchmark among those with a path and a finite Sharpe ratio
+        have = [b for b in EV.CONFIRMATORY if b in excess and math.isfinite(res["strategies"][b][L].get("sharpe", float("nan")))]
         if have:
             best = max(have, key=lambda b: res["strategies"][b][L]["sharpe"])
-            b_ex = (paths[(best, L)]["net"] - cash.reindex(paths[(best, L)].index).fillna(0.0)).to_numpy()
             res["dsr"][L]["best_benchmark"] = best
-            res["dsr"][L]["benchmark"] = es.deflated_sharpe(b_ex, srs, N_TRIALS)
+            res["dsr"][L]["benchmark"] = es.deflated_sharpe(excess[best], srs, N_TRIALS)
     res["ex_ante_gap"] = {}
     for s in strategies:
         for L in EV.PRIMARY:
@@ -419,6 +444,18 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     return res
 
 
+def leading_skips(attempted: list, strategies, levels) -> dict:
+    """For each strategy and level, the estimation dates that failed before the first one that built: the registered
+    E2 skips (a shelf with under 36 months of common own history). A later failure stops the path (path_errors)."""
+    out = {}
+    for s in strategies:
+        for L in levels:
+            att = [b for b in attempted if b["task"][3] == s and b["task"][2] == L]
+            ok = sorted(b["task"][1] for b in att if "weights" in b)
+            out[f"{s} level {L}"] = sorted(b["task"][1] for b in att if "error" in b and (not ok or b["task"][1] < ok[0]))
+    return out
+
+
 def stage_e2(market: str, locks: dict) -> dict:
     sh = EV.reference_shelf(market)
     dates = EV.december_dates(sh.full)
@@ -431,20 +468,24 @@ def stage_e2(market: str, locks: dict) -> dict:
     paths = analyse_paths(out["builds"], realised, cash, strategies, EV.PRIMARY, "E2", market, leading_skips=True)
     res = {
         "market": market,
-        "skipped": len(skipped),
-        "skip_reasons": pd.Series([b["error"][:80] for b in skipped]).value_counts().to_dict(),
+        "build_failures": len(skipped),
+        "failure_reasons": pd.Series([b["error"][:80] for b in skipped]).value_counts().to_dict(),
+        "leading_skips": leading_skips(out["builds"], strategies, EV.PRIMARY),
         "strategies": {},
         "comparisons": {},
     }
     for (s, L), p in paths.items():
-        res["strategies"].setdefault(s, {})[L] = {**EV.describe(p, cash), "2020": EV.subperiod(p, 2020), "2022": EV.subperiod(p, 2022)}
+        res["strategies"].setdefault(s, {})[L] = described(p, cash)
         p.to_csv(OUT / f"e2_{market}_{s}_L{L}.csv")
     if all(("robokit", L) in paths for L in EV.PRIMARY):
         res["risk_delivery"] = EV.risk_delivery({L: paths[("robokit", L)] for L in EV.PRIMARY}, EV.PRIMARY)
         for b in ("static_mix", "textbook_60"):
             for L in EV.PRIMARY:
                 if (b, L) in paths:
-                    res["comparisons"].setdefault(b, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
+                    try:
+                        res["comparisons"].setdefault(b, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
+                    except ValueError as e:
+                        res["comparisons"].setdefault(b, {})[L] = {"error": str(e)}
     res["shelves"] = {b["task"][1]: sorted(b["weights"]) for b in builds if b["task"][3] == "robokit" and b["task"][2] == 3}
     return res
 
@@ -671,7 +712,7 @@ def e5_walk(market: str, locks: dict, pw: float) -> dict:
         if p is None:
             out[name] = {"error": "path missing (see path_errors)", "errors": len(errors)}
             continue
-        out[name] = {**EV.describe(p, sh.full[sh.cash]), "risk_ratio": EV.risk_delivery({3: p}, (3,))[3], "errors": len(errors)}
+        out[name] = {**described(p, sh.full[sh.cash]), "risk_ratio": EV.risk_delivery({3: p}, (3,))[3], "errors": len(errors)}
     return out
 
 
