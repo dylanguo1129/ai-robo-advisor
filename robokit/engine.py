@@ -803,6 +803,7 @@ def build_portfolio(req: Request | dict) -> dict:
     )
     proj["history"] = {"start": str(H.index.min().date()), "end": str(H.index.max().date()), "months": int(len(H))}
     vol_long = float(np.std(H.to_numpy() @ wv, ddof=1) * np.sqrt(12))
+    rating = ni81_102_rating(H.to_numpy() @ wv)
     plan_ret = proj["median_annual_return"]
 
     for r in relaxations:  # limits relaxed on request: say each one in plain words (never silently)
@@ -835,6 +836,7 @@ def build_portfolio(req: Request | dict) -> dict:
         "stats": {
             "volatility": round(vol, 4),
             "volatility_long": round(vol_long, 4),
+            "ni81_102": rating,
             "planning_return": round(plan_ret, 4),
             "planning_source": "FP Canada 2026 planning assumptions, after fund fees"
             if req.market == "CA"
@@ -891,6 +893,7 @@ def build_portfolio(req: Request | dict) -> dict:
                 "en": f"{len(relaxations)} limit(s) were relaxed so these funds could hold all the money; the notes list each one.",
             }
         )
+    out["checks"].append(rating_check(rating))
     out["explanation"] = explain_portfolio(out)
     return out
 
@@ -968,6 +971,37 @@ def _drop_small(res, req: Request, forced: dict, resolve, tickers: list[str], no
             )
         )
     return w, res, dropped
+
+
+# ------------------------------------------------------------------ the regulator's risk rating (v3 Track C2)
+# NI 81-102 Appendix F, Item 1 table and Item 2 formula: the standard deviation of the most recent 120 monthly returns,
+# n - 1 in the denominator, times the square root of 12, placed in five bands ("0 to less than 6" is Low, and so on).
+APPENDIX_F = ((0.06, "Low"), (0.11, "Low to medium"), (0.16, "Medium"), (0.20, "Medium to high"), (float("inf"), "High"))
+
+
+def ni81_102_rating(monthly) -> dict:
+    """The rating a fund with these monthly returns would show on its Fund Facts or ETF Facts. The mix is rebalanced
+    monthly to its weights; months before a fund's own history use its disclosed stand-in, as Item 4(2) allows a
+    reference index for the missing years. Item 1(2) lets a manager raise a rating, never lower it."""
+    r = np.asarray(monthly, dtype=float)[-120:]
+    sd = float(np.std(r, ddof=1) * np.sqrt(12))
+    label = next(name for cut, name in APPENDIX_F if sd < cut)
+    return {
+        "std_10y": round(sd, 4),
+        "rating": label,
+        "months": int(len(r)),
+        "method": "NI 81-102 Appendix F: standard deviation of the last 120 monthly returns (n - 1), times the square root of 12",
+    }
+
+
+def rating_check(rating: dict) -> dict:
+    short = "" if rating["months"] >= 120 else f" It uses the {rating['months']} months available, not the full 10 years."
+    return {
+        "id": "regulator_rating",
+        "level": "info",
+        "en": f"On the scale funds use for their published risk rating (NI 81-102 Appendix F, 10-year standard deviation), "
+        f"this mix would rate {rating['rating']} ({_pct(rating['std_10y'], 1)}).{short}",
+    }
 
 
 LAM_LO, LAM_HI = 0.05, 2000.0

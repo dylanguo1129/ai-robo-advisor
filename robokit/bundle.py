@@ -374,6 +374,7 @@ def reference_cases() -> list:
                 "volatility": p["stats"]["volatility"],
                 "lambda": p["risk"]["lambda"],
                 "calibration": p["risk"]["calibration"],
+                "ni81_102": p["stats"]["ni81_102"],
                 "target_vol": p["risk"]["target_vol"],
                 "window": p["window"],
                 "planning_return_net": {h["ticker"]: h["planning_return_net"] for h in p["holdings"]},

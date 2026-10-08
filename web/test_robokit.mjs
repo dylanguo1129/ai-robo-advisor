@@ -31,7 +31,8 @@ for (const c of core.reference_cases) {
   // final-pipeline calibration: the same number of steps and the same volatility reached (null for own weights)
   const pc = p.risk.calibration, cc = c.calibration;
   const sameCal = (pc == null) === (cc == null) && (pc == null || (pc.evaluations === cc.evaluations && Math.abs(pc.achieved_vol - cc.achieved_vol) <= 1e-4 && pc.within_tolerance === cc.within_tolerance));
-  const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks && sameCal;
+  const sameRating = !c.ni81_102 || (p.stats.ni81_102.rating === c.ni81_102.rating && Math.abs(p.stats.ni81_102.std_10y - c.ni81_102.std_10y) <= 1e-4 && p.stats.ni81_102.months === c.ni81_102.months);
+  const ok = maxd <= 2e-3 && dv <= 1e-3 && p.window.months === c.window.months && ds <= 2e-3 && sameNotes && sameChecks && sameCal && sameRating;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${JSON.stringify(q)}  max|dw|=${maxd.toExponential(2)}  dvol=${dv.toExponential(2)}  dstress=${ds.toExponential(2)}  window ${p.window.months}/${c.window.months}  ${Date.now() - t0} ms`);
   if (!ok) console.log('   js', js, p.notes, p.checks.map(x => x.id), '\n   py', c.weights, c.notes, c.checks);

@@ -431,6 +431,19 @@ function optimizeOn(est, lam, idx, bounds, satMask, satCap, { resample = false, 
   return { w, band, sigma: S, mu, wPoint, relaxations, ub };
 }
 
+// the regulator's risk rating (robokit/engine.py ni81_102_rating): NI 81-102 Appendix F, the standard deviation of the
+// last 120 monthly returns (n - 1), times the square root of 12, in five bands
+const APPENDIX_F = [[0.06, 'Low'], [0.11, 'Low to medium'], [0.16, 'Medium'], [0.20, 'Medium to high'], [Infinity, 'High']];
+export function ni81102Rating(monthly) {
+  const r = Array.from(monthly).slice(-120); const sd = std(r) * Math.sqrt(12);
+  return { std_10y: round(sd), rating: APPENDIX_F.find(([cut]) => sd < cut)[1], months: r.length,
+    method: 'NI 81-102 Appendix F: standard deviation of the last 120 monthly returns (n - 1), times the square root of 12' };
+}
+function ratingCheck(rating) {
+  const short = rating.months >= 120 ? '' : ` It uses the ${rating.months} months available, not the full 10 years.`;
+  return { id: 'regulator_rating', level: 'info', en: `On the scale funds use for their published risk rating (NI 81-102 Appendix F, 10-year standard deviation), this mix would rate ${rating.rating} (${pctTxt(rating.std_10y, 1)}).${short}` };
+}
+
 const LAM_LO = 0.05, LAM_HI = 2000, CAL_TOL = 5e-5, CAL_MAX = 8;  // as robokit/engine.py
 
 /** Risk aversion for the mix the person gets (robokit/engine.py _calibrate_final, same algorithm): safeguarded secant on
@@ -1119,6 +1132,7 @@ export function buildPortfolio(M, req = {}) {
   const proj = project(Xh, w, geoNet, { amount: r.amount, monthly: r.monthly, years: r.years, goal: r.goal });
   proj.history = { start: monthEnd(M.months[longRows[0]]), end: monthEnd(M.months[longRows[longRows.length - 1]]), months: longRows.length };
   const volLong = std(Xh.map(row => dot(row, w))) * Math.sqrt(12);
+  const rating = ni81102Rating(Xh.map(row => dot(row, w)));
   for (const rx of relaxations) {  // limits relaxed on request: each one in plain words (never silently)
     const what = rx.limit === 'cap' ? `The limit on ${rx.ticker}` : 'The limit on your own picks together';
     const why = rx.reason === 'minimum' ? 'to hold the minimum you set' : 'so the funds can hold all the money';
@@ -1133,7 +1147,7 @@ export function buildPortfolio(M, req = {}) {
       risk_share: isFixed ? null : round(riskShare(lvl10)), stock_market_vol: round(eqVol), target_vol: tv == null ? null : round(tv), achieved_vol: round(vol),
       lambda: lam == null ? null : round(lam), calibration, source: src, chosen_level: chosen, cash_cap: cashCap(lvl10), satellite_cap: satCap },
     holdings,
-    stats: { volatility: round(vol), volatility_long: round(volLong), planning_return: proj.median_annual_return,
+    stats: { volatility: round(vol), volatility_long: round(volLong), ni81_102: rating, planning_return: proj.median_annual_return,
       planning_source: M.code === 'CA' ? 'FP Canada 2026 planning assumptions, after fund fees' : "FP Canada 2026 equity assumptions and today's US Treasury yields, after fund fees",
       model_return: round(modelRet), risk_free: round(M.rf), risk_free_source: M.rfSource, sharpe_model: vol > 0 ? round((modelRet - M.rf) / vol, 3) : null,
       weighted_mer: wmer == null ? null : round(wmer, 5), fee_per_year: wmer == null ? null : round(wmer * r.amount, 2), fee_per_10k: wmer == null ? null : round(wmer * 10000, 2),
@@ -1151,6 +1165,7 @@ export function buildPortfolio(M, req = {}) {
   };
   out.checks = checks(out, X, tickers, r, sats, wmer == null ? null : round(wmer, 5), changed, { fixed: isFixed, lvl5, vol, chosen });
   if (relaxations.length) out.checks.push({ id: 'limits_relaxed', level: 'warn', en: `${relaxations.length} limit(s) were relaxed so these funds could hold all the money; the notes list each one.` });
+  out.checks.push(ratingCheck(rating));
   out.explanation = explain(out);
   return out;
 }
