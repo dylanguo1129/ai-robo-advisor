@@ -487,14 +487,17 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
 
 
 def leading_skips(attempted: list, strategies, levels) -> dict:
-    """For each strategy and level, the estimation dates that failed before the first one that built: the registered
-    E2 skips (a shelf with under 36 months of common own history). A later failure stops the path (path_errors)."""
+    """For each strategy and level, the estimation dates refused for short common own history (under 36 months)
+    before the first one that built: the registered E2 skips. Any other failure counts only under build_failures, and
+    a later failure stops the path (path_errors)."""
     out = {}
     for s in strategies:
         for L in levels:
             att = [b for b in attempted if b["task"][3] == s and b["task"][2] == L]
             ok = sorted(b["task"][1] for b in att if "weights" in b)
-            out[f"{s} level {L}"] = sorted(b["task"][1] for b in att if "error" in b and (not ok or b["task"][1] < ok[0]))
+            out[f"{s} level {L}"] = sorted(
+                b["task"][1] for b in att if b.get("kind") == "short_history" and (not ok or b["task"][1] < ok[0])
+            )
     return out
 
 
@@ -764,8 +767,18 @@ def e5_walk(market: str, locks: dict, pw: float) -> dict:
 
 # ================================================================== E6 rebalancing on an account
 def stage_e6(market: str, e1_builds: list) -> dict:
+    # the targets must cover every scheduled December, as in E1: a failed build would hold a mix past its 12 months
+    attempted = [b for b in e1_builds if b["task"][3] == "robokit" and b["task"][2] == 3]
+    ok = {b["task"][1]: b["weights"] for b in attempted if "weights" in b}
+    missing = sorted(set(schedule_of(attempted)) - set(ok))
+    if not ok or missing:
+        err = (
+            f"no robokit level-3 build for {missing}: a target would be held past 12 months" if ok else "no robokit level-3 build succeeded"
+        )
+        PATH_ERRORS.append({"stage": "E6", "market": market, "strategy": "robokit", "level": 3, "error": err})
+        return {"error": err}
     sh = EV.reference_shelf(market)
-    targets = {b["task"][1]: b["weights"] for b in e1_builds if "weights" in b and b["task"][3] == "robokit" and b["task"][2] == 3}
+    targets = ok
     prices = AU.own_prices(market, sh.tickers)
     out = {"prices_from": str(prices.index[0].date()), "to": str(prices.index[-1].date()), "accounts": {}}
     for start, flow in ((100_000.0, 0.0), (100_000.0, 500.0), (10_000.0, 500.0)):

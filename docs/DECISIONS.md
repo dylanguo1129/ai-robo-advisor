@@ -49,7 +49,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D15 | Ledoit-Wolf constant-correlation shrinkage; QIS when N/T > 0.25 | | Source: Ledoit and Wolf (2004, 2022). Test of the switch point: simulation with a pre-set rule (E3(ii)). Descriptive: the four estimators walk-forward (E4; no back-test result changes a default) | E3, E4 |
-| D16 | Monthly covariance x 12; the shrunk matrix x T/(T-1) | | Proof: scaling Sigma scales pi by the same factor, so the weights at a given lambda do not change; only the risk yardstick moves (0.28% at T = 180), consistently with the n-1 market volatility it is compared with (paper, Proposition 2); test: tests/test_v3_propositions.py | done; E5 |
+| D16 | Monthly covariance x 12; the shrunk matrix x T/(T-1) | | Proof: scaling Sigma scales pi by the same factor, so the weights at a given lambda do not change; only the risk yardstick moves (0.28% at T = 180), consistently with the n-1 market volatility it is compared with (paper, Proposition 2); test: tests/test_v3_propositions.py | done |
 
 ## 5. Objective and constraints
 
@@ -59,7 +59,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D20 | Per-fund maximum and sleeve caps | 50%; REIT, gold, high yield 10%; EM, small cap 15%; real return 20%; long bonds 25% | Policy (concentration guardrails). Source for why constraints help: Jagannathan and Ma (2003). Test: no-caps ablation (E1) and caps halved / doubled (E5) | E1, E5 |
 | D21 | Cash cap by level | 100% at level 1, 30% at 2, 15% at 3-5 | Policy; test: no-caps ablation | E1 |
 | D22 | Own picks: 10% each, crypto 5%, all together 10 / 20 / 30% by level | | Policy; tests/test_v3_review.py, tests/test_v3_properties.py (limits always hold) | policy |
-| D23 | Minimum position | 2% | Source: Gurobi Finance documentation, "Holding tiny positions is undesirable because they have a marginal, if any, impact on the expected return but can lead to non-negligible transaction costs" (partial: cost, not diversification). Test: 0 / 1 / 2 / 5% | E5 |
+| D23 | Minimum position | 2% | Source: Gurobi Finance documentation, "Holding tiny positions is undesirable because they have a marginal, if any, impact on the expected return but can lead to non-negligible transaction costs" (partial: cost, not diversification). Test: 0 / 1 / 5% against the 2% default (E5) | E5 |
 | D38 | Limits that cannot all hold are refused; relaxing is opt-in, in a fixed order, every step recorded | | Policy (fail closed); tests/test_v3_safety.py, tests/test_v3_review.py | done |
 
 ## 6. Risk levels and suitability
@@ -69,7 +69,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D25-27 | Self-check: capacity, tolerance, gates; the suggestion is the lower of capacity and tolerance | | Source: 31-103CP s.13.2 ("the lower of" willingness and ability); Joint CSA/CIRO Staff Notice 31-368; tests: persona walkthroughs (docs/qa/ux) and the scorer tests in tests/test_v2.py; the browser scorer matches Python on 400 random answer sets (web/test_robokit.mjs) | done |
 | D24 | The brief's three settings are levels 2 / 3 / 4 | | Policy; names in both directions (tests/test_v3_exam_r1.py) | done |
 | D28 | Level L targets L x 20% of the stock market's volatility | | Source (partial): Betterment matches risk levels "on volatility". Test: realised over target volatility by level (E1); the regulator's rating of each level | E1 |
-| D29 | The stock-market yardstick: the policy-weighted equity slots over the same window | | Policy; test: window sensitivity (E5) | E5 |
+| D29 | The stock-market yardstick: the policy-weighted equity slots over the same window | | Policy; test: the yardstick replaced by the home stock fund alone, at the latest date and walk-forward (E5) | E5 |
 | C2 | Every mix shows its NI 81-102 Appendix F rating | 10-year standard deviation of monthly returns x sqrt(12), five bands | Source: NI 81-102 Appendix F, Items 1 and 2 (opened); tests/test_v3_rating.py | done |
 | C3 | Suitability checks are opt-in (off by default) | | Source: 31-103CP s.13.2; README's level policy; tests/test_v3_suitability.py | done |
 
@@ -307,6 +307,15 @@ required changes.
 | E6 reported the first price month, not the first month an account runs | true (metadata) | both reported |
 | The power sentence: 0.3 is detected about 80% of the time, not half | true | corrected: about 0.22 (half) and 0.31 (80%) in Canada, 0.31 and 0.45 in the US |
 | The register says the engines take the same calibration steps; at a jump they may differ | partly true: the parity test allows it (two steps) and checks each bracket | the register says so |
+
+**Stage 1, tenth round (8 Oct 2026).** The same reviewer as rounds 8 and 9. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| E6 built its targets from the successful builds only, so a failed December would hold a mix past 12 months | true (the round-4 rule had not reached E6) | E6 refuses an incomplete schedule and records it under path_errors; tested |
+| E2's leading skips listed any early failure, not only the registered short-history refusals | true | each failure records its kind; leading skips keep only short-history refusals |
+| Nothing tested that the E3 locks reach the evaluation builds | true | each build records its covariance method and calibration label; a test checks both switches end to end |
+| D16 claimed an E5 test, D23 a 2% arm that is the default, D29 a window test for the yardstick | true | register corrected to the tests that exist |
 
 ## Sources checked for this register
 

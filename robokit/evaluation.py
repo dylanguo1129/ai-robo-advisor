@@ -156,9 +156,11 @@ def build_at(task: tuple) -> dict:
                 "reachable": True,
                 "outcome": q["calibration"]["outcome"] if q["calibration"] else None,
                 "window": q["window"]["months"],
+                "covariance": q["covariance"],
+                "calibration_method": q["calibration"]["method"] if q["calibration"] else None,
             }
     except Exception as e:  # recorded and counted, never dropped silently
-        return {"task": task[:5], "error": f"{type(e).__name__}: {e}"}
+        return {"task": task[:5], "error": f"{type(e).__name__}: {e}", "kind": (getattr(e, "details", None) or {}).get("kind")}
 
 
 # ------------------------------------------------------------------ holding

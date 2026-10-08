@@ -255,3 +255,47 @@ def test_the_registered_truth_windows_are_the_ones_the_code_builds():
     spec.loader.exec_module(rv)
     assert SIM._truth_cache()["truth_months"] == rv.REGISTERED_TRUTH["CA"]
     assert rv.qis_truths()["_window"] == rv.REGISTERED_TRUTH["QIS"]
+
+
+def _runner():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("runner", Path(__file__).resolve().parents[1] / "scripts" / "run_v3_evaluation.py")
+    rv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rv)
+    return rv
+
+
+def test_e6_refuses_a_target_schedule_with_a_failed_december():
+    rv = _runner()
+    rv.PATH_ERRORS.clear()
+    builds = [
+        {"task": ("CA", "2019-12-31", 3, "robokit", "fixed"), "weights": {"A": 1.0}},
+        {"task": ("CA", "2020-12-31", 3, "robokit", "fixed"), "error": "RoboKitInputError: x", "kind": None},
+        {"task": ("CA", "2021-12-31", 3, "robokit", "fixed"), "weights": {"A": 1.0}},
+    ]
+    out = rv.stage_e6("CA", builds)
+    assert "2020-12-31" in out["error"] and rv.PATH_ERRORS[0]["stage"] == "E6"
+
+
+def test_leading_skips_keep_only_the_registered_short_history_refusals():
+    rv = _runner()
+    att = [
+        {"task": ("CA", "2010-12-31", 3, "robokit", "strict"), "error": "short", "kind": "short_history"},
+        {"task": ("CA", "2011-12-31", 3, "robokit", "strict"), "error": "solver", "kind": None},
+        {"task": ("CA", "2012-12-31", 3, "robokit", "strict"), "weights": {"A": 1.0}},
+    ]
+    assert rv.leading_skips(att, ["robokit"], (3,)) == {"robokit level 3": ["2010-12-31"]}
+
+
+def test_the_e3_locks_reach_the_evaluation_builds():
+    """The locks become research switches (locked_extra) and each build records how it was made."""
+    rv = _runner()
+    assert rv.locked_extra("robokit", {"resample": False, "qis_switch": 0.2}) == {"cov_method": "auto:0.2", "_no_resample": True}
+    assert rv.locked_extra("sample_cov", {"resample": True, "qis_switch": 0.2}) == {}
+    assert rv.locked_extra("robokit", {"resample": True, "qis_switch": 0.25}) == {}
+    b = EV.build_at(("CA", "2020-12-31", 3, "robokit", "fixed", {"_no_resample": True, "cov_method": "auto:0.01"}))
+    assert b["calibration_method"].startswith("final pipeline (single solve,") and b["covariance"] == "qis"
+    b = EV.build_at(("CA", "2020-12-31", 3, "robokit", "fixed", {}))
+    assert b["calibration_method"].startswith("final pipeline (resampled,") and b["covariance"] == "lw_cc"
