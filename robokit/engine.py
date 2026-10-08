@@ -1237,7 +1237,7 @@ def rating_check(rating: dict) -> dict:
 
 
 LAM_LO, LAM_HI = 0.05, 2000.0
-CAL_TOL = 5e-5  # final-pipeline volatility within 0.005 points of the target
+CAL_TOL = 5e-5  # final-pipeline volatility within 0.005 percentage points of the target (5e-5 as a decimal)
 CAL_MAX = 30  # final-pipeline evaluations at most (each one is a full resampled build); typical requests take 2-4
 CAL_WIDTH = 1e-5  # a bracket narrower than this in log lambda (0.001% in lambda, about 1e-6 in volatility) isolates a jump
 

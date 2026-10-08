@@ -241,3 +241,17 @@ def test_too_short_to_tell_needs_robokit_ahead_whatever_the_track_record():
     c = {"p_holm": 0.4, "p_noninferior_holm": 0.3, "sharpe_diff_annual": -0.05, "min_track_record_months": 400.0, "months": 200}
     assert EV.reading(c) == "inconclusive"
     assert EV.reading({**c, "sharpe_diff_annual": 0.05}) == "too short to tell"
+
+
+def test_the_registered_truth_windows_are_the_ones_the_code_builds():
+    """The run stops unless E3's truths use the windows the plan writes down; this checks they do today."""
+    import importlib.util
+    from pathlib import Path
+
+    from robokit import simulation as SIM
+
+    spec = importlib.util.spec_from_file_location("runner", Path(__file__).resolve().parents[1] / "scripts" / "run_v3_evaluation.py")
+    rv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rv)
+    assert SIM._truth_cache()["truth_months"] == rv.REGISTERED_TRUTH["CA"]
+    assert rv.qis_truths()["_window"] == rv.REGISTERED_TRUTH["QIS"]

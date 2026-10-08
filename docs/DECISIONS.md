@@ -49,7 +49,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D15 | Ledoit-Wolf constant-correlation shrinkage; QIS when N/T > 0.25 | | Source: Ledoit and Wolf (2004, 2022). Test of the switch point: simulation with a pre-set rule (E3(ii)). Descriptive: the four estimators walk-forward (E4; no back-test result changes a default) | E3, E4 |
-| D16 | Monthly covariance x 12; the shrunk matrix x T/(T-1) | | Proof: scaling Sigma scales pi by the same factor, so the weights at a given lambda do not change; only the risk yardstick moves (0.28% at T = 180), consistently with the n-1 market volatility it is compared with (paper, Proposition 2); test | E5 |
+| D16 | Monthly covariance x 12; the shrunk matrix x T/(T-1) | | Proof: scaling Sigma scales pi by the same factor, so the weights at a given lambda do not change; only the risk yardstick moves (0.28% at T = 180), consistently with the n-1 market volatility it is compared with (paper, Proposition 2); test: tests/test_v3_propositions.py | done; E5 |
 
 ## 5. Objective and constraints
 
@@ -78,8 +78,8 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D30 | First, lambda for the single solve: bisection on log lambda | [0.05, 2000], ratio 1.002 | Proof: the single solve's volatility falls as lambda rises (paper, Proposition 3) | done |
-| D31 | Then lambda for the mix the person gets (resampled, minimum position applied, the same draws every step): bracket, then Illinois regula falsi with a bisection safeguard | tolerance 0.005 points; bracket 1e-5 in log lambda; at most 30 evaluations | Source: Scherer (2002) for why; Dowell and Jarratt (1971) for the method. Test: 40 random single-solve requests and five resampled ones end within tolerance, at a proven jump or at a bound, each jump and bound re-checked by rebuilding at the lambdas its evidence names (tests/test_v3_calibration.py); in E1 any `limit` is listed as a failure. Test of the benefit: against single-solve calibration | done; E1 |
-| D32 | A note when the final mix is more than 0.5 points from target | | Policy (what is worth telling a person) | policy |
+| D31 | Then lambda for the mix the person gets (resampled, minimum position applied, the same draws every step): bracket, then Illinois regula falsi with a bisection safeguard | tolerance 0.005 percentage points of volatility (5e-5); bracket 1e-5 in log lambda; at most 30 evaluations | Source: Scherer (2002) for why; Dowell and Jarratt (1971) for the method. Test: 40 random single-solve requests and five resampled ones end within tolerance, at a proven jump or at a bound, each jump and bound re-checked by rebuilding at the lambdas its evidence names (tests/test_v3_calibration.py); in E1 any `limit` is listed as a failure. Test of the benefit: against single-solve calibration | done; E1 |
+| D32 | A note when the final mix is more than 0.5 percentage points of volatility from target | | Policy (what is worth telling a person) | policy |
 
 ## 8. Resampling
 
@@ -253,6 +253,21 @@ Both examiners: accept after required changes (two each, no overlap).
 | E7(e) is in the plan but not in the script | partly true: the plan put it after the run, by a research lane, but did not say the script does not produce it | the plan and D1, D11 say so |
 | E3's rules used normal critical values | true (a 0.2% difference at 499 degrees of freedom) | Student t |
 | D13b listed a 30% home-bias test that is the default itself | partly true | worded as 0 / 20 / 40% against the 30% default |
+
+**Stage 1, sixth round (8 Oct 2026).** Both examiners (the same two model families as round 5, fresh sessions): accept
+after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| A default could lock on fewer than 500 pairs if a replication failed | true | a locking rule runs only on its full sample; otherwise the run stops and nothing is locked |
+| The projection-path default was recorded per market | true | one number for the product (5,000 if either market needs it) |
+| The interval's coverage check was in a test, not in results.json | true | computed by the run (1,000 samples, at the nominal 90% and at 96.7%) and written to results.json |
+| The plan said the truths use months "before" the first estimation date; the code includes that month, and the windows were not checked | true (wording; E1 tests only later months, so nothing leaks) | "up to and including"; the run stops unless the truths use the registered windows |
+| D16's status ignored its committed test | true | done; E5 |
+| The calibration tolerance should be 0.005, not 5e-5 | false: the registered tolerance is 0.005 percentage points of volatility, which is 5e-5 as a decimal; 0.005 as a decimal would be 0.5 points, a hundred times looser. The wording invited the misreading | units written out in the plan, the register and the code |
+| D18's calibrated check uses twice 5e-5, not twice 0.005 | false (follows from the above) | none |
+| E5 records the delta builds but not the registered agreement | true | the volatility gap to delta 2.5 and whether it is within twice the tolerance are recorded |
+| Sub-study (i) lacks a 180-month arm | false: the 180-month arm is the main grid's level-3 robokit row in world b, the same replications; the summary groups by months | the plan says so |
 
 ## Sources checked for this register
 

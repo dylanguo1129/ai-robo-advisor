@@ -123,7 +123,13 @@ def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
     return {"mean": m, "se": se, "lo95_one_sided": m - q * se, "hi95_one_sided": m + q * se, "p": p, "n": int(n)}
 
 
+REGISTERED_TRUTH = {"CA": ["2004-12-31", "2009-12-31", 61], "QIS": ["2009-01-31", "2018-12-31", 120]}  # RESEARCH_LOG section 10, E3
+
+
 def stage_e3(reps: int) -> tuple[dict, dict]:
+    tm = SIM._truth_cache()["truth_months"]
+    if tm != REGISTERED_TRUTH["CA"]:
+        raise RuntimeError(f"E3's truth window is {tm}, not the registered {REGISTERED_TRUTH['CA']}: stopped")
     tasks = [(w, r, 3, E3_METHODS, 180) for w in "abc" for r in range(reps)]  # level 3, every method
     tasks += [(w, r, L, ["robokit", "no_resample"], 180) for w in "abc" for r in range(reps) for L in (2, 4)]
     tasks += [("b", r, 3, ["robokit"], T) for T in (36, 60, 120) for r in range(reps)]
@@ -171,7 +177,9 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
 
     # the QIS switch study (sub-study ii)
     qtruths = qis_truths()
-    qmeta = {"months": qtruths.pop("_months"), "funds": qtruths.pop("_funds"), "end": SIM.truth_end("US")}
+    qmeta = {"months": qtruths.pop("_months"), "funds": qtruths.pop("_funds"), "window": qtruths.pop("_window"), "end": SIM.truth_end("US")}
+    if qmeta["window"] != REGISTERED_TRUTH["QIS"]:
+        raise RuntimeError(f"the QIS truth window is {qmeta['window']}, not the registered {REGISTERED_TRUTH['QIS']}: stopped")
     qtasks = [(name, S, ratio, rep) for name, S in qtruths.items() for ratio in (0.1, 0.2, 0.25, 0.3, 0.4, 0.6) for rep in range(reps)]
     q = pd.DataFrame(pmap(SIM.qis_switch_sample, qtasks, chunksize=25))
     qsum = {
@@ -193,6 +201,15 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
             "qis_worse_at_0.25": {**t2, "p_holm": adj[1]},
             "qis_better_at_0.30": {**t3, "p_holm": adj[2]},
         }
+    # a default locks only on the full registered sample: every input of both rules has exactly ``reps`` finite pairs
+    short = {f"resampling, world {w}": rule[w]["n"] for w in ("b", "c") if rule[w]["n"] != reps}
+    for name, gg in q.groupby("truth"):
+        for r in (0.2, 0.25, 0.3):
+            n_ok = int(np.isfinite(gg.loc[gg.n_over_t == r, "rel"]).sum())
+            if n_ok != reps:
+                short[f"QIS, {name} truth at {r}"] = n_ok
+    if short:
+        raise RuntimeError(f"a locking rule lacks its {reps} replications {short}: no default is locked, the run stops")
     lower = all(tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in tests)
     raise_ = all(tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in tests)
     switch = 0.20 if lower else (0.30 if raise_ else 0.25)
@@ -225,7 +242,13 @@ def qis_truths() -> dict:
     rng = np.random.default_rng(20261008)
     pick = list(rng.choice(pool, size=20, replace=False))
     X = window[pick].to_numpy()
-    return {"constant_correlation": choose_covariance(X, "lw_cc")[0], "sample": np.cov(X.T, ddof=1), "_months": len(X), "_funds": pick}
+    return {
+        "constant_correlation": choose_covariance(X, "lw_cc")[0],
+        "sample": np.cov(X.T, ddof=1),
+        "_months": len(X),
+        "_funds": pick,
+        "_window": [str(window.index[0].date()), str(window.index[-1].date()), len(window)],
+    }
 
 
 # ================================================================== E1 and E2
@@ -624,6 +647,10 @@ def e5_today(market: str, locks: dict) -> dict:
     out["min_weight"] = {str(m): diff(lean(req={"min_weight": m})) for m in (0.0, 0.01, 0.05)}
     out["max_weight"] = {str(m): diff(lean(req={"max_weight": m})) for m in (0.35, 0.7)}
     out["delta"] = {str(d): diff(lean(research={"delta": d})) for d in (1.0, 4.0)}
+    for v in out["delta"].values():  # Proposition 1 with lambda calibrated: the risk agrees with delta 2.5's
+        v["vol_gap_vs_delta_2.5"] = abs(v["volatility"] - base["volatility"])
+        v["threshold"] = 2 * E.CAL_TOL
+        v["within_twice_tolerance"] = bool(v["vol_gap_vs_delta_2.5"] <= 2 * E.CAL_TOL)
     home_sleeve = "ca_equity" if market == "CA" else "us_equity"
     out["yardstick_home_fund"] = diff(lean(research={"yardstick": {home_sleeve: 1.0}}))
     # Monte Carlo spread of the weights: 10 seeds at 100, 200, 500 draws
@@ -742,6 +769,22 @@ def stage_e6(market: str, e1_builds: list) -> dict:
     return out
 
 
+# ================================================================== risk-delivery interval coverage
+def coverage_check(samples: int = 1000, months: int = 120, n_boot: int = 999, block: int = 6) -> dict:
+    """How often the risk-delivery interval (circular block bootstrap, percentile) covers the true ratio 1 on i.i.d.
+    standardised months, at the nominal 90% of one interval and at the 96.7% each of three simultaneous ones."""
+    out = {"samples": samples, "months": months, "n_boot": n_boot, "block": block}
+    for name, level in (("nominal_0.90", 0.90), ("nominal_0.967", 1 - 0.10 / 3)):
+        hits = sum(
+            es.vol_ratio_interval(np.random.default_rng(1000 + s).normal(0, 1, months), block=block, n_boot=n_boot, level=level, seed=s)[
+                "contains_1"
+            ]
+            for s in range(samples)
+        )
+        out[name] = hits / samples
+    return out
+
+
 # ================================================================== E7 and E8
 def stage_e7() -> dict:
     out = {
@@ -841,8 +884,10 @@ def main():
     for m in ("CA", "US"):
         today = e5_today(m, locks)
         results["E5"][m] = {"today": today, "walk_forward": e5_walk(m, locks, today["politis_white_block"])}
-        results["locked_defaults"].setdefault("projection_paths", {})[m] = today["projection_rule"]["paths"]
         save()
+    # one path count for the product: 5,000 if either market needs it (the standard errors by market stay under E5)
+    results["locked_defaults"]["projection_paths"] = max(results["E5"][m]["today"]["projection_rule"]["paths"] for m in ("CA", "US"))
+    save()
     # E6 uses the E1 level-3 robokit targets (rebuilt here from the same deterministic builds)
     results["E6"] = {}
     for m in ("CA", "US"):
@@ -850,6 +895,8 @@ def main():
         res, _ = walk_forward(m, locks, ["robokit"], lambda s: (3,), EV.december_dates(sh.full))
         results["E6"][m] = stage_e6(m, res["builds"])
         save()
+    results["risk_delivery_coverage"] = coverage_check()
+    save()
     results["E7"] = stage_e7()
     results["E8"] = stage_e8()
     results["path_errors"] = PATH_ERRORS
