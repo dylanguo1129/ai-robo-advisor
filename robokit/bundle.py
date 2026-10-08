@@ -218,6 +218,18 @@ def reference_profiles(n: int = 400, seed: int = 5) -> list:
     return out
 
 
+SUIT_ANSWERS = {
+    "A2": "yes",
+    "A3": "no",
+    "B1": "10to19",
+    "B2": "10plus",
+    "B4": "10to25",
+    "B5": "mostly",
+    "C1": "4",
+    "C2": "wait",
+    "C3": "3",
+    "C4": "both",
+}
 WIDE_US = [
     "VTI",
     "IVV",
@@ -363,6 +375,9 @@ def reference_cases() -> list:
         dict(market="US", risk_level=4, satellites=["BITO"], minimums={"BITO": 0.05}),
         # a wide list (43 funds over 158 months, N/T > 0.25): both engines switch to QIS
         dict(market="US", risk_level=4, satellites=WIDE_US),
+        # opt-in suitability checks: built at the suggestion, or at the level chosen once the extra risk is confirmed
+        dict(market="CA", risk_level=5, answers=SUIT_ANSWERS, enforce_suitability=True),
+        dict(market="CA", risk_level=5, answers=SUIT_ANSWERS, enforce_suitability=True, acknowledged_above_suggestion=True),
     ]
     out = []
     for c in cases:

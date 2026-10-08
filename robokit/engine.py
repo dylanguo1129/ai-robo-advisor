@@ -100,6 +100,12 @@ class Request:
     fixed_weights: dict[str, float] | None = None  # the person's own weights (no optimisation)
     level_chosen: bool = True  # False when risk_level is an untouched default ("the reference level" in checks)
     on_infeasible: str = "refuse"  # 'refuse': limits that cannot all hold stop the build; 'relax': relax them and say so
+    # opt-in suitability (off by default; the level policy is unchanged): with the profile answers, a level above the
+    # suggestion is built at the suggestion unless the person confirms the extra risk (31-103CP s.13.2: the lower of
+    # willingness and ability to take risk)
+    answers: dict | None = None
+    enforce_suitability: bool = False
+    acknowledged_above_suggestion: bool = False
 
 
 MARKETS = ("CA", "US")
@@ -199,6 +205,11 @@ def validate_request(req: Request | dict) -> Request:
     req.views = _valid_views(req.views)
     if req.on_infeasible not in ("refuse", "relax"):
         raise RoboKitInputError("on_infeasible must be 'refuse' or 'relax'.", {"field": "on_infeasible"})
+    for k in ("enforce_suitability", "acknowledged_above_suggestion"):
+        if not isinstance(getattr(req, k), bool):
+            raise RoboKitInputError(f"{k} must be true or false.", {"field": k})
+    if req.answers is not None and not isinstance(req.answers, dict):
+        raise RoboKitInputError("answers must be an object of question ids and answers.", {"field": "answers"})
     return req
 
 
@@ -445,6 +456,63 @@ def _note(en: str) -> dict:
     return {"en": en}
 
 
+def _suitability(req: Request):
+    """The scored profile when suitability checks are on (None when off). Missing or unready answers are refused."""
+    if not req.enforce_suitability:
+        return None
+    if not req.answers:
+        raise RoboKitInputError("With suitability checks on, the profile answers are needed.", {"field": "answers"})
+    res = prof.score(req.answers)
+    if res.status != "complete" or res.suggested_level is None:
+        missing = list(res.missing or [])
+        raise RoboKitInputError(
+            "With suitability checks on, the profile must be complete first" + (": " + ", ".join(missing) if missing else "") + ".",
+            {"field": "answers", "status": res.status, "missing": missing},
+        )
+    return res
+
+
+def _suitable_level(req: Request, res, lvl5: float, notes: list, own_weights: bool = False) -> tuple[float, dict]:
+    """The level to build at, and the record of the check. A level above the suggestion needs the person's confirmation:
+    without it the mix is built at the suggestion (own weights, which cannot be moved, are refused instead)."""
+    s = float(res.suggested_level)
+    lv = f"{_round_half_up(lvl5, 1):g}"
+    why = f"the lower of your capacity ({res.capacity}) and your tolerance ({res.tolerance})"
+    rec = {
+        "enforced": True,
+        "suggested_level": int(s),
+        "capacity": res.capacity,
+        "tolerance": res.tolerance,
+        "requested_level": round(float(lvl5), 2),
+        "acknowledged": bool(req.acknowledged_above_suggestion),
+    }
+    if lvl5 <= s + 1e-9:
+        rec["applied_level"] = round(float(lvl5), 2)
+        return lvl5, rec
+    if req.acknowledged_above_suggestion:
+        notes.append(
+            _note(
+                f"You chose level {lv}, above the level {int(s)} your answers suggest ({why}). You confirmed you understand the extra risk; the confirmation is recorded."
+            )
+        )
+        rec["applied_level"] = round(float(lvl5), 2)
+        return lvl5, rec
+    if own_weights:
+        raise RoboKitInputError(
+            f"Your own weights behave like level {lv}, above the level {int(s)} your answers suggest ({why}). "
+            "With suitability checks on, confirm you understand the extra risk to keep them.",
+            {"field": "fixed_weights", "suggested_level": int(s)},
+        )
+    notes.append(
+        _note(
+            f"Your answers suggest level {int(s)} ({why}). With suitability checks on, the mix is built at level {int(s)}, "
+            f"not the level {lv} you chose. To build at level {lv}, confirm you understand the extra risk."
+        )
+    )
+    rec["applied_level"] = s
+    return s, rec
+
+
 def select_funds(req: Request, notes: list[dict] | None = None) -> tuple[pd.DataFrame, list[str], list[str]]:
     """The shelf (with swaps) and the satellites: (shelf, core tickers, satellite tickers).
 
@@ -543,6 +611,13 @@ def build_portfolio(req: Request | dict) -> dict:
         )
     eq_vol = market_vol(req.market, X, shelf, notes)
     lvl5, lvl10, tv, level_src = _level(req, eq_vol)
+    suit = _suitability(req)
+    suitability = None
+    if suit is not None and not req.fixed_weights:
+        applied, suitability = _suitable_level(req, suit, lvl5, notes)
+        if applied != lvl5:
+            lvl5, lvl10 = applied, prof.engine_level(applied)
+            tv, level_src = prof.risk_share(lvl10) * eq_vol, "suggested level (suitability checks on)"
 
     prior = pd.Series(0.0, index=tickers)
     for _, row in shelf.iterrows():
@@ -707,6 +782,8 @@ def build_portfolio(req: Request | dict) -> dict:
     if fixed:  # the level these weights behave like: their volatility as a share of the stock market's
         lvl10 = max(2.0, min(10.0, 10.0 * vol / eq_vol))  # levels run 1-5; almost-all-cash weights read as level 1
         lvl5, tv, level_src = lvl10 / 2, None, "your own weights"
+        if suit is not None:
+            _, suitability = _suitable_level(req, suit, _round_half_up(lvl5, 1), notes, own_weights=True)
 
     for t in ok_sats:  # the person's own picks that end up with no weight: say so, never drop silently
         if t not in w.index and t not in dropped:
@@ -877,6 +954,7 @@ def build_portfolio(req: Request | dict) -> dict:
             "sleeve_caps": {t: c for t, c in caps.items()},
             "on_infeasible": req.on_infeasible,
             "relaxations": relaxations,
+            "suitability": suitability,
         },
         "shelf": [
             {"sleeve": r.sleeve, "label": r.label, "ticker": r.ticker, "fund": r.fund, "alternatives": r.alternatives}

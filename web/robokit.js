@@ -89,6 +89,8 @@ export function validateRequest(r) {
   if (r.swaps != null && (typeof r.swaps !== 'object' || Array.isArray(r.swaps))) throw inputError('swaps must map a slot to a ticker.', 'swaps');
   r.views = validateViews(r.views, num, share);
   if (!['refuse', 'relax'].includes(r.onInfeasible)) throw inputError("on_infeasible must be 'refuse' or 'relax'.", 'on_infeasible');
+  for (const [k, name] of [['enforceSuitability', 'enforce_suitability'], ['acknowledgedAboveSuggestion', 'acknowledged_above_suggestion']]) if (typeof r[k] !== 'boolean') throw inputError(`${name} must be true or false.`, name);
+  if (r.answers != null && (typeof r.answers !== 'object' || Array.isArray(r.answers))) throw inputError('answers must be an object of question ids and answers.', 'answers');
   return r;
 }
 
@@ -917,7 +919,8 @@ const note = (en) => ({ en });
 export function buildPortfolio(M, req = {}) {
   const r = { risk_level: 3, preferEsg: false, hedgeUsEquity: false, sleeves: null, swaps: {}, satellites: [], exclude: [], minimums: {},
     maxWeight: 0.5, satelliteCap: null, satelliteMaxEach: 0.10, cryptoMaxEach: 0.05, minWeight: 0.02, views: [], resample: true,
-    nBoot: 200, seed: 0, amount: 10000, monthly: 0, years: 10, goal: null, fixedWeights: null, onInfeasible: 'refuse', ...req };
+    nBoot: 200, seed: 0, amount: 10000, monthly: 0, years: 10, goal: null, fixedWeights: null, onInfeasible: 'refuse',
+    answers: null, enforceSuitability: false, acknowledgedAboveSuggestion: false, ...req };
   validateRequest(r);
   const fixed = Object.fromEntries(Object.entries(r.fixedWeights || {}).map(([t, v]) => [t, Number(v)]).filter(([, v]) => v > 0));
   const isFixed = Object.keys(fixed).length > 0;
@@ -957,6 +960,26 @@ export function buildPortfolio(M, req = {}) {
   const chosen = r.risk_level == null ? null : Number(r.risk_level);
   if (r.targetVol != null) { tv = r.targetVol; lvl10 = Math.max(1, Math.min(10, 10 * tv / eqVol)); lvl5 = lvl10 / 2; src = 'target volatility given directly'; }
   else { lvl5 = Math.max(1, Math.min(5, chosen == null ? 3 : chosen)); lvl10 = 2 * lvl5; tv = riskShare(lvl10) * eqVol; src = chosen == null ? "preset 'mid'" : 'risk level chosen'; }
+  // opt-in suitability (robokit/engine.py _suitability, _suitable_level): off by default
+  let suit = null, suitability = null;
+  if (r.enforceSuitability) {
+    if (!r.answers || !Object.keys(r.answers).length) throw inputError('With suitability checks on, the profile answers are needed.', 'answers');
+    suit = scoreProfile(M.core.questions, r.answers);
+    if (suit.status !== 'complete' || suit.suggested_level == null) { const miss = suit.missing || []; throw new RoboKitError(`With suitability checks on, the profile must be complete first${miss.length ? ': ' + miss.join(', ') : ''}.`, 'input', { field: 'answers', status: suit.status, missing: miss }); }
+  }
+  const suitableLevel = (lv5, ownWeights = false) => {
+    const s = suit.suggested_level, lv = String(roundHalfUp(lv5, 1)), why = `the lower of your capacity (${suit.capacity}) and your tolerance (${suit.tolerance})`;
+    const rec = { enforced: true, suggested_level: s, capacity: suit.capacity, tolerance: suit.tolerance, requested_level: Math.round(lv5 * 100) / 100, acknowledged: !!r.acknowledgedAboveSuggestion };
+    if (lv5 <= s + 1e-9) { rec.applied_level = Math.round(lv5 * 100) / 100; return [lv5, rec]; }
+    if (r.acknowledgedAboveSuggestion) { notes.push(note(`You chose level ${lv}, above the level ${s} your answers suggest (${why}). You confirmed you understand the extra risk; the confirmation is recorded.`)); rec.applied_level = Math.round(lv5 * 100) / 100; return [lv5, rec]; }
+    if (ownWeights) throw new RoboKitError(`Your own weights behave like level ${lv}, above the level ${s} your answers suggest (${why}). With suitability checks on, confirm you understand the extra risk to keep them.`, 'input', { field: 'fixed_weights', suggested_level: s });
+    notes.push(note(`Your answers suggest level ${s} (${why}). With suitability checks on, the mix is built at level ${s}, not the level ${lv} you chose. To build at level ${lv}, confirm you understand the extra risk.`));
+    rec.applied_level = s; return [s, rec];
+  };
+  if (suit && !isFixed) {
+    const [applied, rec] = suitableLevel(lvl5); suitability = rec;
+    if (applied !== lvl5) { lvl5 = applied; lvl10 = 2 * applied; tv = riskShare(lvl10) * eqVol; src = 'suggested level (suitability checks on)'; }
+  }
 
   const n = tickers.length;
   const prior = tickers.map(t => shelf.filter(s => s.ticker === t).reduce((s, x) => s + (x.prior || 0), 0));
@@ -1085,6 +1108,7 @@ export function buildPortfolio(M, req = {}) {
   const muH = hIdx.map(i => est.mu[i]); const modelRet = M.rf + dot(muH, w);
   const Sw = matvec(S, w); const rc = w.map((v, i) => (vol > 0 ? v * Sw[i] / vol ** 2 : 0));
   if (isFixed) { lvl10 = Math.max(2, Math.min(10, 10 * vol / eqVol)); lvl5 = lvl10 / 2; tv = null; src = 'your own weights'; }  // levels run 1-5
+  if (isFixed && suit) suitability = suitableLevel(roundHalfUp(lvl5, 1), true)[1];
 
   for (const t of sats) if (!held.includes(t) && !dropped.includes(t))  // the person's own picks with no weight: say so
     notes.push(isFixed ? note(`${t} has no weight in your own weights. Give it one to hold it.`)
@@ -1159,7 +1183,7 @@ export function buildPortfolio(M, req = {}) {
     method: { weights: isFixed ? 'your own weights' : 'constrained mean-variance',
       expected_returns_for_weights: viewsApplied ? 'black_litterman (bounded)' : 'equilibrium', delta: DELTA, covariance: est.method, shrinkage: est.shrink == null ? null : round(est.shrink),
       resampled: !!r.resample && !isFixed, n_boot: r.resample && !isFixed ? r.nBoot : 0, prior: Object.fromEntries(tickers.map((t, i) => [t, round(priorN[i])]).filter(([, v]) => v > 0)), sleeve_caps: caps,
-      on_infeasible: r.onInfeasible, relaxations },
+      on_infeasible: r.onInfeasible, relaxations, suitability },
     shelf: shelf.map(s => ({ sleeve: s.sleeve, label: s.label, ticker: s.ticker, alternatives: s.alternatives })),
     notes,
   };
