@@ -66,15 +66,10 @@ def _random_requests(n=40, seed=20261010):
 
 @pytest.mark.parametrize("req", _random_requests(), ids=lambda r: f"{r['market']}-{r.get('risk_level', r.get('target_vol'))}")
 def test_every_calibration_ends_on_target_or_proves_why_not(req):
-    """Within tolerance, or a jump of the minimum-position rule (no lambda in between), or a bound of lambda: never the
-    evaluation limit, and never an unexplained miss."""
-    from optimizer.errors import InfeasibleConstraints
-    from robokit.errors import RoboKitInputError
-
-    try:
-        p = build_portfolio(Request(**req))
-    except (RoboKitInputError, InfeasibleConstraints):
-        return
+    """Every one of the 40 builds (none may be refused: a refusal would leave a request with no calibration to check)
+    ends within tolerance, at a jump of the minimum-position rule (no lambda in between) or at a bound of lambda, never
+    at the evaluation limit; each outcome is re-checked from rebuilt mixes (_check_evidence)."""
+    p = build_portfolio(Request(**req))
     c = p["risk"]["calibration"]
     assert c["outcome"] in ("within tolerance", "jump", "out of reach"), c
     assert c["within_tolerance"] == (c["outcome"] == "within tolerance")
@@ -108,6 +103,10 @@ def _check_evidence(req: dict, c: dict) -> None:
             assert e["bound_lambda"] == pytest.approx(LAM_LO) and v < c["target_vol"]
     if c["outcome"] in ("jump", "out of reach"):
         assert abs(c["achieved_vol"] - c["target_vol"]) > CAL_TOL
+    if c["outcome"] == "within tolerance":  # from the numbers, not the label: the kept lambda rebuilt
+        q = build_portfolio(Request(**req), lean=True)
+        assert abs(q["volatility"] - q["target_vol"]) <= CAL_TOL
+        assert vol_at(q["lambda"]) == pytest.approx(q["volatility"], abs=1e-9)
 
 
 @pytest.mark.parametrize(

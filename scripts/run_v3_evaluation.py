@@ -131,6 +131,7 @@ def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
     return {"mean": m, "se": se, "lo95_one_sided": m - q * se, "hi95_one_sided": m + q * se, "p": p, "n": int(n)}
 
 
+FAMILY = {"CA": "confirmatory", "US": "exploratory"}  # RESEARCH_LOG section 10, power: stated in advance
 REGISTERED_TRUTH = {"CA": ["2004-12-31", "2009-12-31", 61], "QIS": ["2009-01-31", "2018-12-31", 120]}  # RESEARCH_LOG section 10, E3
 
 
@@ -219,15 +220,17 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
                 short[f"QIS, {name} truth at {r}"] = n_ok
     if short:
         raise RuntimeError(f"a locking rule lacks its {reps} replications {short}: no default is locked, the run stops")
-    lower = all(tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in qtruths)
-    raise_ = all(tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in qtruths)
-    switch = 0.20 if lower else (0.30 if raise_ else 0.25)
+    t1 = [tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in qtruths]
+    t2 = [tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in qtruths]
+    # down only if T1 holds in both truths and T2 in neither; up only if T2 holds in both and T1 in neither;
+    # otherwise, contradictory results included, the switch stays
+    switch = 0.20 if (all(t1) and not any(t2)) else (0.30 if (all(t2) and not any(t1)) else 0.25)
     locks = {"resample": not drop_resampling, "qis_switch": switch}
     result = {
         "summary": summary,
         "paired_contrasts": contrasts,
         "resampling_rule": {**rule, "drop_resampling": drop_resampling},
-        "qis_switch": {"by_ratio": qsum, "tests": tests, "switch": switch, "truth": qmeta},
+        "qis_switch": {"by_ratio": qsum, "tests": tests, "t1_holds": t1, "t2_holds": t2, "switch": switch, "truth": qmeta},
         "truth_months": SIM._truth_cache()["truth_months"],
         "errors": int(len(errors)),
         "error_examples": errors.head(5).to_dict(orient="records") if len(errors) else [],
@@ -414,6 +417,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         res["comparisons"][b][L]["p_holm"] = a
         res["comparisons"][b][L]["p_noninferior_holm"] = ani
         res["comparisons"][b][L]["reading"] = EV.reading(res["comparisons"][b][L])
+        res["comparisons"][b][L]["family"] = FAMILY[market]  # the US readings are exploratory, on every row
     for s in [x for x in strategies if x not in EV.CONFIRMATORY and x != "robokit"]:
         for L in EV.PRIMARY:
             if (s, L) in paths and L in rk:
@@ -763,10 +767,11 @@ def stage_e6(market: str, e1_builds: list) -> dict:
     sh = EV.reference_shelf(market)
     targets = {b["task"][1]: b["weights"] for b in e1_builds if "weights" in b and b["task"][3] == "robokit" and b["task"][2] == 3}
     prices = AU.own_prices(market, sh.tickers)
-    out = {"from": str(prices.index[0].date()), "to": str(prices.index[-1].date()), "accounts": {}}
+    out = {"prices_from": str(prices.index[0].date()), "to": str(prices.index[-1].date()), "accounts": {}}
     for start, flow in ((100_000.0, 0.0), (100_000.0, 500.0), (10_000.0, 500.0)):
         key = f"{int(start)}_{int(flow)}"
         ideal = AU.account_path(targets, prices, start, flow, "ideal")["path"]
+        out.setdefault("from", str(ideal.index[0].date()))  # the first month an account runs (a target is in force)
         res = {"ideal": AU.summarise_account(ideal, None)}
         for rule in ("monthly", "bands", "annual"):
             res[rule] = AU.summarise_account(AU.account_path(targets, prices, start, flow, rule)["path"], ideal)

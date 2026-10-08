@@ -20,7 +20,7 @@ Sharpe-ratio differences use the Ledoit and Wolf (2008) studentised circular blo
 
 Risk delivery is the standard deviation of monthly returns divided by the monthly target in force. Simultaneous 90% intervals over levels 2-4 must lie inside [0.80, 1.25] for the levels to count as delivering their risk; a point estimate outside the band counts as a miss.
 
-A power statement was written before the run. In Canada, a Sharpe difference has to be about 0.3 to be detected half the time; in the US, about 0.45. Most comparisons were therefore expected to be inconclusive.
+A power statement was written before the run. In Canada, a Sharpe difference has to be about 0.22 to be detected half the time and about 0.31 to be detected 80% of the time; in the US, about 0.31 and 0.45. Most comparisons were therefore expected to be inconclusive.
 
 ## 5.3 Strict point-in-time returns (E2)
 

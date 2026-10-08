@@ -124,7 +124,9 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 ## 13. One model in two runtimes
 
 Python and the browser engine are tested against each other on every reference case (point and resampled weights,
-bands, projections, notes, checks, calibration steps, the regulator rating, the rebalancer on 48 accounts, QIS on
+bands, projections, notes, checks, calibration (the same outcome and steps; at a jump the two engines may take one or two
+steps more or fewer and stop at different brackets, each checked to straddle the target), the regulator rating, the
+rebalancer on 51 accounts, QIS on
 generated inputs): web/test_robokit.mjs, web/test_engine.mjs, web/test_safety.mjs.
 
 ## Examination record
@@ -292,6 +294,19 @@ after required changes.
 | The calibration label said "resampled" for single-solve builds | true | the label says which, in both engines; tested |
 | D9 named one of the screen's two conditions | true | both stated |
 | The US readings were not labelled exploratory in the results | true | labelled |
+
+**Stage 1, ninth round (8 Oct 2026).** The same reviewer as round 8 (Cursor's automatic routing). Accept after
+required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The "exploratory" label sat on the US market, not on each comparison the paper will quote | true (the round-8 fix was incomplete) | every comparison carries its family |
+| If T1 and T2 both held, the QIS rule moved the switch down although T2 says QIS is worse at 0.25 | true | registered rule changed before the run: down only if T1 holds in both truths and T2 in neither, up only the other way round, otherwise no change |
+| The projection-path lock, and the E3 locks, never reach the engines | partly true: applying them after the run was planned but not written down or enforced | the plan states the post-run commit; tests/test_v3_locked_defaults.py fails whenever a shipped constant differs from a locked default |
+| The random calibration suite let a refused request pass and trusted the "within tolerance" label | true (no request is refused today) | a refusal fails the test; within tolerance is checked from the rebuilt mix at its lambda |
+| E6 reported the first price month, not the first month an account runs | true (metadata) | both reported |
+| The power sentence: 0.3 is detected about 80% of the time, not half | true | corrected: about 0.22 (half) and 0.31 (80%) in Canada, 0.31 and 0.45 in the US |
+| The register says the engines take the same calibration steps; at a jump they may differ | partly true: the parity test allows it (two steps) and checks each bracket | the register says so |
 
 ## Sources checked for this register
 
