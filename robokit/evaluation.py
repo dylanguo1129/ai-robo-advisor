@@ -220,7 +220,7 @@ def cash_on(cash: pd.Series, idx) -> pd.Series:
 def describe(path: pd.DataFrame, cash: pd.Series) -> dict:
     r = path["net"]
     ex = r - cash_on(cash, r.index)
-    sd = float(ex.std(ddof=1))
+    sd = float(ex.std(ddof=0))  # divisor T: the moment form the Ledoit-Wolf test uses, so reported = tested
     tail = es.cvar(r, 0.95)
     return {
         "months": int(len(r)),
@@ -275,16 +275,16 @@ def compare(a: pd.Series, b: pd.Series, cash: pd.Series, block: int = 6, n_boot:
     idx = a.index.intersection(b.index)
     c = cash_on(cash, idx)
     ra, rb = (a.loc[idx] - c).to_numpy(), (b.loc[idx] - c).to_numpy()
-    if not (ra.std(ddof=1) > 0 and rb.std(ddof=1) > 0):
+    if not (ra.std() > 0 and rb.std() > 0):
         raise ValueError("an excess-return series with no variance has no Sharpe ratio to compare")
     lw = es.sharpe_diff_test(ra, rb, block=block, n_boot=n_boot, seed=seed, margin=MARGIN_SR / math.sqrt(12))
     nw = es.newey_west_t((a.loc[idx] - b.loc[idx]).to_numpy(), lags=6)
-    sr_b = rb.mean() / rb.std(ddof=1)
+    sr_b = rb.mean() / rb.std()  # numpy's std: divisor T, as the test
     mtr = es.min_track_record(ra, sr_star=sr_b)
     return {
         "months": int(len(idx)),
-        "sharpe_robokit": float(ra.mean() / ra.std(ddof=1) * math.sqrt(12)),
-        "sharpe_other": float(rb.mean() / rb.std(ddof=1) * math.sqrt(12)),
+        "sharpe_robokit": float(ra.mean() / ra.std() * math.sqrt(12)),  # so sharpe_robokit - sharpe_other = sharpe_diff_annual
+        "sharpe_other": float(rb.mean() / rb.std() * math.sqrt(12)),
         "sharpe_diff_annual": lw["diff"] * math.sqrt(12),
         "ci95_annual": [lw["ci95"][0] * math.sqrt(12), lw["ci95"][1] * math.sqrt(12)],
         "p_two_sided": lw["p"],

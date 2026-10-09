@@ -477,7 +477,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         if "robokit" not in excess:
             res["dsr"][L] = gone if L not in rk else {"error": "a robokit month has no cash return"}
             continue
-        srs = [float(x.mean() / x.std(ddof=1)) for x in excess.values() if x.std(ddof=1) > 0]
+        srs = [float(x.mean() / x.std()) for x in excess.values() if x.std() > 0]  # divisor T, as everywhere
         res["dsr"][L] = {
             "units": "sr and sr0 are monthly Sharpe ratios (not annualised); dsr is a probability",
             "robokit": es.deflated_sharpe(excess["robokit"], srs, N_TRIALS),

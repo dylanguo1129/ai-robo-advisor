@@ -47,7 +47,7 @@ def test_ledoit_wolf_test_has_about_the_right_size_and_some_power():
 def test_deflated_sharpe_with_one_trial_is_the_probabilistic_sharpe_ratio():
     r = np.random.default_rng(4).normal(0.01, 0.04, 240)
     d = es.deflated_sharpe(r, [0.25], n_trials=1)
-    sr = r.mean() / r.std(ddof=1)
+    sr = r.mean() / r.std()  # divisor T, the one Sharpe ratio of the evaluation
     g3, g4 = stats.skew(r), stats.kurtosis(r, fisher=False)
     want = stats.norm.cdf(sr * math.sqrt(239) / math.sqrt(1 - g3 * sr + (g4 - 1) / 4 * sr**2))
     assert d["sr0"] == 0.0 and d["dsr"] == pytest.approx(want)
@@ -62,7 +62,7 @@ def test_more_trials_raise_the_bar():
 
 def test_min_track_record_formula():
     r = np.random.default_rng(6).normal(0.01, 0.04, 240)
-    sr, g3, g4 = r.mean() / r.std(ddof=1), stats.skew(r), stats.kurtosis(r, fisher=False)
+    sr, g3, g4 = r.mean() / r.std(), stats.skew(r), stats.kurtosis(r, fisher=False)
     want = 1 + (1 - g3 * sr + (g4 - 1) / 4 * sr**2) * (stats.norm.ppf(0.95) / sr) ** 2
     assert es.min_track_record(r) == pytest.approx(want)
     assert es.min_track_record(-np.abs(r)) == float("inf")

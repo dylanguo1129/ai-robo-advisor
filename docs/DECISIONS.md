@@ -33,7 +33,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D8 | No leveraged, inverse, single-stock or depositary-receipt funds | | Source: CSA Staff Notice 31-342 (online advisers use "unleveraged exchange traded funds"), docs/research/regulation.md R5.4 | done |
 | D10 | Crypto, thematic, covered-call and other narrow funds are own picks only (satellite caps), never a core slot | | Source: 31-342 as D8; test: tests/test_v3_exam_r1.py (a crypto fund cannot take a core slot) | done |
 | D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; tests: every slot's top five candidates checked as broad, low-cost index funds (E7(e): after the run, outside the script); the slots that change when the score's coefficients move (E5) | E5, E7(e) |
-| D12 | The ranking score | +1.0 log AUM, +0.5 log volume, -1.5 fee, +0.5 history | Policy; test: each coefficient +/-50%, slots whose fund changes | E5 |
+| D12 | The ranking score | +1.0 log AUM, +0.5 log volume, -1.5 fee, +0.5 history; +0.75 ESG on the ESG shelf | Policy; test: each coefficient +/-50%, slots whose fund changes | E5 |
 
 ## 3. Expected returns
 
@@ -371,6 +371,15 @@ after required changes.
 | D1's status ignored its committed tests | true | done; E7(e) |
 | The coverage check did not measure how often a mix that delivers is read as delivered | true | measured |
 | D43's value cell | true (wording) | the monthly formula the code uses |
+
+**Stage 1, sixteenth round (8 Oct 2026).** The same reviewer. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The reported Sharpe ratios divided by T - 1, the Ledoit-Wolf test by T, so the reported difference was the tested one times sqrt((T - 1) / T) (0.25% at T = 200; the sign, and so every reading, unchanged) | true | one Sharpe ratio, divisor T, in reporting, the test, the minimum track record and the deflated Sharpe ratio; a test that the reported difference is the tested one |
+| The plan's frozen test list omitted the calibration suite | true (the whole folder was frozen, but not named) | the list names it and the rest of tests/ |
+| D12's value omitted the ESG coefficient E5 varies | true | added |
+| The browser engine cannot take a locked switch other than 0.25 before the post-run commit | true but not needed: the run is in Python, and the post-run commit sets the constant in both engines | none |
 
 ## Sources checked for this register
 

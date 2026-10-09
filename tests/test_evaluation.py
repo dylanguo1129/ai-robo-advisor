@@ -391,3 +391,16 @@ def test_the_qis_rule_does_not_move_on_contradictory_evidence():
     one_truth = {"constant_correlation": _qis_tests(0.001, 0.5, 0.9)["sample"]}
     with pytest.raises(KeyError):
         rv.qis_switch_rule(one_truth)  # both registered truths are required
+
+
+def test_the_reported_sharpe_difference_is_the_tested_one():
+    """One Sharpe ratio (divisor T) for reporting and testing: the two reported Sharpe ratios differ by exactly the
+    difference the Ledoit-Wolf test examines."""
+    idx = pd.date_range("2010-01-31", periods=200, freq="ME")
+    rng = np.random.default_rng(9)
+    a = pd.Series(rng.normal(0.006, 0.03, 200), index=idx)
+    b = pd.Series(0.8 * a.to_numpy() + rng.normal(0.0, 0.015, 200), index=idx)
+    c = EV.compare(a, b, pd.Series(0.002, index=idx), n_boot=99)
+    assert c["sharpe_robokit"] - c["sharpe_other"] == pytest.approx(c["sharpe_diff_annual"], abs=1e-12)
+    d = EV.describe(pd.DataFrame({"net": a, "gross": a, "turn": 0.0, "target": 0.08}), pd.Series(0.002, index=idx))
+    assert d["sharpe"] == pytest.approx(c["sharpe_robokit"], abs=1e-12)

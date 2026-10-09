@@ -168,7 +168,7 @@ def diebold_mariano(loss_a, loss_b, lags: int = 6) -> dict:
 # ------------------------------------------------------------------ selection-adjusted Sharpe (Bailey and Lopez de Prado)
 def _moments(r):
     r = np.asarray(r, dtype=float)
-    sr = r.mean() / r.std(ddof=1)
+    sr = r.mean() / r.std()  # divisor T, like the skewness and kurtosis beside it and the Ledoit-Wolf test
     return sr, float(stats.skew(r)), float(stats.kurtosis(r, fisher=False))
 
 
