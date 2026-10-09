@@ -30,7 +30,7 @@ optimizer, the client's risk level and the constraints decide the weights.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -430,6 +430,29 @@ def candidates(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False,
     return c.sort_values(["score", "history_months"], ascending=[False, False])
 
 
+def slot_members(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False) -> list[str]:
+    """The funds a swap may put in the slot: every fund the sleeve's own rule admits, hedged or not (hedging is the
+    user's choice), and like for like with the slot's reference fund. Funds built on options or futures are left out,
+    and when the reference fund is a broad fund, so is every fund labelled narrow (universe.satellite_only: a sector,
+    factor, option-income or thematic fund the name rule let through). Two independent filters must both admit it."""
+    ref = candidates(universe, sleeve, prefer_esg=prefer_esg)
+    if ref.empty:  # a slot with no reference fund takes no swap (fail closed)
+        return []
+    c = candidates(universe, replace(sleeve, hedged=None), prefer_esg=prefer_esg)
+    return list(like_for_like(c, ref.iloc[0])["yahoo"])
+
+
+def like_for_like(c: pd.DataFrame, reference: pd.Series | None) -> pd.DataFrame:
+    """The candidates that may stand in for ``reference``: none built on options or futures, and none labelled narrow
+    when the reference fund is broad. The order (best first) is kept."""
+    if c.empty:
+        return c
+    ok = ~c["derivatives"].fillna("").str.contains("options|futures")
+    if reference is not None and not bool(reference["satellite_only"]):
+        ok &= ~c["satellite_only"].astype(bool)
+    return c[ok]
+
+
 def build_shelf(
     universe: pd.DataFrame, market: str, prefer_esg: bool = False, n_alternatives: int = 4, coef: dict | None = None
 ) -> pd.DataFrame:
@@ -452,7 +475,8 @@ def build_shelf(
                 "aum": None if pick is None else pick["aum"],
                 "history_months": None if pick is None else int(pick["history_months"]),
                 "n_candidates": int(len(c)),
-                "alternatives": [] if c.empty else list(c["yahoo"].iloc[1 : 1 + n_alternatives]),
+                # the funds the page offers instead: like for like, so every one passes the swap gate
+                "alternatives": [] if c.empty else list(like_for_like(c, pick)["yahoo"].iloc[1 : 1 + n_alternatives]),
             }
         )
     return pd.DataFrame(rows)

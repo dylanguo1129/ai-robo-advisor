@@ -21,17 +21,18 @@ def _us(**kw):
 def test_a_crypto_fund_cannot_take_a_broad_funds_slot():
     p = _us(swaps={"us_equity": "BITO"})
     assert "BITO" not in {h["ticker"] for h in p["holdings"]}
-    assert any("only as one of your own picks" in n["en"] for n in p["notes"])
+    assert any("is not one of the funds the US stocks slot admits" in n["en"] for n in p["notes"])
 
 
 @pytest.mark.parametrize("slot,fund", [("us_equity", "BND"), ("us_reit", "GLDM")])
 def test_a_swap_must_keep_the_slots_asset_class_and_region(slot, fund):
-    p = _us(swaps={slot: fund})
-    assert any("does not hold what the slot holds" in n["en"] for n in p["notes"])
+    p = _us(swaps={slot: fund})  # (BND is still held, in its own bond slot)
+    assert any(f"{fund} is not one of the funds the" in n["en"] for n in p["notes"])
 
 
 def test_a_like_for_like_swap_still_works():
-    assert "QQQ" in {h["ticker"] for h in _us(swaps={"us_equity": "QQQ"})["holdings"]}
+    # IVV passes the US-stock slot's own rule; QQQ (the Nasdaq-100) does not (tests/test_v3_swap_gate.py)
+    assert "IVV" in {h["ticker"] for h in _us(swaps={"us_equity": "IVV"})["holdings"]}
 
 
 # ------------------------------------------------------------------ malformed maps are input errors, never crashes

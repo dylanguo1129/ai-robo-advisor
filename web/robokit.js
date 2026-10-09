@@ -178,8 +178,9 @@ export class Market {
 function prevMonth(ym) { let [y, m] = ym.split('-').map(Number); m -= 1; if (m === 0) { m = 12; y -= 1; } return `${y}-${String(m).padStart(2, '0')}`; }
 
 // ------------------------------------------------------------------ shelf and history
-/** The shelf with swaps. A swap passes the same eligibility gate as a satellite; a refused or
- * unknown swap keeps the reference fund and says why in `notes` (as robokit/engine.py select_funds). */
+/** The shelf with swaps. A swap must pass the eligibility gate and the slot's own rule (`members`, from
+ * robokit/shelf.py slot_members); a refused or unknown swap keeps the reference fund and says why in `notes`
+ * (as robokit/engine.py select_funds). */
 export function shelfFor(M, { preferEsg = false, hedgeUsEquity = false, sleeves = null, swaps = {}, exclude = [] } = {}, notes = []) {
   const def = Object.entries(M.prior).filter(([, v]) => v > 0).map(([k]) => k).concat([`${M.code.toLowerCase()}_cash`]);
   let keys = sleeves || def;
@@ -196,10 +197,8 @@ export function shelfFor(M, { preferEsg = false, hedgeUsEquity = false, sleeves 
       const f = M.fund(sw);
       if (!f) notes.push({ en: `${sw} is not in the fund list, so the slot keeps ${t}.` });
       else if (!f.eligible) notes.push({ en: `${sw} was not swapped in (${f.excluded_because}), so the slot keeps ${t}.` });
-      else if (f.satellite_only) notes.push({ en: `${sw} can be held only as one of your own picks, not in place of a broad fund, so the slot keeps ${t}. Add it as an own pick instead.` });
-      else if (M.fund(t) && (f.asset_class !== M.fund(t).asset_class || f.region !== M.fund(t).region)) {
-        const g = M.fund(t);
-        notes.push({ en: `${sw} (${f.asset_class}, ${f.region}) does not hold what the slot holds (${g.asset_class}, ${g.region}), so the slot keeps ${t}. Add it as an own pick instead.` });
+      else if (!((preferEsg ? s.members_esg : s.members) || []).includes(sw)) {  // a bundle without the lists refuses
+        notes.push({ en: `${sw} is not one of the funds the ${s.label} slot admits, so the slot keeps ${t}. Add it as an own pick instead.` });
       }
       else if (!M.series.has(sw)) notes.push({ en: `${sw} has no price history in this snapshot, so the slot keeps ${t}.` });
       else t = sw;

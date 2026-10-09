@@ -37,7 +37,7 @@ from .errors import RoboKitInputError
 from .history import PROXIES, proxies_for
 from .projection import DISCLOSURE as PROJ_DISCLOSURE
 from .rebalance import rebalance
-from .shelf import PRIOR, candidates, prior_share, sleeves_for
+from .shelf import PRIOR, candidates, like_for_like, prior_share, sleeves_for, slot_members
 from .signals import market_flags, news_digest
 from .stress import SCENARIOS
 from .tools import DISCLOSURE
@@ -166,8 +166,11 @@ def _sleeves(U: pd.DataFrame, market: str) -> list:
                 "cap": SLEEVE_CAPS.get(s.key),
                 "hedged": s.hedged,
                 "rule": {"include": s.include, "exclude": s.exclude},
-                "candidates": list(c["yahoo"].head(8)),
-                "candidates_esg": list(c_esg["yahoo"].head(8)),
+                # the reference fund first, then the like-for-like alternatives the page offers (shelf.like_for_like)
+                "candidates": list(like_for_like(c, c.iloc[0] if len(c) else None)["yahoo"].head(8)),
+                "candidates_esg": list(like_for_like(c_esg, c_esg.iloc[0] if len(c_esg) else None)["yahoo"].head(8)),
+                "members": slot_members(U, s),  # what a swap may put in the slot (engine.select_funds)
+                "members_esg": slot_members(U, s, prefer_esg=True),
                 "proxies": [{"ticker": t, "convert": cv} for t, cv in proxies_for(s.key, False, lh)],
                 "proxies_hedged": [{"ticker": t, "convert": cv} for t, cv in proxies_for(s.key, True, lh)],
             }

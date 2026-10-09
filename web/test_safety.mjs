@@ -67,9 +67,18 @@ check(throwsKind({ risk_level: 3, sleeves: [] }, 'input'), 'no funds left is an 
 // examination round 1 (tests/test_v3_exam_r1.py has the Python side)
 check(throwsKind({ minimums: [0.1] }, 'input') && throwsKind({ fixedWeights: [1] }, 'input'), 'a list where a map belongs is an input error');
 { const p = build({ risk_level: 3, swaps: { ca_us_equity: 'BTCC-B.TO' } });  // a crypto fund cannot take a broad fund's slot
-  check(p.holdings.every(h => h.ticker !== 'BTCC-B.TO') && p.notes.some(n => n.en.includes('only as one of your own picks')), 'a satellite-only fund is not swapped into a core slot'); }
+  check(p.holdings.every(h => h.ticker !== 'BTCC-B.TO') && p.notes.some(n => n.en.includes('is not one of the funds the')), 'a satellite-only fund is not swapped into a core slot'); }
 { const p = build({ risk_level: 3, swaps: { ca_us_equity: 'ZAG.TO' } });  // a bond fund cannot fill the US equity slot
-  check(p.notes.some(n => n.en.includes('does not hold what the slot holds')), 'a swap must keep the asset class and region of the slot'); }
+  check(p.notes.some(n => n.en.includes('is not one of the funds the US stocks slot admits')), 'a swap must pass the slot\'s own rule'); }
+// E7(e) taxonomy audit (tests/test_v3_swap_gate.py has the Python side): same asset class and region is not enough
+for (const [slot, fund, why] of [['ca_equity', 'XMA.TO', 'a materials sector fund'], ['ca_gold', 'SBT.TO', 'silver in the gold slot']]) {
+  const p = build({ risk_level: 3, swaps: { [slot]: fund } });
+  check(p.holdings.every(h => h.ticker !== fund) && p.notes.some(n => n.en.includes('is not one of the funds the')), `${why} is not swapped in`);
+}
+for (const [slot, fund] of [['ca_equity', 'ZCN.TO'], ['ca_us_equity', 'VSP.TO']]) {  // the slot's own rule admits it (hedged or not)
+  const p = build({ risk_level: 3, swaps: { [slot]: fund } });
+  check(p.holdings.some(h => h.ticker === fund), `${fund} passes the ${slot} rule and is swapped in`);
+}
 
 console.log(fails ? `${fails} safety check(s) FAILED` : 'all safety checks passed');
 if (fails) process.exit(1);

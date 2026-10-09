@@ -111,6 +111,38 @@ def price_jumps(R: pd.DataFrame, U: pd.DataFrame, candidates: pd.Series) -> dict
     return out
 
 
+# Regions a whole-market stock fund can cover; a single foreign country or one region (Europe, Japan) is narrower.
+BROAD_REGIONS = ("US", "Canada", "North America", "Global", "International developed", "Emerging markets")
+# Themes a broad stock fund may carry: the broad-market index name, and an ESG screen of it (the ESG shelf's funds).
+BROAD_THEMES = ({"Broad market"}, {"Broad market", "ESG / climate"})
+
+
+def broad_equity(U: pd.DataFrame) -> pd.Series:
+    """A stock fund that holds a whole market: its name names a whole-market index, and nothing narrower (no sector,
+    style, size, factor, dividend, thematic, single-country or options marker), it is not run on a manager's picks,
+    and it covers a broad region. Positive evidence is required: a name the rules cannot place is not broad."""
+    themes = U["theme"].fillna("").map(lambda s: frozenset(t.strip() for t in s.split(";") if t.strip()))
+    return (
+        (U["asset_class"] == "Equity")
+        & themes.map(lambda s: s in BROAD_THEMES)
+        & U["region"].isin(BROAD_REGIONS)
+        & ~U["strategy"].isin(["Active", "Options-based", "Leveraged / inverse (daily reset)"])
+        & ~U["derivatives"].fillna("").str.contains("options|futures")
+    )
+
+
+def satellite_only(U: pd.DataFrame) -> pd.Series:
+    """Eligible funds that are narrow or complex: crypto, alternatives, option-overlay and futures-based funds, and
+    every stock fund that is not a broad index fund. They are labelled so; what may stand in a core slot is decided by
+    the slot's own rule (engine.select_funds)."""
+    return U["eligible"] & (
+        U.asset_class.isin(["Crypto", "Alternative"])
+        | U.theme.str.contains("Covered call|Buffer", na=False)
+        | U.derivatives.str.contains("futures", na=False)
+        | ((U.asset_class == "Equity") & ~broad_equity(U))
+    )
+
+
 def build_universe(save: bool = True) -> pd.DataFrame:
     L = dedupe_canada(load_listings())
     C = classify(L)
@@ -157,13 +189,7 @@ def build_universe(save: bool = True) -> pd.DataFrame:
             "either a data error such as an unadjusted unit split, or a fund too narrow for a long-term portfolio"
         )
     U["eligible"] = U["excluded_because"] == ""
-    # Funds that pass but carry extra risk are allowed only as satellites (see engine guardrails).
-    U["satellite_only"] = U["eligible"] & (
-        U.asset_class.isin(["Crypto", "Alternative"])
-        | U.theme.str.contains("Covered call|Buffer", na=False)
-        | U.derivatives.str.contains("futures", na=False)
-        | ((U.asset_class == "Equity") & ~U.theme.str.contains("Broad market", na=False))
-    )
+    U["satellite_only"] = satellite_only(U)
     if save:
         U.to_pickle(DATA_DIR / "universe.pkl")
         U.drop(columns=[]).to_csv(DATA_DIR / "universe.csv", index=False)

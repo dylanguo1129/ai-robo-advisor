@@ -46,7 +46,7 @@ from .errors import InfeasibleConstraints, RoboKitInputError
 from .explain import explain_portfolio
 from .history import backfill_by_regression, backfill_regressors, proxies_for, splice
 from .projection import project
-from .shelf import PRIOR, build_shelf, prior_share
+from .shelf import PRIOR, SLEEVES, build_shelf, prior_share, slot_members
 from .stress import stress_test
 from .views import bound_tilt_clean, views_to_bl
 
@@ -557,8 +557,9 @@ def _suitable_level(req: Request, res, lvl5: float, notes: list, own_weights: bo
 def select_funds(req: Request, notes: list[dict] | None = None) -> tuple[pd.DataFrame, list[str], list[str]]:
     """The shelf (with swaps) and the satellites: (shelf, core tickers, satellite tickers).
 
-    A swap passes the same eligibility gate as a satellite; a refused or unknown swap
-    keeps the reference fund and says why in ``notes``."""
+    A swap must pass the eligibility gate and the slot's own rule (shelf.slot_members: the rule that picked the
+    reference fund, hedged or not, without option- or futures-based funds); a refused or unknown swap keeps the
+    reference fund and says why in ``notes``."""
     notes = [] if notes is None else notes
     U, _, _, _ = _load()
     shelf = build_shelf(U, req.market, prefer_esg=req.prefer_esg)
@@ -568,27 +569,23 @@ def select_funds(req: Request, notes: list[dict] | None = None) -> tuple[pd.Data
     keys = req.sleeves if req.sleeves is not None else default
     shelf = shelf[shelf.sleeve.isin(keys)].copy()
     meta = U.set_index("yahoo")
-    for k, t in (req.swaps or {}).items():
+    swaps = req.swaps or {}
+    for k, t in swaps.items():
         if k not in set(shelf.sleeve):
             notes.append(_note(f"There is no '{k}' slot in this mix, so the swap to {t} was ignored."))
-            continue
+    for k in [s for s in shelf.sleeve if s in swaps]:  # the slots' order, as the browser engine (web/robokit.js shelfFor)
+        t = swaps[k]
         keep = shelf.loc[shelf.sleeve == k, "ticker"].iloc[0]
         if t not in meta.index:
             notes.append(_note(f"{t} is not in the fund list, so the slot keeps {keep}."))
         elif not bool(meta.at[t, "eligible"]):
             why = meta.at[t, "excluded_because"]
             notes.append(_note(f"{t} was not swapped in ({why}), so the slot keeps {keep}."))
-        elif bool(meta.at[t, "satellite_only"]):  # crypto, thematic and other narrow funds: own picks only, with their caps
+        elif t not in slot_members(U, SLEEVES[k], prefer_esg=req.prefer_esg):
+            # the slot holds what its rule admits; a sector, single-country, factor or option fund is an own pick
             notes.append(
                 _note(
-                    f"{t} can be held only as one of your own picks, not in place of a broad fund, so the slot keeps {keep}. Add it as an own pick instead."
-                )
-            )
-        elif (meta.at[t, "asset_class"], meta.at[t, "region"]) != (meta.at[keep, "asset_class"], meta.at[keep, "region"]):
-            notes.append(
-                _note(
-                    f"{t} ({meta.at[t, 'asset_class']}, {meta.at[t, 'region']}) does not hold what the slot holds "
-                    f"({meta.at[keep, 'asset_class']}, {meta.at[keep, 'region']}), so the slot keeps {keep}. Add it as an own pick instead."
+                    f"{t} is not one of the funds the {SLEEVES[k].label} slot admits, so the slot keeps {keep}. Add it as an own pick instead."
                 )
             )
         else:
