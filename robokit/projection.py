@@ -57,7 +57,7 @@ def project(
     monthly_contribution: float = 0.0,
     years: int = 10,
     goal: float | None = None,
-    n_paths: int = 2000,
+    n_paths: int = 5000,
     block: float = 6.0,
     seed: int = 7,
 ) -> dict:

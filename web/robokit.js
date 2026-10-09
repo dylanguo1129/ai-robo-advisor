@@ -680,7 +680,7 @@ function stressTest(M, weights, full, amount = 10000) {
 }
 
 // ------------------------------------------------------------------ projections (robokit/projection.py)
-export function project(Xcols, weights, geoNet, { amount = 10000, monthly = 0, years = 10, goal = null, nPaths = 2000, seed = 7 } = {}) {
+export function project(Xcols, weights, geoNet, { amount = 10000, monthly = 0, years = 10, goal = null, nPaths = 5000, seed = 7 } = {}) {
   const T = Xcols.length, n = weights.length;
   const X = Xcols.map(r => r.slice());
   for (let j = 0; j < n; j++) {
