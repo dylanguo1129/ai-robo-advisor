@@ -17,7 +17,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | done; E7(e) |
+| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e), done 9 Oct 2026: 15 of 17 comparable funds within 0.05 points a year; XIC and XRE 0.31 and 0.25 below their NAV returns; docs/research/e7e_issuer_check.md) | done |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result. Test of the gate: 23 months or a correlation of 0.7995 refused, 24 months at 0.8005 accepted (tests/test_v3_fixtures.py); each stand-in against its fund (E8(a)); the evaluation's look-ahead from it is removed in E2 (no stand-ins) | done; E8(a) |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
@@ -31,8 +31,8 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 |---|---|---|---|---|
 | D7 | Liquidity screens | 36 months history; AUM 20M CAD / 50M USD; daily value traded 50k CAD / 250k USD | Policy; test: every reference fund's margin over each screen | E7(c) |
 | D8 | No leveraged, inverse, single-stock or depositary-receipt funds | | Source: CSA Staff Notice 31-342 (online advisers use "unleveraged exchange traded funds"), docs/research/regulation.md R5.4 | done |
-| D10 | Crypto, thematic, covered-call and other narrow funds are own picks only (satellite caps), never a core slot | | Source: 31-342 as D8; test: tests/test_v3_exam_r1.py (a crypto fund cannot take a core slot) | done |
-| D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; tests: every slot's top five candidates checked as broad, low-cost index funds (E7(e): after the run, outside the script); the slots that change when the score's coefficients move (E5) | E5, E7(e) |
+| D10 | Crypto, thematic, covered-call and other narrow funds are own picks only (satellite caps), never a core slot | A swap must pass the slot's own rule and a like-for-like label (robokit/shelf.py slot_members) | Source: 31-342 as D8. Test of the labels (E7(e), done 9 Oct 2026, docs/research/e7e_taxonomy.md): 60 funds labelled blind from the issuers' pages found the old gate let narrow funds into core slots (of 18 stock funds labelled core-eligible, 1 was a broad index fund); after the fix, on a held-out sample of 80, 29 of 30 satellite labels and 26 of 30 broad-stock labels agree (15 of 30 under the stricter definition that counts an ESG screen or a large-cap index as narrow). Tests: tests/test_v3_swap_gate.py, tests/test_v3_exam_r1.py, web/test_safety.mjs | done |
+| D11 | One broad, low-cost fund per slot, chosen by a written rule | robokit/shelf.py | Policy; tests: every slot's top five candidates checked as broad, low-cost index funds (E7(e), done 9 Oct 2026: the core equity and aggregate-bond picks pass; the Canadian global-bond slot holds a US-only fund, two niche slots pick a dearer fund than the cheapest candidate, and some lower-ranked candidates are active or swap-based; docs/research/e7e_shelf_audit.md); the slots that change when the score's coefficients move (E5) | done; E5 |
 | D12 | The ranking score | +1.0 log AUM, +0.5 log volume, -1.5 fee, +0.5 history; +0.75 ESG on the ESG shelf | Policy; test: each coefficient +/-50%, slots whose fund changes | E5 |
 
 ## 3. Expected returns
@@ -68,7 +68,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 |---|---|---|---|---|
 | D25-27 | Self-check: capacity, tolerance, gates; the suggestion is the lower of capacity and tolerance | | Source: 31-103CP s.13.2 ("the lower of" willingness and ability); Joint CSA/CIRO Staff Notice 31-368; tests: persona walkthroughs (docs/qa/ux) and the scorer tests in tests/test_v2.py; the browser scorer matches Python on 400 random answer sets (web/test_robokit.mjs) | done |
 | D24 | The brief's three settings are levels 2 / 3 / 4 | | Policy; names in both directions (tests/test_v3_exam_r1.py) | done |
-| D28 | Level L targets L x 20% of the stock market's volatility | | Source (partial): Betterment matches risk levels "on volatility". Test: realised over target volatility by level (E1). The regulator's rating of each level is reported beside it as a disclosure, not as evidence for the rule | E1 |
+| D28 | Level L targets L x 20% of the stock market's volatility | | Source (partial): for its portfolios with 60% or more in bonds, Betterment sets "target volatilities assigned to each risk level", which "are determined by considering the volatility of the equivalent benchmark" (Betterment's portfolio construction methodology, updated 15 June 2026, https://www.betterment.com/resources/portfolio-construction-methodology); the 20% step is policy. Test: realised over target volatility by level (E1). The regulator's rating of each level is reported beside it as a disclosure, not as evidence for the rule | E1 |
 | D29 | The stock-market yardstick: the policy-weighted equity slots over the same window | | Policy; test: the yardstick replaced by the home stock fund alone, at the latest date and walk-forward (E5) | E5 |
 | C2 | Every mix shows its NI 81-102 Appendix F rating | 10-year standard deviation of monthly returns x sqrt(12), five bands | Source: NI 81-102 Appendix F, Items 1 and 2 (opened); tests/test_v3_rating.py | done |
 | C3 | Suitability checks are opt-in (off by default) | | Source: 31-103CP s.13.2; README's level policy; tests/test_v3_suitability.py | done |
@@ -106,10 +106,10 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D41 | Canadian planning returns | FP Canada 2026 | Source: FP Canada / IQPF 2026 Projection Assumption Guidelines | done |
+| D41 | Canadian planning returns | FP Canada 2026 | Source: FP Canada / Institute of Financial Planning 2026 Projection Assumption Guidelines | done |
 | D42 | US bonds and cash: today's Treasury yields | 13-week bill; 5-year note | Source: T. Rowe Price (2018): for the US Aggregate, "peak correlation reaches 0.97 at a time period of 1.08 times the initial duration" | done |
 | D43 | Re-centre the history on the planning return, made arithmetic | monthly: (1 + g)^(1/12) - 1 + sigma^2 / 2, sigma^2 the monthly variance | Source: FP Canada guidelines ("a conversion needs to be done from geometric to arithmetic mean") | done |
-| D44 | 2,000 paths, stationary bootstrap, mean block 6 months, seed 7 | | Test: Monte Carlo standard error with a pre-set rule to raise the paths | E5 |
+| D44 | 5,000 paths, stationary bootstrap, mean block 6 months, seed 7 | | Test: Monte Carlo standard error of the one-year 5th percentile over ten seeds, with a pre-set rule to raise the paths from 2,000 to 5,000 above 0.25 points (E5, done: at 2,000 paths Canada level 4 and US levels 4 and 5 exceeded it, at 5,000 none did; the shipped constant equals the locked default, tests/test_v3_locked_defaults.py) | done |
 | D47-48 | Seven fixed crisis replays; a fund without the episode uses its peers' median | | Policy (episodes); test: the stand-in's error on funds that have the episode | E7(b) |
 
 ## 12. Rebalancer
@@ -414,6 +414,61 @@ cash refuse with a reason; nothing else changed. Under the section 6 rule, run 1
 output/v3_run1/ and the evaluation is run again from the fix commit. Every stage is deterministic, so the re-run also
 checks reproducibility: every result other than E2's Canadian static mix must equal run 1's.
 
+**Stage 2, first round (9 Oct 2026), on the paper.** The reviewer checked every number against the results file and
+found none wrong. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The conclusion said the engine "delivers the risk it states in Canada" although the registered reading is "inconclusive" | true | the conclusion, README and METHOD give the point ratios and the reading |
+| The registered calibration-outcome counts were not reported | true | reported for both markets; rebuilding the dated mixes shows every out-of-reach case is level 5, a fraction of a point below target |
+| E4's pipeline Diebold-Mariano results were left out, and "the estimator matters little" stated too broadly | true | reported; the claim limited to the risk delivered |
+| Betterment and Gurobi cited without reference entries | true | added |
+| US level 4 also breached the projection rule | true | stated |
+| A copy-editing slip in section 4.11 | true | fixed |
+
+**Stage 2, second round (9 Oct 2026).** Accept after required changes; the first round's fixes held.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The weight distance was described as the sum of absolute differences; the code reports half of it | true | described as half the sum, the turnover convention |
+| The copy named the first run's commit while the text said "the second run" | partly true: the review copy carried the first run's file by design; the final paper is filled from the second run's | the sentence names the second run and its commit explicitly |
+| E2's US level-2 ratio printed as 1.25 though it is 1.251, outside the band | true | three decimals, and the text says the first two lie just outside |
+| Risk parity's level-2 volatility quoted from level 3 | true | level 2's |
+| The abstract gave Canada's risk ratios without the registered reading | true | added |
+| The zero-home-bias walk-forward was left out | true (descriptive) | reported, with why it cannot change the policy |
+
+**Stage 2, third round (9 Oct 2026).** Accept after required changes. Its required change (the commit named for the
+second run) comes from the review copy carrying the first run's file by design; the final paper is filled from the
+second run's file and names its commit. Its four recommendations were true and adopted: "within 0.2 basis points" in
+place of "reaches the best"; the re-run stated in section 5.1; the minimum track record cited at first use (Bailey and
+Lopez de Prado 2012); the appendix describing the projection exactly as the code does it (all breakpoints evaluated,
+O(N^2), then the budget residual removed).
+
+**Stage 2, final round (9 Oct 2026), on the paper filled from the second run.** One examiner from another model family,
+briefed as a professor (finance, quantitative methods, mathematics), with the paper, both results files, the run
+comparison, the register, the post-run audits and the code. Accept after required changes; no errors of fact (every
+number it checked matches the results file).
+
+| Finding | Ruling | Change |
+|---|---|---|
+| A1: the static mix is called "matched to the target by construction", but its registered ex-ante gap is not reported and is not zero | true | The design section says it is aimed by its stock share and not calibrated; the results report every strategy's ex-ante gap (mean and maximum) in a table: the static mix misses by 0.13 to 0.75 points on average, Robo-Kit by less than 0.01 |
+| A2: the US walk-forward has no performance table | true | A US table parallel to Canada's, labelled exploratory |
+| B1: the US non-inferiority claim has no p-values; "every row says so" refers to no table | true | Holm-adjusted non-inferiority p added, labelled exploratory; the phrase removed |
+| B2: the abstract's "loses 3.1 fewer" can be misread | true | "loses about 3.1 basis points a year less than Robo-Kit" |
+| B3: the registered CVaR(95%) is not reported | true | CVaR and its number of tail months added to both tables |
+| B4: Doeswijk is cited beside a policy prior that is not the market | true | The paper says the product departs from the market portfolio on purpose, with class weights that are policy |
+| B5: Markowitz (1952) is not cited where the problem is stated; Betterment has no URL | true; and more | Markowitz cited in 4.1. Checking the Betterment source found that the quoted words ("on volatility") are not on Betterment's methodology page; they are replaced by a sentence that is ("These volatility targets are determined by considering the volatility of the equivalent benchmark", for its portfolios with 60% or more in bonds), with the URL and the page's date. D28 is corrected the same way |
+| B6: seven ablations are said to be reported, two are | true | A table of the seven ablations and equal weights at level 3, both markets |
+| B7: the L x 20% rule and the class weights rest on policy, not a source | partly true | The paper already called the caps policy; it now says the level rule and the class weights are policy too, with their tests |
+
+**After the run: the swap gate (9 Oct 2026).** The registered fund-label audit (E7(e)) found the swap gate let narrow
+funds into core slots (D10). The fix (the slot's own rule plus a like-for-like label) was examined by one examiner from
+another model family, briefed as a professor, with the diff, the modules, the tests and four claims. One finding, partly
+true and fixed (options tags on "Enhanced" and "Hedged Equity" names refused two funds the slots admit; its example was
+wrong); one open question true and fixed (a slot with no reference fund now takes no swap); three answered. Testing the
+fix found two more defects the examiner had not reported, both fixed: swap notes came out in a different order in the
+two engines, and a money-market fund named "Premium" was tagged options-based. Rulings in docs/research/e7e_taxonomy.md.
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).
@@ -425,7 +480,7 @@ Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oc
 * Doeswijk, R., Lam, T., & Swinkels, L. (2014). The global multi-asset market portfolio, 1959-2012. Financial Analysts Journal, 70(2), 26-41. https://doi.org/10.2469/faj.v70.n2.1
 * Donohue, C., & Yip, K. (2003). Optimal portfolio rebalancing with transaction costs. Journal of Portfolio Management, 29(4), 49-63. https://doi.org/10.3905/jpm.2003.319894
 * Dowell, M., & Jarratt, P. (1971). A modified regula falsi method for computing the root of an equation. BIT, 11(2), 168-174. https://doi.org/10.1007/BF01934364
-* FP Canada and IQPF (2026). Projection Assumption Guidelines.
+* FP Canada and Institute of Financial Planning (2026). Projection Assumption Guidelines.
 * He, G., & Litterman, R. (1999). The intuition behind Black-Litterman model portfolios. Goldman Sachs Investment Management Research.
 * Idzorek, T. (2007). A step-by-step guide to the Black-Litterman model. In Forecasting Expected Returns in the Financial Markets. Elsevier.
 * Jagannathan, R., & Ma, T. (2003). Risk reduction in large portfolios: why imposing the wrong constraints helps. Journal of Finance, 58(4), 1651-1683.
@@ -443,7 +498,7 @@ Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oc
 * Vanguard Investments Canada (25 June 2024). Press release on Canadian home bias (newswire.ca).
 * Walters, J. (2014). The Black-Litterman model in detail. SSRN. https://doi.org/10.2139/ssrn.1314585
 * Gurobi Optimization. Minimum buy-in (Gurobi Finance documentation).
-* Betterment. Our approach to initial allocations.
+* Betterment (2026). Betterment's portfolio construction methodology. Updated 15 June 2026. https://www.betterment.com/resources/portfolio-construction-methodology
 
 The statistics used in the evaluation (Ledoit and Wolf 2008; Newey and West 1987; Holm 1979; Diebold and Mariano 1995;
 Bailey and Lopez de Prado 2012, 2014; Jorion 1986) are cited with the results in the paper.

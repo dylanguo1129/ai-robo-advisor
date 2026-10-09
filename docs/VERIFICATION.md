@@ -1,4 +1,4 @@
-# Verification record (28 Sep - 1 Oct 2026)
+# Verification record (28 Sep - 9 Oct 2026)
 
 > Historical log of the checks run on 28 Sep - 1 Oct 2026. Test counts are as of each round; the current counts are in README.md.
 
@@ -371,3 +371,47 @@ raw pages).
 
 Not tested: Gemini CLI and Codex themselves (not installed here), and any tool on a Free account.
 
+## 8. v3 (7-9 Oct 2026)
+
+### 8.1 Evidence for every decision
+
+docs/DECISIONS.md lists every design decision with a verified source, a proof checked by a test, a test we ran, or
+a policy with its sensitivity test. Sources were opened and quoted; DOIs were resolved against Crossref before they
+were cited, and remembered DOIs that did not resolve were corrected.
+
+### 8.2 Examination
+
+- **The optimizer (round 1)** and **the evaluation plan (Stage 1, eighteen rounds)**: outside examiners from model
+  families other than the author's, briefed as professors of finance, quantitative methods and numerical
+  mathematics, with clean context (the code, the documents and the claim; no reasoning from the authors, no other
+  examiner's conclusions). Every finding was checked against the code before it was ruled true, partly true or false
+  (docs/DECISIONS.md, examination record).
+- **The paper (Stage 2)**: four rounds against the results file and the code; the final round, on the paper filled
+  from the second run, found no error of fact and its required changes were made (docs/DECISIONS.md).
+- **The post-run swap-gate change**: one examiner (docs/research/e7e_taxonomy.md).
+
+### 8.3 The registered evaluation
+
+Two runs (RESEARCH_LOG section 11). Run 1 exposed a bug through the plan's fail-closed rule; after the disclosed fix,
+run 2 equals run 1 in every value except the provenance, the three paths the bug had stopped and what is computed from them
+(`python scripts/v3_compare_runs.py`: 47 differing values, all in the expected places).
+
+### 8.4 Post-run audits (E7(e))
+
+- Issuer returns: 15 of 17 comparable reference funds within 0.05 points a year (docs/research/e7e_issuer_check.md).
+- Shelf: each slot's top five candidates (docs/research/e7e_shelf_audit.md).
+- Fund labels: 140 funds labelled blind from the issuers' pages; the swap gate was found too permissive and fixed;
+  held-out agreement after the fix 29 of 30 (narrow labels) and 26 of 30 (broad labels, product definition)
+  (docs/research/e7e_taxonomy.md).
+
+### 8.5 Checks at the end
+
+| Check | Result |
+|---|---|
+| `python -m pytest -q` | 509 passed (the UI tests run separately) |
+| `python -m pytest -m ui -q tests/ui` | 70 passed |
+| `node web/test_robokit.mjs` (Python-browser parity) | all cases agree |
+| `node web/test_engine.mjs`, `web/test_safety.mjs`, `web/test_parse.mjs`, `web/test_assistant.mjs` | all pass |
+| `python scripts/v3_compare_runs.py` | 47 differences, 0 unexpected |
+| `python scripts/e7e_universe_diff.py` (evaluated universe against the shipped one) | only label columns differ; no slot's candidate list changes |
+| `ruff check`, `ruff format --check` | clean |

@@ -1,4 +1,4 @@
-"""Build the research paper from docs/paper/paper.md and output/v3/results.json.
+"""Build the research paper from docs/paper/paper.md and docs/paper/build/paper_numbers.json (scripts/paper/derive.py).
 
     python scripts/paper/build_paper.py            -> docs/paper/Robo-Kit_v3_Paper.docx and .pdf, and
                                                      docs/paper/build/numbers.json (every number placed)
@@ -25,19 +25,26 @@ ROOT = Path(__file__).resolve().parents[2]
 SRC = Path(os.environ.get("PAPER_SRC", ROOT / "docs" / "paper" / "paper.md"))
 OUT = Path(os.environ.get("PAPER_OUT", ROOT / "docs" / "paper"))
 BUILD = OUT / "build"
-RESULTS = Path(os.environ.get("PAPER_RESULTS", ROOT / "output" / "v3" / "results.json"))
+# the results plus the derived values the paper uses (scripts/paper/derive.py writes it from output/v3/results.json)
+RESULTS = Path(os.environ.get("PAPER_RESULTS", ROOT / "docs" / "paper" / "build" / "paper_numbers.json"))
 HERE = Path(__file__).resolve().parent
 
 
 def lookup(res: dict, path: str):
-    cur = res
-    for part in path.split("."):
-        if isinstance(cur, dict) and part in cur:
-            cur = cur[part]
-        elif isinstance(cur, list) and part.lstrip("-").isdigit():
-            cur = cur[int(part)]
+    """The value at a dotted path. Keys may contain dots themselves ("nominal_0.90", "0.25"), so at each step the
+    longest run of path parts that is a key wins."""
+    parts, cur, i = path.split("."), res, 0
+    while i < len(parts):
+        for j in range(len(parts), i, -1):
+            key = ".".join(parts[i:j])
+            if isinstance(cur, dict) and key in cur:
+                cur, i = cur[key], j
+                break
         else:
-            raise KeyError(path)
+            if isinstance(cur, list) and parts[i].lstrip("-").isdigit():
+                cur, i = cur[int(parts[i])], i + 1
+            else:
+                raise KeyError(path)
     return cur
 
 
@@ -185,14 +192,14 @@ def literal_numbers(md: str) -> list[str]:
 
 
 def main():
-    res = json.loads(RESULTS.read_text())
+    res = json.loads(RESULTS.read_text(encoding="utf-8"))
     BUILD.mkdir(parents=True, exist_ok=True)
     placed: list = []
     md = fill(SRC.read_text(encoding="utf-8"), res, placed)
     equations: dict = {}
     blocks = parse(md, equations)
-    (BUILD / "blocks.json").write_text(json.dumps(blocks, ensure_ascii=False))
-    (BUILD / "equations.json").write_text(json.dumps(equations, ensure_ascii=False, indent=1))
+    (BUILD / "blocks.json").write_text(json.dumps(blocks, ensure_ascii=False), encoding="utf-8")
+    (BUILD / "equations.json").write_text(json.dumps(equations, ensure_ascii=False, indent=1), encoding="utf-8")
     (BUILD / "numbers.json").write_text(
         json.dumps(
             {
@@ -202,7 +209,8 @@ def main():
             },
             ensure_ascii=False,
             indent=1,
-        )
+        ),
+        encoding="utf-8",
     )
     raw, out = BUILD / "raw.docx", OUT / "Robo-Kit_v3_Paper.docx"
     env = dict(os.environ)
@@ -211,7 +219,7 @@ def main():
     subprocess.run(
         ["powershell", "-NoProfile", "-File", str(HERE / "render.ps1"), "-Docx", str(out), "-Pdf", str(out.with_suffix(".pdf"))], check=True
     )
-    print(f"{len(placed)} numbers placed from results.json; {len(equations)} equations")
+    print(f"{len(placed)} numbers placed from the results; {len(equations)} equations")
 
 
 if __name__ == "__main__":
