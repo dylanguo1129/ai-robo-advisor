@@ -17,7 +17,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Test: gaps are never filled (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | E7(e) |
+| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | E7(e) |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
@@ -56,8 +56,8 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D19 | Long-only, fully invested mean-variance | max mu'w - (lambda/2) w'Sigma w | Source: Markowitz (1952); the course's Session 1 formulation | done |
-| D20 | Per-fund maximum and sleeve caps | 50%; REIT, gold, high yield 10%; EM, small cap 15%; real return 20%; long bonds 25% | Policy (concentration guardrails). Source for why constraints help: Jagannathan and Ma (2003). Test: no-caps ablation (E1) and caps halved / doubled (E5) | E1, E5 |
-| D21 | Cash cap by level | 100% at level 1, 30% at 2, 15% at 3-5 | Policy; test: no-caps ablation | E1 |
+| D20 | Per-fund maximum and sleeve caps | 50%; REIT, gold, high yield 10%; EM, small cap 15%; real return 20%; long bonds 25% | Policy (concentration guardrails). Source for why constraints help: Jagannathan and Ma (2003). Test: the no-caps ablation (E1: the sleeve caps and the cash cap removed together, the 50% per-fund maximum kept) and caps halved / doubled (E5) | E1, E5 |
+| D21 | Cash cap by level | 100% at level 1, 30% at 2, 15% at 3-5 | Policy; test: the no-cash-caps ablation (E1: only the cash cap removed) | E1 |
 | D22 | Own picks: 10% each, crypto 5%, all together 10 / 20 / 30% by level | | Policy; tests/test_v3_review.py, tests/test_v3_properties.py (limits always hold) | policy |
 | D23 | Minimum position | 2% | Source: Gurobi Finance documentation, "Holding tiny positions is undesirable because they have a marginal, if any, impact on the expected return but can lead to non-negligible transaction costs" (partial: cost, not diversification). Test: 0 / 1 / 5% against the 2% default (E5) | E5 |
 | D38 | Limits that cannot all hold are refused; relaxing is opt-in, in a fixed order, every step recorded | | Policy (fail closed); tests/test_v3_safety.py, tests/test_v3_review.py | done |
@@ -68,7 +68,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 |---|---|---|---|---|
 | D25-27 | Self-check: capacity, tolerance, gates; the suggestion is the lower of capacity and tolerance | | Source: 31-103CP s.13.2 ("the lower of" willingness and ability); Joint CSA/CIRO Staff Notice 31-368; tests: persona walkthroughs (docs/qa/ux) and the scorer tests in tests/test_v2.py; the browser scorer matches Python on 400 random answer sets (web/test_robokit.mjs) | done |
 | D24 | The brief's three settings are levels 2 / 3 / 4 | | Policy; names in both directions (tests/test_v3_exam_r1.py) | done |
-| D28 | Level L targets L x 20% of the stock market's volatility | | Source (partial): Betterment matches risk levels "on volatility". Test: realised over target volatility by level (E1); the regulator's rating of each level | E1 |
+| D28 | Level L targets L x 20% of the stock market's volatility | | Source (partial): Betterment matches risk levels "on volatility". Test: realised over target volatility by level (E1). The regulator's rating of each level is reported beside it as a disclosure, not as evidence for the rule | E1 |
 | D29 | The stock-market yardstick: the policy-weighted equity slots over the same window | | Policy; test: the yardstick replaced by the home stock fund alone, at the latest date and walk-forward (E5) | E5 |
 | C2 | Every mix shows its NI 81-102 Appendix F rating | 10-year standard deviation of monthly returns x sqrt(12), five bands | Source: NI 81-102 Appendix F, Items 1 and 2 (opened); tests/test_v3_rating.py | done |
 | C3 | Suitability checks are opt-in (off by default) | | Source: 31-103CP s.13.2; README's level policy; tests/test_v3_suitability.py | done |
@@ -325,6 +325,18 @@ required changes.
 | E2's schedule skipped any failure before the first build, not only short-history refusals | true (the round-10 fix reached the listing, not the schedule) | only short-history refusals are skipped; any other failure stops the path; the test that encoded the old behaviour corrected |
 | D5 listed 180 months as a sensitivity arm | true | worded against the 180 default |
 | Levels 1 and 5 carried the registered reading's labels | true | labelled descriptive |
+
+**Stage 1, twelfth round (8 Oct 2026).** The same reviewer as rounds 8-11. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The deflated Sharpe ratio pairs N = 54 with the spread of the E1 strategies only | partly true: the earlier trials cannot be recomputed on the E1 months, and N = 14 would deflate less, not more | both variants reported; the plan says the spread may be understated, making the ratio if anything too favourable; descriptive |
+| The family label was missing on descriptive and error rows | true (the round-9 fix was incomplete again) | every row of both tables labelled; tested |
+| D21 cited the no-caps ablation, which removes the sleeve caps too | true | D21 cites the no-cash-caps ablation; D20 says what no-caps removes |
+| D28 cited the Appendix F rating as evidence for the L x 20% rule | true | the rating is a disclosure beside the evidence, not evidence |
+| The full-sample guard ran after the statistics it protects | true | the guard runs first; the rules' statistics only on full samples |
+| D1's dropped current month had no test | true | tested |
+| The plan writes "missed at level L"; the code wrote "levels" for one | true (wording) | singular for one level |
 
 ## Sources checked for this register
 

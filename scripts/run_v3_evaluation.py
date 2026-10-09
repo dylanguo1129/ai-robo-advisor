@@ -176,14 +176,12 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
                     "se": float(d.std(ddof=1) / math.sqrt(len(d))) if len(d) > 1 else None,
                     "pairs": int(len(d)),
                 }
-    # the resampling rule: drop resampling only if it costs more than 2 bp in both realistic worlds (b, c), level 3
-    rule = {}
+    # the resampling rule's inputs: per replication, d = loss(robokit) - loss(no_resample), level 3, 180 months
+    dd = {}
     for w in "abc":
         a = ok[(ok.world == w) & (ok.level == 3) & (ok.months == 180) & (ok.method == "robokit")].set_index("rep").loss_bp
         b = ok[(ok.world == w) & (ok.level == 3) & (ok.months == 180) & (ok.method == "no_resample")].set_index("rep").loss_bp
-        d = (a - b).dropna().to_numpy()  # positive: resampling costs certainty equivalent
-        rule[w] = one_sided(d, 2.0, greater=True)
-    drop_resampling = all(rule[w]["lo95_one_sided"] > 2.0 for w in ("b", "c"))
+        dd[w] = (a - b).dropna().to_numpy()  # positive: resampling costs certainty equivalent
 
     # the QIS switch study (sub-study ii)
     qtruths = qis_truths()
@@ -192,6 +190,20 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
         raise RuntimeError(f"the QIS truth window is {qmeta['window']}, not the registered {REGISTERED_TRUTH['QIS']}: stopped")
     qtasks = [(name, S, ratio, rep) for name, S in qtruths.items() for ratio in (0.1, 0.2, 0.25, 0.3, 0.4, 0.6) for rep in range(reps)]
     q = pd.DataFrame(pmap(SIM.qis_switch_sample, qtasks, chunksize=25))
+    # a default locks only on the full registered sample, checked before any statistic is computed: every input of
+    # both rules has exactly ``reps`` finite pairs (a truth or ratio with no samples at all is caught too)
+    short = {f"resampling, world {w}": len(dd[w]) for w in ("b", "c") if len(dd[w]) != reps}
+    for name in qtruths:
+        gg = q[q.truth == name] if len(q) else q
+        for r in (0.2, 0.25, 0.3):
+            n_ok = int(np.isfinite(gg.loc[gg.n_over_t == r, "rel"]).sum()) if len(gg) else 0
+            if n_ok != reps:
+                short[f"QIS, {name} truth at {r}"] = n_ok
+    if short:
+        raise RuntimeError(f"a locking rule lacks its {reps} replications {short}: no default is locked, the run stops")
+    # the resampling rule: drop resampling only if it costs more than 2 bp in both realistic worlds (b, c), level 3
+    rule = {w: one_sided(dd[w], 2.0, greater=True) if len(dd[w]) > 1 else {"n": int(len(dd[w])), "error": "too few pairs"} for w in "abc"}
+    drop_resampling = all(rule[w]["lo95_one_sided"] > 2.0 for w in ("b", "c"))
     qsum = {
         name: {
             str(r): {"mean_rel": float(g.rel.mean()), "se": float(g.rel.std(ddof=1) / math.sqrt(len(g))), "n": int(len(g))}
@@ -200,8 +212,8 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
         for name, gg in q.groupby("truth")
     }
     tests = {}
-    for name, gg in q.groupby("truth"):
-        rel = {r: g.rel.to_numpy() for r, g in gg.groupby("n_over_t")}
+    for name in qtruths:
+        rel = {r: g.rel.to_numpy() for r, g in q[q.truth == name].groupby("n_over_t")}
         t1 = one_sided(rel[0.2], -0.01, greater=False)  # QIS better at 0.20 by more than 1%
         t2 = one_sided(rel[0.25], 0.01, greater=True)  # QIS worse at 0.25 by more than 1%
         t3 = one_sided(rel[0.3], -0.01, greater=False)  # QIS better at 0.30 by more than 1%
@@ -211,16 +223,6 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
             "qis_worse_at_0.25": {**t2, "p_holm": adj[1]},
             "qis_better_at_0.30": {**t3, "p_holm": adj[2]},
         }
-    # a default locks only on the full registered sample: every input of both rules has exactly ``reps`` finite pairs
-    short = {f"resampling, world {w}": rule[w]["n"] for w in ("b", "c") if rule[w]["n"] != reps}
-    for name in qtruths:  # every registered truth, so a truth with no samples at all is caught too
-        gg = q[q.truth == name]
-        for r in (0.2, 0.25, 0.3):
-            n_ok = int(np.isfinite(gg.loc[gg.n_over_t == r, "rel"]).sum())
-            if n_ok != reps:
-                short[f"QIS, {name} truth at {r}"] = n_ok
-    if short:
-        raise RuntimeError(f"a locking rule lacks its {reps} replications {short}: no default is locked, the run stops")
     t1 = [tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in qtruths]
     t2 = [tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in qtruths]
     # down only if T1 holds in both truths and T2 in neither; up only if T2 holds in both and T1 in neither;
@@ -329,6 +331,14 @@ def past_centre(builds, realised, index) -> pd.Series:
     return out
 
 
+def label_family(res: dict, market: str) -> None:
+    """Every comparison row, confirmatory or descriptive, error stubs included, carries its market's family."""
+    for table in (res["comparisons"], res["descriptive"]):
+        for row in table.values():
+            for c in row.values():
+                c["family"] = FAMILY[market]
+
+
 def described(p: pd.DataFrame, cash: pd.Series) -> dict:
     """EV.describe with the 2020 and 2022 subperiods; a missing cash return is recorded, not raised."""
     try:
@@ -428,11 +438,12 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
                     res["descriptive"].setdefault(s, {})[L] = EV.compare(rk[L]["net"], paths[(s, L)]["net"], cash)
                 except ValueError as e:
                     res["descriptive"].setdefault(s, {})[L] = {"error": str(e)}
+    label_family(res, market)
     res["dsr"] = {}
     res["dsr_trials"] = {
         "n_trials": N_TRIALS,
         "inventory": TRIAL_INVENTORY,
-        "trial_sharpe_variance": "var_trials in each level's entries: the variance of the E1 strategies' monthly Sharpe ratios at that level and market",
+        "trial_sharpe_variance": "var_trials in each level's entries: the variance of the E1 strategies' monthly Sharpe ratios at that level and market; the earlier trials cannot be recomputed on these months, so this spread may understate theirs and the deflated Sharpe ratio is, if anything, too favourable. The _n_e1 entries use N = the E1 strategies only (a weaker deflation)",
     }
     for L in EV.PRIMARY:
         excess = {}
@@ -449,6 +460,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         res["dsr"][L] = {
             "units": "sr and sr0 are monthly Sharpe ratios (not annualised); dsr is a probability",
             "robokit": es.deflated_sharpe(excess["robokit"], srs, N_TRIALS),
+            "robokit_n_e1": es.deflated_sharpe(excess["robokit"], srs, len(srs)),  # N = the E1 strategies only
             "best_benchmark": None,
             "benchmark": None,
         }
@@ -458,6 +470,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
             best = max(have, key=lambda b: res["strategies"][b][L]["sharpe"])
             res["dsr"][L]["best_benchmark"] = best
             res["dsr"][L]["benchmark"] = es.deflated_sharpe(excess[best], srs, N_TRIALS)
+            res["dsr"][L]["benchmark_n_e1"] = es.deflated_sharpe(excess[best], srs, len(srs))
     res["ex_ante_gap"] = {}
     for s in strategies:
         for L in EV.PRIMARY:

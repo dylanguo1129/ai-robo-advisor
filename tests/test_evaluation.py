@@ -36,7 +36,7 @@ def test_risk_delivery_reads_a_path_that_hits_its_target_as_delivered_or_inconcl
     out = EV.risk_delivery(paths, (2, 3, 4), n_boot=499)
     assert out["reading"] in ("delivered", "inconclusive") and all(0.85 < out[L]["ratio"] < 1.15 for L in (2, 3, 4))
     paths[3]["net"] *= 1.6
-    assert EV.risk_delivery(paths, (2, 3, 4), n_boot=499)["reading"] == "missed at levels 3"
+    assert EV.risk_delivery(paths, (2, 3, 4), n_boot=499)["reading"] == "missed at level 3"
 
 
 def test_ideal_account_with_flat_prices_and_no_cost_earns_nothing_whatever_the_flows():
@@ -314,3 +314,14 @@ def test_shorter_e3_histories_are_the_first_months_of_the_full_one(world):
     assert full.shape[0] == 192
     for T in (36, 60, 120):
         assert np.array_equal(SIM.history(tr, world, 3, T), full[: T + 12])
+
+
+def test_every_comparison_row_carries_its_family():
+    rv = _runner()
+    res = {
+        "comparisons": {"static_mix": {2: {"reading": "inconclusive"}, 3: {"error": "path missing (see path_errors)"}}},
+        "descriptive": {"no_resample": {2: {"sharpe_diff_annual": 0.01}}},
+    }
+    rv.label_family(res, "US")
+    rows = [c for t in ("comparisons", "descriptive") for row in res[t].values() for c in row.values()]
+    assert rows and all(c["family"] == "exploratory" for c in rows)

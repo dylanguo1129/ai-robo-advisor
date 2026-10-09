@@ -261,7 +261,8 @@ def risk_delivery(paths: dict, levels=PRIMARY, block: int = 6, n_boot: int = 500
         out[L] = es.vol_ratio_interval(z.to_numpy(), block=block, n_boot=n_boot, level=lev, seed=seed)
     inside = all(BAND[0] <= out[L]["lo"] and out[L]["hi"] <= BAND[1] for L in levels)
     missed = [L for L in levels if not BAND[0] <= out[L]["ratio"] <= BAND[1]]
-    out["reading"] = "delivered" if inside else ("missed at levels " + ", ".join(map(str, missed)) if missed else "inconclusive")
+    miss = ("missed at level " if len(missed) == 1 else "missed at levels ") + ", ".join(map(str, missed))
+    out["reading"] = "delivered" if inside else (miss if missed else "inconclusive")
     out["band"] = BAND
     out["simultaneous_level"] = 0.90
     return out

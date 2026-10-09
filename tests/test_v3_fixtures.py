@@ -68,3 +68,15 @@ def test_planning_return_rules():
     assert assumption("Fixed income", "Canada", "CA")[0] == FPC_2026["fixed_income"]
     eq = assumption("Equity", "Canada", "CA")[0]
     assert assumption("Multi-asset", "Canada", "CA")[0] == pytest.approx(0.6 * eq + 0.4 * FPC_2026["fixed_income"])
+
+
+def test_the_month_in_progress_is_dropped(tmp_path, monkeypatch):
+    """A month that has not ended has no month-end close yet: assemble drops it and labels the rest month-end."""
+    from robokit.data import prices as P
+
+    idx = pd.to_datetime(["2026-08-01", "2026-09-01", "2026-10-01"])
+    frame = pd.DataFrame({"AAA": [10.0, 11.0, 12.0]}, index=idx)
+    pd.to_pickle({"close": frame, "volume": frame, "tickers": ["AAA"]}, tmp_path / "universe_0.pkl")
+    monkeypatch.setattr(P, "CHUNK_DIR", tmp_path)
+    close, _ = P.assemble("universe", today=pd.Timestamp("2026-10-15"))
+    assert list(close.index) == [pd.Timestamp("2026-08-31"), pd.Timestamp("2026-09-30")]
