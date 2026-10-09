@@ -318,15 +318,15 @@ def safe_path(attempted, realised, stage: str, market: str, strategy: str, level
 
 
 def past_centre(builds, realised, index) -> pd.Series:
-    """For each month, the mean return the weights in force predicted from the 180 months up to their estimation date:
-    the centre of a squared-deviation loss that uses no later data."""
+    """For each month, the mean return the weights in force predicted from the last 180 months, up to their estimation
+    date, in which every held fund has a return (as E4(a)'s window): the centre of a loss that uses no later data."""
     builds = sorted(builds, key=lambda b: b["task"][1])
     out = pd.Series(np.nan, index=index)
     for i, b in enumerate(builds):
         d = pd.Timestamp(b["task"][1])
         end = pd.Timestamp(builds[i + 1]["task"][1]) if i + 1 < len(builds) else index[-1]
         w = pd.Series(b["weights"], dtype=float)
-        mu = realised.loc[:d, list(w.index)].tail(180).mean()
+        mu = realised.loc[:d, list(w.index)].dropna(how="any").tail(180).mean()  # jointly complete months, as E4(a)
         out.loc[(index > d) & (index <= end)] = float((w * mu).sum() / w.sum())
     return out
 
@@ -509,6 +509,23 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     return res
 
 
+def e2_outputs(res: dict, paths: dict, cash: pd.Series, benchmarks=("static_mix", "textbook_60")) -> None:
+    """E2's risk delivery and comparisons (descriptive, no readings) from the paths that exist, as in E1: an output
+    that needs a missing path, or that fails closed, records why."""
+    rk = {L: paths[("robokit", L)] for L in EV.PRIMARY if ("robokit", L) in paths}
+    gone = {"error": "the robokit path is missing (see path_errors)"}
+    res["risk_delivery"] = EV.risk_delivery(rk, EV.PRIMARY) if len(rk) == len(EV.PRIMARY) else gone
+    for b in benchmarks:
+        for L in EV.PRIMARY:
+            if (b, L) not in paths or L not in rk:
+                res["comparisons"].setdefault(b, {})[L] = {"error": "path missing (see path_errors)"}
+                continue
+            try:
+                res["comparisons"].setdefault(b, {})[L] = EV.compare(rk[L]["net"], paths[(b, L)]["net"], cash)
+            except ValueError as e:
+                res["comparisons"].setdefault(b, {})[L] = {"error": str(e)}
+
+
 def leading_skips(attempted: list, strategies, levels) -> dict:
     """For each strategy and level, the estimation dates refused for short common own history (under 36 months)
     before the first one that built: the registered E2 skips. Any other failure counts only under build_failures, and
@@ -545,15 +562,7 @@ def stage_e2(market: str, locks: dict) -> dict:
     for (s, L), p in paths.items():
         res["strategies"].setdefault(s, {})[L] = described(p, cash)
         p.to_csv(OUT / f"e2_{market}_{s}_L{L}.csv")
-    if all(("robokit", L) in paths for L in EV.PRIMARY):
-        res["risk_delivery"] = EV.risk_delivery({L: paths[("robokit", L)] for L in EV.PRIMARY}, EV.PRIMARY)
-        for b in ("static_mix", "textbook_60"):
-            for L in EV.PRIMARY:
-                if (b, L) in paths:
-                    try:
-                        res["comparisons"].setdefault(b, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
-                    except ValueError as e:
-                        res["comparisons"].setdefault(b, {})[L] = {"error": str(e)}
+    e2_outputs(res, paths, cash)
     label_family(res, market)
     res["shelves"] = {b["task"][1]: sorted(b["weights"]) for b in builds if b["task"][3] == "robokit" and b["task"][2] == 3}
     return res
@@ -606,10 +615,12 @@ def stage_e4(market: str, locks: dict) -> dict:
             out["target_risk"][m] = {"error": "path missing (see path_errors)"}
         out["min_variance"][m] = {"ann_vol": float(mv[m]["r"].std(ddof=1) * math.sqrt(12)), "mean_loss": float(mv[m]["loss"].mean())}
         f = pd.DataFrame(fc[m]).dropna()
+        pos = f[(f.pred > 0) & (f.real > 0)]  # QLIKE needs positive variances; any other year is counted, not used
         out["forecast"][m] = {
             "mse": float(((f.pred - f.real) ** 2).mean()),
-            "qlike": float((f.real / f.pred - np.log(f.real / f.pred) - 1).mean()),
+            "qlike": float((pos.real / pos.pred - np.log(pos.real / pos.pred) - 1).mean()) if len(pos) else None,
             "years": int(len(f)),
+            "years_without_qlike": int(len(f) - len(pos)),
         }
     base_mv = mv["lw_cc"]["loss"]
     for m in ests:
@@ -883,10 +894,13 @@ def stage_e7() -> dict:
 
 
 def stage_e8() -> dict:
-    return {
-        "standin_holdout": {m: AU.standin_holdout(m) for m in ("CA", "US")},
-        "backfill_holdout": {m: AU.backfill_holdout(m) for m in ("CA", "US")},
-    }
+    out = {"standin_holdout": {}, "backfill_holdout": {m: AU.backfill_holdout(m) for m in ("CA", "US")}}
+    for m in ("CA", "US"):
+        rows = AU.standin_holdout(m)
+        shelf = EV.reference_shelf(m).tickers
+        # a fund with no written stand-in other than itself, or under 24 shared months, has no row: listed, not hidden
+        out["standin_holdout"][m] = {"rows": rows, "funds_without_a_row": sorted(set(shelf) - {r["fund"] for r in rows})}
+    return out
 
 
 # ================================================================== main

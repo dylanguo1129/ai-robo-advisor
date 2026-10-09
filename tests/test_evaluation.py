@@ -333,3 +333,38 @@ def test_one_level_risk_delivery_has_no_reading():
     rk = {1: pd.DataFrame({"net": np.random.default_rng(1).normal(0, 0.02 / math.sqrt(12), 120), "target": 0.02}, index=idx)}
     out = rv.one_level(rk, 1)
     assert "reading" not in out and out["role"] == rv.ONE_LEVEL and 1 in out
+
+
+def test_e2_writes_a_stub_where_a_path_is_missing():
+    rv = _runner()
+    idx = pd.date_range("2015-01-31", periods=60, freq="ME")
+    rng = np.random.default_rng(6)
+
+    def path():
+        return pd.DataFrame({"net": rng.normal(0.005, 0.02, 60), "target": 0.06}, index=idx)
+
+    paths = {("robokit", 2): path(), ("robokit", 3): path(), ("static_mix", 2): path(), ("static_mix", 4): path()}
+    res = {"comparisons": {}}
+    rv.e2_outputs(res, paths, pd.Series(0.001, index=idx))
+    assert "error" in res["risk_delivery"]  # robokit level 4 is missing
+    assert "sharpe_diff_annual" in res["comparisons"]["static_mix"][2]
+    assert "error" in res["comparisons"]["static_mix"][3] and "error" in res["comparisons"]["static_mix"][4]
+    assert all("error" in res["comparisons"]["textbook_60"][L] for L in (2, 3, 4))
+
+
+def test_the_target_risk_centre_uses_the_jointly_complete_window():
+    rv = _runner()
+    idx = pd.date_range("2000-01-31", periods=240, freq="ME")
+    R = pd.DataFrame({"A": 0.01, "B": 0.03}, index=idx)
+    R.loc[:"2009-12-31", "B"] = np.nan  # B's history starts in 2010
+    R.loc["2010-01-31":"2010-12-31", "A"] = 0.05  # A's months that overlap B are different
+    b = {"task": ("CA", "2010-12-31", 3, "robokit", "fixed"), "weights": {"A": 0.5, "B": 0.5}}
+    c = rv.past_centre([b], R, idx[idx > "2010-12-31"][:12])
+    assert c.iloc[0] == pytest.approx(0.5 * 0.05 + 0.5 * 0.03)  # A over B's 12 months only, not A's whole history
+
+
+def test_e6_turnover_leaves_out_the_purchase_of_the_starting_cash():
+    idx = pd.date_range("2020-01-31", periods=7, freq="ME")
+    prices = pd.DataFrame({"A": 10.0, "B": 20.0}, index=idx)
+    df = AU.account_path({"2019-12-31": {"A": 0.6, "B": 0.4}}, prices, 10_000.0, 0.0, "ideal", cost_bps=0.0)["path"]
+    assert AU.summarise_account(df, None)["annual_turnover"] == pytest.approx(0.0, abs=1e-12)

@@ -23,7 +23,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: 120 and all months against the 180 default (E5) | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
-| D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 in size and at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the 14 exclusions listed with month and peer move; the stricter reading with the fund left out of its peers | E7(a) |
+| D9 | Data-integrity screen: a month in which a fund's log return is at least ln 2 in size and at least ln 2 away from the median of its market and asset class (at least five funds with data that month, itself included) marks it ineligible (crypto exempt) | ln 2 | Test: thresholds ln 1.5 / ln 2 / ln 3 and the funds each flags; the funds each threshold flags, with month and peer move (at ln 2, the 14 exclusions of RESEARCH_LOG section 9); the stricter reading with the fund left out of its peers | E7(a) |
 
 ## 2. Universe and reference shelf
 
@@ -39,7 +39,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D13 | Equilibrium returns from a written policy mix, not from fund sizes or past returns | 60% stocks, 35% bonds, 3% real estate, 2% gold | Source: Sharpe (1974) and He and Litterman (1999) for reverse optimisation; Doeswijk, Lam and Swinkels (2014): the market portfolio is "a natural benchmark for investors". Test: alternative priors | E5(w) |
+| D13 | Equilibrium returns from a written policy mix, not from fund sizes or past returns | 60% stocks, 35% bonds, 3% real estate, 2% gold | Source: Sharpe (1974) and He and Litterman (1999) for reverse optimisation; Doeswijk, Lam and Swinkels (2014): the market portfolio is "a natural benchmark for investors". The policy weights themselves are policy; test: a 60/40 prior without real estate and gold (E5(w)); the home share is D13b | E5(w) |
 | D13b | 30% of equity in Canada | 0.18 / 0.60 | Source: Vanguard Investments Canada (25 June 2024): "a reasonable equity balance of around 30% home bias, in Canadian securities"; Canada is about 2.7% of world equity. The full report (minimum-variance analysis) is no longer online; its finding is quoted from press coverage only. Test: 0 / 20 / 40% against the 30% default | E5(w) |
 | D17 | pi = delta Sigma w_prior | | Source: Sharpe (1974); Black and Litterman (1992); He and Litterman (1999) | done |
 | D18 | delta = 2.5 | | Source: He and Litterman (1999): "we use delta = 2.5 as the risk aversion parameter representing the world average risk tolerance". Proof: with lambda calibrated to a volatility target the weights do not depend on delta (paper, Proposition 1); tests: at fixed lambda / delta the weights are identical, in the optimizer and through the final pipeline, single solve and resampled (tests/test_v3_propositions.py); calibrated at delta 1 and 4, the model volatility agrees within twice the calibration tolerance (the same file, and E5) | done; E5 |
@@ -117,7 +117,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
 | D49 | Bands with a destination | min(2 points, 25% of target); back to 7/8 of the band | Source: Vanguard (2024) "a threshold of 200 bps and a destination of 175 bps"; Donohue and Yip (2003) "back to the boundary of the no-trade region". Test: against monthly and annual | E6 |
-| D50 | Cash flows first | | Source: Vanguard (2010) "Rebalance with portfolio cash flows"; tests/test_v3_rebalance.py | done |
+| D50 | Cash flows first | | Source: Vanguard (2010) "Rebalance with portfolio cash flows"; tests/test_v3_rebalance.py (new money inside the bands never sells; a withdrawal is paid from overweight funds first) | done |
 | D51 | Minimum order and cost | $50; 10 bps | Policy (cost as in every back-test); source for small trades as D23. Test: the shipped bands with minimum orders of 0, 50 and 250 on three account sizes (E6) | E6 |
 | D52 | Flag orders over 1% of daily volume | | Source (partial): Toth et al. (2011), impact = Y sigma sqrt(Q/V); at Q/V = 1% that is a tenth of a day's volatility, about the 10 bps cost assumed for a fund moving 1% a day. The threshold itself is policy | policy |
 
@@ -345,6 +345,20 @@ required changes.
 | E2's comparison rows had no family label | true | labelled as E1's; tested |
 | The equal-risk benchmark returned its weights even after a failed solve | true (on the E1 covariances the solve succeeds with contributions equal to 1e-8 to 1e-7, but nothing enforced it) | fails closed on the equal-risk certificate (relative spread 1e-6); a failed build stops the path; tested |
 | Levels 1 and 5 still carried the reading's labels | true | the one-level outputs carry no reading |
+
+**Stage 1, fourteenth round (8 Oct 2026).** The same reviewer (a first session hung and was re-run). It first
+accepted as is, then checked its own sub-reviews and revised to accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| E2 dropped risk delivery and every comparison when one robokit path was missing, and wrote no error stubs | true | E2 mirrors E1: outputs from the paths that exist, a stub where one is missing; tested |
+| E4(b)'s past-only centre averaged each fund over its own months, not E4(a)'s jointly complete window | true | the same jointly complete window; tested |
+| E6 turnover counted the purchase of the starting cash and annualised over one extra month | true | the invested months only; tested |
+| QLIKE was unguarded against a non-positive variance | partly true (not reachable with a positive-definite estimate and a 12-month realised variance) | positive variances only, the rest counted |
+| E8(a) silently has no row for funds whose only written stand-in is themselves | true | those funds are listed |
+| E5's "levels 1-5 where marked" | true (wording) | level 3, the projection precision at levels 1-5 |
+| D9, D13, D50 evidence wording; the design spec's Track E | true | corrected; Track E marked superseded |
+| The dirty-tree check assumes the git root is the repository root | false: it is (the review copy's layout differs, not the repository's) | none |
 
 ## Sources checked for this register
 

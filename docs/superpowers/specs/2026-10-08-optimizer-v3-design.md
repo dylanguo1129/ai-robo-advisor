@@ -48,6 +48,9 @@ D1. Calibrate lambda on the final pipeline (resampled, min-position applied) wit
 
 ## Track E: v3 evaluation (pre-registered in RESEARCH_LOG section 9 before it runs, then run once)
 
+> Superseded: the registered protocol is RESEARCH_LOG sections 9 and 10, revised through the Stage 1 reviews
+> recorded in docs/DECISIONS.md. Where this track differs (the textbook window, the covariance study), that plan holds.
+
 1. Walk-forward of the shipped configuration (expanding window from 60 to 180 months, 200 draws, final-pipeline calibration), CA and US, levels 2-4.
 2. Benchmarks: static mix, equal weights, minimum-variance plus cash calibrated to target, equal risk contribution plus cash calibrated to target, Bayes-Stein mean-variance, and the textbook optimizer on an expanding window (not only 60 months).
 3. Ablations, one component removed at a time: no resampling, sample covariance, no caps, sample means instead of equilibrium.

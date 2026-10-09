@@ -113,7 +113,8 @@ def summarise_account(df: pd.DataFrame, ideal: pd.DataFrame | None) -> dict:
         "skipped_orders": int(df["skipped"].sum()),
         "mean_cash_share": float(df["cash_share"].mean()),
         "mean_max_drift": float(df["max_drift"].dropna().mean()) if df["max_drift"].notna().any() else None,
-        "annual_turnover": float((df["traded"] / df["value"]).sum() / 2 / (len(df) / 12)),
+        # over the invested months, as the returns: the purchase of the starting cash is not turnover
+        "annual_turnover": float((df["traded"] / df["value"]).iloc[1:].sum() / 2 / (len(r) / 12)) if len(r) else None,
     }
     if ideal is not None:
         ri = invested_returns(ideal)
