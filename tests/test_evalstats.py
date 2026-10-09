@@ -128,3 +128,17 @@ def test_politis_white_block_length_on_an_ar1_matches_the_closed_form():
     want = (2 * phi / (1 - phi**2)) ** (2 / 3) * n ** (1 / 3)
     assert es.politis_white_block(x[200:]) == pytest.approx(want, rel=0.15)
     assert es.politis_white_block(np.random.default_rng(11).normal(size=500)) < 3  # no dependence: short blocks
+
+
+def test_erc_fails_closed_when_the_risk_contributions_are_not_equal(monkeypatch):
+    """A solve that stops early (or any answer whose risk contributions are not equal) raises instead of returning."""
+    from types import SimpleNamespace
+
+    from optimizer.errors import SolverNotConverged
+
+    S = np.diag([0.04, 0.09, 0.16])
+    monkeypatch.setattr(
+        es.optimize, "minimize", lambda *a, **k: SimpleNamespace(x=np.array([1.0, 1.0, 1.0]), success=False, message="stopped")
+    )
+    with pytest.raises(SolverNotConverged, match="equal risk contribution"):
+        es.erc_weights(S)

@@ -331,9 +331,16 @@ def past_centre(builds, realised, index) -> pd.Series:
     return out
 
 
+def one_level(rk: dict, L: int) -> dict:
+    """Risk delivery at one level, descriptive: its ratio and own 90% interval, without the registered reading's
+    labels, which belong to levels 2-4 together."""
+    out = {k: v for k, v in EV.risk_delivery(rk, (L,)).items() if k != "reading"}
+    return {**out, "role": ONE_LEVEL}
+
+
 def label_family(res: dict, market: str) -> None:
     """Every comparison row, confirmatory or descriptive, error stubs included, carries its market's family."""
-    for table in (res["comparisons"], res["descriptive"]):
+    for table in (res.get("comparisons", {}), res.get("descriptive", {})):
         for row in table.values():
             for c in row.values():
                 c["family"] = FAMILY[market]
@@ -397,8 +404,8 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
     res["regulator_rating"] = {L: E.ni81_102_rating(p["net"].to_numpy()) for L, p in rk.items()}  # realised paths, last 120 months
     res["risk_delivery"] = {
         "primary": EV.risk_delivery(rk, EV.PRIMARY) if all(L in rk for L in EV.PRIMARY) else gone,
-        "level_1": {**EV.risk_delivery(rk, (1,)), "role": ONE_LEVEL} if 1 in rk else gone,
-        "level_5": {**EV.risk_delivery(rk, (5,)), "role": ONE_LEVEL} if 5 in rk else gone,
+        "level_1": one_level(rk, 1) if 1 in rk else gone,
+        "level_5": one_level(rk, 5) if 5 in rk else gone,
     }
     res["risk_delivery_other"] = {
         s: {L: EV.risk_delivery({L: paths[(s, L)]}, (L,))[L] for L in EV.PRIMARY if (s, L) in paths} for s in strategies if s != "robokit"
@@ -547,6 +554,7 @@ def stage_e2(market: str, locks: dict) -> dict:
                         res["comparisons"].setdefault(b, {})[L] = EV.compare(paths[("robokit", L)]["net"], paths[(b, L)]["net"], cash)
                     except ValueError as e:
                         res["comparisons"].setdefault(b, {})[L] = {"error": str(e)}
+    label_family(res, market)
     res["shelves"] = {b["task"][1]: sorted(b["weights"]) for b in builds if b["task"][3] == "robokit" and b["task"][2] == 3}
     return res
 

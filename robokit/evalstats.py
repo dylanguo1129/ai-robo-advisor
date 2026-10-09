@@ -220,9 +220,16 @@ def cvar(r, level: float = 0.95) -> float:
 
 
 # ------------------------------------------------------------------ benchmark portfolios
+ERC_TOL = 1e-6  # relative spread of the risk contributions allowed; 1e-8 to 1e-7 on the E1 covariances
+
+
 def erc_weights(sigma) -> np.ndarray:
     """Equal risk contribution, long only (Maillard, Roncalli and Teiletche 2010): the solution of
-    min 1/2 y'Sigma y - sum log y, normalised to sum to one."""
+    min 1/2 y'Sigma y - sum log y, normalised to sum to one. Fails closed, like the engine's solver: unless every
+    fund's risk contribution w_i (Sigma w)_i is within ERC_TOL of the others (relative spread), it raises
+    SolverNotConverged, so a benchmark that is not equal-risk never enters a comparison."""
+    from optimizer.errors import SolverNotConverged
+
     S = np.asarray(sigma, dtype=float)
     n = len(S)
     x0 = 1 / np.sqrt(np.diag(S))
@@ -235,7 +242,12 @@ def erc_weights(sigma) -> np.ndarray:
         options={"ftol": 1e-15, "gtol": 1e-12, "maxiter": 10000},
     )
     y = res.x
-    return y / y.sum()
+    w = y / y.sum()
+    rc = w * (S @ w)
+    spread = float(np.ptp(rc) / rc.mean())
+    if not spread <= ERC_TOL:  # the certificate (a NaN fails too)
+        raise SolverNotConverged(f"equal risk contribution not reached: spread {spread:.1e} ({res.message})", {"spread": spread})
+    return w
 
 
 def min_variance(sigma, cap: float = 0.5) -> np.ndarray:

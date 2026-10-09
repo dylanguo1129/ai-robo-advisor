@@ -325,3 +325,11 @@ def test_every_comparison_row_carries_its_family():
     rv.label_family(res, "US")
     rows = [c for t in ("comparisons", "descriptive") for row in res[t].values() for c in row.values()]
     assert rows and all(c["family"] == "exploratory" for c in rows)
+
+
+def test_one_level_risk_delivery_has_no_reading():
+    rv = _runner()
+    idx = pd.date_range("2001-01-31", periods=120, freq="ME")
+    rk = {1: pd.DataFrame({"net": np.random.default_rng(1).normal(0, 0.02 / math.sqrt(12), 120), "target": 0.02}, index=idx)}
+    out = rv.one_level(rk, 1)
+    assert "reading" not in out and out["role"] == rv.ONE_LEVEL and 1 in out

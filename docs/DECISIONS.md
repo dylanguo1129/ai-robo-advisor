@@ -338,6 +338,14 @@ required changes.
 | D1's dropped current month had no test | true | tested |
 | The plan writes "missed at level L"; the code wrote "levels" for one | true (wording) | singular for one level |
 
+**Stage 1, thirteenth round (8 Oct 2026).** The same reviewer as rounds 8-12. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| E2's comparison rows had no family label | true | labelled as E1's; tested |
+| The equal-risk benchmark returned its weights even after a failed solve | true (on the E1 covariances the solve succeeds with contributions equal to 1e-8 to 1e-7, but nothing enforced it) | fails closed on the equal-risk certificate (relative spread 1e-6); a failed build stops the path; tested |
+| Levels 1 and 5 still carried the reading's labels | true | the one-level outputs carry no reading |
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).
