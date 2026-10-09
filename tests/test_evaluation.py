@@ -368,3 +368,26 @@ def test_e6_turnover_leaves_out_the_purchase_of_the_starting_cash():
     prices = pd.DataFrame({"A": 10.0, "B": 20.0}, index=idx)
     df = AU.account_path({"2019-12-31": {"A": 0.6, "B": 0.4}}, prices, 10_000.0, 0.0, "ideal", cost_bps=0.0)["path"]
     assert AU.summarise_account(df, None)["annual_turnover"] == pytest.approx(0.0, abs=1e-12)
+
+
+def _qis_tests(p1, p2, p3):
+    from robokit import evalstats as es
+
+    adj = es.holm([p1, p2, p3])
+    one = {
+        "qis_better_at_0.20": {"p": p1, "p_holm": adj[0]},
+        "qis_worse_at_0.25": {"p": p2, "p_holm": adj[1]},
+        "qis_better_at_0.30": {"p": p3, "p_holm": adj[2]},
+    }
+    return {"constant_correlation": one, "sample": one}
+
+
+def test_the_qis_rule_does_not_move_on_contradictory_evidence():
+    rv = _runner()
+    assert rv.qis_switch_rule(_qis_tests(0.01, 0.04, 0.90))[0] == 0.25  # raw T1 and T2 both below 0.05: stay
+    assert rv.qis_switch_rule(_qis_tests(0.001, 0.50, 0.90))[0] == 0.20  # T1 holds after Holm, nothing against it
+    assert rv.qis_switch_rule(_qis_tests(0.60, 0.001, 0.90))[0] == 0.30
+    assert rv.qis_switch_rule(_qis_tests(0.20, 0.30, 0.90))[0] == 0.25
+    one_truth = {"constant_correlation": _qis_tests(0.001, 0.5, 0.9)["sample"]}
+    with pytest.raises(KeyError):
+        rv.qis_switch_rule(one_truth)  # both registered truths are required

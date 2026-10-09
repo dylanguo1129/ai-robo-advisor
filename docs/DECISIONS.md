@@ -17,7 +17,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | E7(e) |
+| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | done; E7(e) |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
 | D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
@@ -108,7 +108,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 |---|---|---|---|---|
 | D41 | Canadian planning returns | FP Canada 2026 | Source: FP Canada / IQPF 2026 Projection Assumption Guidelines | done |
 | D42 | US bonds and cash: today's Treasury yields | 13-week bill; 5-year note | Source: T. Rowe Price (2018): for the US Aggregate, "peak correlation reaches 0.97 at a time period of 1.08 times the initial duration" | done |
-| D43 | Re-centre the history on the planning return, made arithmetic | g + variance / 2 | Source: FP Canada guidelines ("a conversion needs to be done from geometric to arithmetic mean") | done |
+| D43 | Re-centre the history on the planning return, made arithmetic | monthly: (1 + g)^(1/12) - 1 + sigma^2 / 2, sigma^2 the monthly variance | Source: FP Canada guidelines ("a conversion needs to be done from geometric to arithmetic mean") | done |
 | D44 | 2,000 paths, stationary bootstrap, mean block 6 months, seed 7 | | Test: Monte Carlo standard error with a pre-set rule to raise the paths | E5 |
 | D47-48 | Seven fixed crisis replays; a fund without the episode uses its peers' median | | Policy (episodes); test: the stand-in's error on funds that have the episode | E7(b) |
 
@@ -359,6 +359,18 @@ accepted as is, then checked its own sub-reviews and revised to accept after req
 | E5's "levels 1-5 where marked" | true (wording) | level 3, the projection precision at levels 1-5 |
 | D9, D13, D50 evidence wording; the design spec's Track E | true | corrected; Track E marked superseded |
 | The dirty-tree check assumes the git root is the repository root | false: it is (the review copy's layout differs, not the repository's) | none |
+
+**Stage 1, fifteenth round (8 Oct 2026).** The same reviewer; its revised review supersedes its first draft. Accept
+after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The QIS rule judged "holds" on Holm-adjusted p-values; Holm's step-down coupling can turn raw-contradictory T1 and T2 into a move (raw 0.01, 0.04, 0.90 becomes 0.03, 0.08, 0.90) | partly true: Holm is a valid multiplicity control, but the rule's intent is that contradictory evidence freezes the switch | a move needs Holm-significant evidence in both truths and no raw significance against it; that example now stays; tested |
+| The QIS guard and rule ran over the truths present, not the registered names | true (the round-7 fix looped over the keys returned, not a registered list) | the two truths are registered by name; the run stops if either is missing; tested |
+| Levels 1 and 5 got full performance tables | true | levels 1 and 5 only in risk delivery and the rating |
+| D1's status ignored its committed tests | true | done; E7(e) |
+| The coverage check did not measure how often a mix that delivers is read as delivered | true | measured |
+| D43's value cell | true (wording) | the monthly formula the code uses |
 
 ## Sources checked for this register
 

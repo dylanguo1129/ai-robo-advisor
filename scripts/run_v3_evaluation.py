@@ -131,9 +131,24 @@ def one_sided(d: np.ndarray, margin: float, greater: bool) -> dict:
     return {"mean": m, "se": se, "lo95_one_sided": m - q * se, "hi95_one_sided": m + q * se, "p": p, "n": int(n)}
 
 
+REGISTERED_QIS_TRUTHS = ("constant_correlation", "sample")  # RESEARCH_LOG section 10, E3(ii)
 FAMILY = {"CA": "confirmatory", "US": "exploratory"}
 ONE_LEVEL = "descriptive: one level with its own 90% interval; the registered reading covers levels 2-4 together"  # RESEARCH_LOG section 10, power: stated in advance
 REGISTERED_TRUTH = {"CA": ["2004-12-31", "2009-12-31", 61], "QIS": ["2009-01-31", "2018-12-31", 120]}  # RESEARCH_LOG section 10, E3
+
+
+def qis_switch_rule(tests: dict) -> tuple[float, dict]:
+    """The registered QIS switch rule, over the two registered truths by name (a missing one raises KeyError): down to
+    0.20 only if T1 holds after Holm in both truths and T2 is not significant even before Holm (raw one-sided p of
+    0.05 or more) in either; up to 0.30 only the other way round; otherwise the switch stays at 0.25. Contradiction is
+    judged on the raw p-values, so Holm's step-down coupling cannot turn contradictory evidence into a move."""
+    names = REGISTERED_QIS_TRUTHS
+    t1h = [tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in names]
+    t2h = [tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in names]
+    t1r = [tests[n]["qis_better_at_0.20"]["p"] < 0.05 for n in names]
+    t2r = [tests[n]["qis_worse_at_0.25"]["p"] < 0.05 for n in names]
+    switch = 0.20 if (all(t1h) and not any(t2r)) else (0.30 if (all(t2h) and not any(t1r)) else 0.25)
+    return switch, {"t1_holds_after_holm": t1h, "t2_holds_after_holm": t2h, "t1_raw_below_0.05": t1r, "t2_raw_below_0.05": t2r}
 
 
 def stage_e3(reps: int) -> tuple[dict, dict]:
@@ -188,12 +203,14 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
     qmeta = {"months": qtruths.pop("_months"), "funds": qtruths.pop("_funds"), "window": qtruths.pop("_window"), "end": SIM.truth_end("US")}
     if qmeta["window"] != REGISTERED_TRUTH["QIS"]:
         raise RuntimeError(f"the QIS truth window is {qmeta['window']}, not the registered {REGISTERED_TRUTH['QIS']}: stopped")
+    if set(qtruths) != set(REGISTERED_QIS_TRUTHS):
+        raise RuntimeError(f"the QIS truths are {sorted(qtruths)}, not the registered {list(REGISTERED_QIS_TRUTHS)}: stopped")
     qtasks = [(name, S, ratio, rep) for name, S in qtruths.items() for ratio in (0.1, 0.2, 0.25, 0.3, 0.4, 0.6) for rep in range(reps)]
     q = pd.DataFrame(pmap(SIM.qis_switch_sample, qtasks, chunksize=25))
     # a default locks only on the full registered sample, checked before any statistic is computed: every input of
     # both rules has exactly ``reps`` finite pairs (a truth or ratio with no samples at all is caught too)
     short = {f"resampling, world {w}": len(dd[w]) for w in ("b", "c") if len(dd[w]) != reps}
-    for name in qtruths:
+    for name in REGISTERED_QIS_TRUTHS:
         gg = q[q.truth == name] if len(q) else q
         for r in (0.2, 0.25, 0.3):
             n_ok = int(np.isfinite(gg.loc[gg.n_over_t == r, "rel"]).sum()) if len(gg) else 0
@@ -212,7 +229,7 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
         for name, gg in q.groupby("truth")
     }
     tests = {}
-    for name in qtruths:
+    for name in REGISTERED_QIS_TRUTHS:
         rel = {r: g.rel.to_numpy() for r, g in q[q.truth == name].groupby("n_over_t")}
         t1 = one_sided(rel[0.2], -0.01, greater=False)  # QIS better at 0.20 by more than 1%
         t2 = one_sided(rel[0.25], 0.01, greater=True)  # QIS worse at 0.25 by more than 1%
@@ -223,17 +240,13 @@ def stage_e3(reps: int) -> tuple[dict, dict]:
             "qis_worse_at_0.25": {**t2, "p_holm": adj[1]},
             "qis_better_at_0.30": {**t3, "p_holm": adj[2]},
         }
-    t1 = [tests[n]["qis_better_at_0.20"]["p_holm"] < 0.05 for n in qtruths]
-    t2 = [tests[n]["qis_worse_at_0.25"]["p_holm"] < 0.05 for n in qtruths]
-    # down only if T1 holds in both truths and T2 in neither; up only if T2 holds in both and T1 in neither;
-    # otherwise, contradictory results included, the switch stays
-    switch = 0.20 if (all(t1) and not any(t2)) else (0.30 if (all(t2) and not any(t1)) else 0.25)
+    switch, rule_flags = qis_switch_rule(tests)
     locks = {"resample": not drop_resampling, "qis_switch": switch}
     result = {
         "summary": summary,
         "paired_contrasts": contrasts,
         "resampling_rule": {**rule, "drop_resampling": drop_resampling},
-        "qis_switch": {"by_ratio": qsum, "tests": tests, "t1_holds": t1, "t2_holds": t2, "switch": switch, "truth": qmeta},
+        "qis_switch": {"by_ratio": qsum, "tests": tests, **rule_flags, "switch": switch, "truth": qmeta},
         "truth_months": SIM._truth_cache()["truth_months"],
         "errors": int(len(errors)),
         "error_examples": errors.head(5).to_dict(orient="records") if len(errors) else [],
@@ -390,7 +403,8 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
         "descriptive": {},
     }
     for (s, L), p in paths.items():
-        res["strategies"].setdefault(s, {})[L] = described(p, cash)
+        if L in EV.PRIMARY:  # levels 1 and 5: realised versus target volatility only (risk_delivery, rating)
+            res["strategies"].setdefault(s, {})[L] = described(p, cash)
         p.to_csv(OUT / f"e1_{market}_{s}_L{L}.csv")
     if dry:
         return {"counts": {"builds": len(builds), "errors": len(errors), "paths": len(paths)}}
@@ -846,11 +860,14 @@ def coverage_check(samples: int = 1000, months: int = 120, n_boot: int = 999, bl
     # bootstrap draws for all three (as risk_delivery uses), all three intervals covering 1 at once
     rho, level = 0.9, 1 - 0.10 / 3
     C = np.linalg.cholesky(np.full((3, 3), rho) + (1 - rho) * np.eye(3))
-    joint = 0
+    joint = delivered = 0
     for s in range(samples):
         Z = np.random.default_rng(5000 + s).normal(0, 1, (months, 3)) @ C.T
-        joint += all(es.vol_ratio_interval(Z[:, k], block=block, n_boot=n_boot, level=level, seed=s)["contains_1"] for k in range(3))
+        iv = [es.vol_ratio_interval(Z[:, k], block=block, n_boot=n_boot, level=level, seed=s) for k in range(3)]
+        joint += all(x["contains_1"] for x in iv)
+        delivered += all(EV.BAND[0] <= x["lo"] and x["hi"] <= EV.BAND[1] for x in iv)  # the registered "delivered"
     out["simultaneous_0.90_three_levels"] = joint / samples
+    out["delivered_when_the_true_ratio_is_1"] = delivered / samples
     out["correlation_between_levels"] = rho
     for name, level in (("nominal_0.90", 0.90), ("nominal_0.967", 1 - 0.10 / 3)):
         hits = sum(
