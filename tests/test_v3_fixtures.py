@@ -80,3 +80,26 @@ def test_the_month_in_progress_is_dropped(tmp_path, monkeypatch):
     monkeypatch.setattr(P, "CHUNK_DIR", tmp_path)
     close, _ = P.assemble("universe", today=pd.Timestamp("2026-10-15"))
     assert list(close.index) == [pd.Timestamp("2026-08-31"), pd.Timestamp("2026-09-30")]
+
+
+@pytest.mark.parametrize("months,rho,used", [(24, 0.8005, True), (23, 0.95, False), (36, 0.7995, False), (36, 0.8005, True)])
+def test_the_stand_in_gate_needs_24_months_and_a_correlation_of_0_8(months, rho, used):
+    """D3: a young fund is extended with a stand-in only if they overlap 24 months or more with correlation 0.8 or
+    more (robokit/history.py splice)."""
+    import math
+
+    from robokit.history import splice
+
+    idx = pd.date_range("2000-01-31", periods=120, freq="ME")
+    rng = np.random.default_rng(3)
+    zs, zn = rng.normal(size=months), rng.normal(size=months)
+    zs = (zs - zs.mean()) / zs.std()
+    zn = zn - zn.mean()
+    zn = zn - (zn @ zs) / (zs @ zs) * zs
+    zn = zn / zn.std()  # orthogonal to zs: the overlap's correlation is exactly rho
+    own_idx = idx[-months:]
+    own = pd.Series(0.01 * zs, index=own_idx)
+    proxy = pd.Series(rng.normal(0, 0.01, 120), index=idx)
+    proxy.loc[own_idx] = 0.01 * (rho * zs + math.sqrt(1 - rho**2) * zn)
+    s, _ = splice(own, [("P", False)], pd.DataFrame({"P": proxy}), pd.Series(0.0, index=idx), pd.DataFrame(index=idx))
+    assert (len(s) == 120) is used

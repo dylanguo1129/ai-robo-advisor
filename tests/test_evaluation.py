@@ -404,3 +404,20 @@ def test_the_reported_sharpe_difference_is_the_tested_one():
     assert c["sharpe_robokit"] - c["sharpe_other"] == pytest.approx(c["sharpe_diff_annual"], abs=1e-12)
     d = EV.describe(pd.DataFrame({"net": a, "gross": a, "turn": 0.0, "target": 0.08}), pd.Series(0.002, index=idx))
     assert d["sharpe"] == pytest.approx(c["sharpe_robokit"], abs=1e-12)
+
+
+def test_the_projection_inputs_reproduce_the_builds_own_projection():
+    """The E5 precision rule measures the product's projection: its inputs, run with the product's seed and paths,
+    give the build's own one-year percentiles."""
+    from robokit.engine import Request, build_portfolio
+    from robokit.projection import project
+
+    q = build_portfolio(Request(market="CA", risk_level=3, resample=False), research={"projection_inputs": True})
+    pi = q["projection_inputs"]
+    mine = project(pi["history"], pi["weights"], pi["geo_net"], years=pi["years"])["one_year"]
+    assert mine == q["projection"]["one_year"]
+
+
+def test_e7d_keeps_falls_from_2000_on():
+    for m in ("CA", "US"):
+        assert all(r["peak"] >= "2000-01-01" for r in AU.crisis_episode_rule(m))

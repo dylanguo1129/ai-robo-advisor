@@ -628,6 +628,7 @@ RESEARCH_KEYS = {
     "yardstick",
     "cap_scale",
     "lambda",
+    "projection_inputs",
 }
 
 
@@ -641,7 +642,8 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
     history only), delta (equilibrium risk aversion), yardstick ({sleeve: weight}: the stock-market mix whose
     volatility sets the level targets, in place of the policy-weighted equity slots), cap_scale (the sleeve caps
     multiplied by this factor, at most 1), lambda (the final pipeline at this risk aversion, not calibrated: re-checks
-    the evidence a calibration reports)."""
+    the evidence a calibration reports), projection_inputs (True: the full build also returns the exact inputs of its
+    projection, for the E5 precision rule)."""
     research = dict(research or {})
     if set(research) - RESEARCH_KEYS:
         raise RoboKitInputError(f"unknown research switches: {sorted(set(research) - RESEARCH_KEYS)}", {"field": "research"})
@@ -1126,6 +1128,13 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
         )
     out["checks"].append(rating_check(rating))
     out["explanation"] = explain_portfolio(out)
+    if research.get("projection_inputs"):  # research: what this build's projection resampled (E5 precision rule)
+        out["projection_inputs"] = {
+            "history": H.to_numpy(),
+            "weights": np.asarray(wv, dtype=float),
+            "geo_net": np.asarray(geo_net, dtype=float),
+            "years": req.years,
+        }
     return out
 
 

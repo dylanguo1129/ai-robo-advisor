@@ -19,7 +19,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 |---|---|---|---|---|
 | D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e): after the run, outside the script) | done; E7(e) |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
-| D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result; the evaluation's look-ahead from it is removed in E2 (no stand-ins) | E2 |
+| D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result. Test of the gate: 23 months or a correlation of 0.7995 refused, 24 months at 0.8005 accepted (tests/test_v3_fixtures.py); each stand-in against its fund (E8(a)); the evaluation's look-ahead from it is removed in E2 (no stand-ins) | done; E8(a) |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: 120 and all months against the 180 default (E5) | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
@@ -116,7 +116,7 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D49 | Bands with a destination | min(2 points, 25% of target); back to 7/8 of the band | Source: Vanguard (2024) "a threshold of 200 bps and a destination of 175 bps"; Donohue and Yip (2003) "back to the boundary of the no-trade region". Test: against monthly and annual | E6 |
+| D49 | Bands with a destination | min(2 points, 25% of target); back to 7/8 of the band | Source: Vanguard (2024) "a threshold of 200 bps and a destination of 175 bps"; Donohue and Yip (2003) "back to the boundary of the no-trade region". Test: against monthly and annual, and the destination at 0 and 1 against 7/8 (E6) | E6 |
 | D50 | Cash flows first | | Source: Vanguard (2010) "Rebalance with portfolio cash flows"; tests/test_v3_rebalance.py (new money inside the bands never sells; a withdrawal is paid from overweight funds first) | done |
 | D51 | Minimum order and cost | $50; 10 bps | Policy (cost as in every back-test); source for small trades as D23. Test: the shipped bands with minimum orders of 0, 50 and 250 on three account sizes (E6) | E6 |
 | D52 | Flag orders over 1% of daily volume | | Source (partial): Toth et al. (2011), impact = Y sigma sqrt(Q/V); at Q/V = 1% that is a tenth of a day's volatility, about the 10 bps cost assumed for a fund moving 1% a day. The threshold itself is policy | policy |
@@ -380,6 +380,19 @@ after required changes.
 | The plan's frozen test list omitted the calibration suite | true (the whole folder was frozen, but not named) | the list names it and the rest of tests/ |
 | D12's value omitted the ESG coefficient E5 varies | true | added |
 | The browser engine cannot take a locked switch other than 0.25 before the post-run commit | true but not needed: the run is in Python, and the post-run commit sets the constant in both engines | none |
+
+**Stage 1, seventeenth round (8-9 Oct 2026).** The same reviewer. Accept after required changes.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| The projection-path rule measured the estimation window with a flat 5% return, not the product's projection | true (a default-locking rule measured a different projection) | the rule uses the build's own projection inputs; a test checks they reproduce the build's projection |
+| D3 cited E2, which removes stand-ins, as evidence for the 24-month, 0.8-correlation gate | true | a test of the gate at its edges; E8(a) for how stand-ins track |
+| E7(d) did not apply "since 2000"; the coverage slack was not registered | true | falls with a peak in 2000 or later; the slack (three months before the peak) written into the plan |
+| E8(b) could silently test fewer than twenty funds | true | the twenty largest that have the data; those passed over listed; fewer is an error |
+| E2 lacked the ex-ante gap | true | added |
+| E8(a) skipped the bill-rate stand-ins of the cash funds | true | scored as the engine builds them |
+| Two Holm families (two-sided, non-inferiority) let a reading claim from either | partly true: for one comparison the claims are nested and read from one interval, a closed test (EMEA CPMP/EWP/482/99, section V.1, quoted in the plan); across the 12, each family is Holm-adjusted | the plan states it, with the source |
+| D49's 7/8 destination was not varied | true | E6 runs destinations 0 and 1 beside 7/8 |
 
 ## Sources checked for this register
 

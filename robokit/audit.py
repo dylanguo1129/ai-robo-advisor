@@ -14,14 +14,21 @@ from . import universe as UV
 from .config import MIN_AUM, MIN_DOLLAR_VOLUME, MIN_HISTORY_MONTHS
 from .data.prices import monthly_returns
 from .engine import Request, returns_in, select_funds
-from .history import backfill_by_regression, backfill_regressors, proxies_for
+from .history import backfill_by_regression, backfill_regressors, proxies_for, rate_returns
 from .rebalance import rebalance
 from .stress import SCENARIOS, standin_peers
 
 
 # ------------------------------------------------------------------ E6: the rebalancer on a simulated account
 def account_path(
-    targets: dict, prices: pd.DataFrame, start_value: float, flow: float, rule: str, min_trade: float = 50.0, cost_bps: float = 10.0
+    targets: dict,
+    prices: pd.DataFrame,
+    start_value: float,
+    flow: float,
+    rule: str,
+    min_trade: float = 50.0,
+    cost_bps: float = 10.0,
+    band_kw: dict | None = None,
 ) -> dict:
     """Run an account month by month at month-end prices. ``targets``: {date: {ticker: weight}} (each in force from the
     month after its date). rule: 'ideal' (fractional, back to target every month: the walk-forward's assumption),
@@ -59,8 +66,8 @@ def account_path(
                 kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0}
             elif rule == "annual":  # back to target in January; otherwise only the cash flow trades (bands off)
                 kw = {"band_abs": 0.0, "band_rel": 0.0, "destination": 0.0} if m.month == 1 else {"band_trades": False}
-            else:
-                kw = {}
+            else:  # the shipped bands, or a variant of them (band_kw, e.g. another destination)
+                kw = dict(band_kw or {})
             res = rebalance(
                 tgt, {t: u for t, u in units.items() if u > 0}, px, cash=cash, flow=flow, min_trade=min_trade, cost_bps=cost_bps, **kw
             )
@@ -253,6 +260,7 @@ def crisis_episode_rule(market: str, threshold: float = -0.15) -> list[dict]:
                 trough = (d, v)
     if in_dd and trough is not None and trough[1] / peak_val - 1 <= threshold:
         out.append((peak_date, trough[0], trough[1] / peak_val - 1))
+    out = [x for x in out if x[0] >= pd.Timestamp("2000-01-01")]  # falls whose peak is in 2000 or later, as registered
     rows = []
     for p, t, dd in out:
         cover = [sc["key"] for sc in SCENARIOS if pd.Timestamp(sc["start"]) <= t and pd.Timestamp(sc["end"]) >= p - pd.offsets.MonthEnd(3)]
@@ -263,18 +271,22 @@ def crisis_episode_rule(market: str, threshold: float = -0.15) -> list[dict]:
 # ------------------------------------------------------------------ E8: hold-out tests of extended histories
 def standin_holdout(market: str) -> list[dict]:
     """Each reference fund against each of its written stand-ins over the months both have their own data."""
-    U, R, _, _ = E._load_all()
+    U, R, _, ctx = E._load_all()
     hedged = dict(zip(U.yahoo, U.hedged.astype(bool)))
     shelf, core, _ = select_funds(Request(market=market))
     rows = []
     for _, row in shelf.iterrows():
         t = row.ticker
         for p, conv in proxies_for(row.sleeve, hedged.get(t, False), lambda x: hedged.get(x, False)):
-            if p == t or p.startswith("RATE:") or p not in R.columns:  # the chain starts with the fund itself
+            if p == t or (not p.startswith("RATE:") and p not in R.columns):  # the chain starts with the fund itself
                 continue
-            # the stand-in exactly as the engine uses it: converted to the portfolio currency only when its rule says so
+            # the stand-in exactly as the engine uses it: a bill rate as splice builds it; a fund converted to the
+            # portfolio currency only when its rule says so
             own = returns_in(market, [t])[t]
-            sp = returns_in(market, [p])[p] if conv else R[p]
+            if p.startswith("RATE:"):
+                sp = rate_returns(ctx, p.split(":", 1)[1])
+            else:
+                sp = returns_in(market, [p])[p] if conv else R[p]
             X = pd.concat([own.rename(t), sp.rename(p)], axis=1).dropna(how="any")
             if len(X) < 24:
                 continue
@@ -293,7 +305,7 @@ def standin_holdout(market: str) -> list[dict]:
     return rows
 
 
-def backfill_holdout(market: str, n_funds: int = 20, masked: int = 60) -> list[dict]:
+def backfill_holdout(market: str, n_funds: int = 20, masked: int = 60) -> dict:
     """Mature own-pick candidates with their first ``masked`` months hidden and back-filled by the regression the
     engine uses, against the hidden truth; the home stock fund (beta one) as the simple alternative."""
     U, R, _, _ = E._load_all()
@@ -302,18 +314,22 @@ def backfill_holdout(market: str, n_funds: int = 20, masked: int = 60) -> list[d
     core_full = full[backfill_regressors(full[core])].dropna(how="any")
     home = shelf.loc[shelf.sleeve == ("ca_equity" if market == "CA" else "us_equity"), "ticker"].iloc[0]
     pool = U[(U.market == market) & U.eligible & (U.asset_class == "Equity") & ~U.yahoo.isin(core) & (U.history_months >= masked + 120)]
-    pool = pool.sort_values("aum", ascending=False).yahoo.head(n_funds)
-    rows = []
-    for t in pool:
+    pool = pool.sort_values("aum", ascending=False).yahoo
+    rows, passed_over = [], []
+    for t in pool:  # the n_funds largest that have the data the test needs; the others passed over are listed
+        if len(rows) == n_funds:
+            break
         s = returns_in(market, [t])[t].dropna()
         s = s[s.index.isin(core_full.index)]
         if len(s) < masked + 60:
+            passed_over.append(t)
             continue
         hidden = s.iloc[:masked]
         filled, _ = backfill_by_regression(s.iloc[masked:], core_full.loc[: s.index[-1]])
         f = filled.reindex(hidden.index)
         ok = f.notna()
         if ok.sum() < 24:
+            passed_over.append(t)
             continue
         a, b = hidden[ok].to_numpy(), f[ok].to_numpy()
         h = full[home].reindex(hidden.index)[ok].to_numpy()
@@ -328,7 +344,7 @@ def backfill_holdout(market: str, n_funds: int = 20, masked: int = 60) -> list[d
                 "home_fund_correlation": float(np.corrcoef(a, h)[0, 1]),
             }
         )
-    return rows
+    return {"rows": rows, "passed_over": passed_over, "complete": len(rows) == n_funds}
 
 
 __all__ = [

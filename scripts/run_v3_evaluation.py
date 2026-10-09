@@ -351,6 +351,17 @@ def one_level(rk: dict, L: int) -> dict:
     return {**out, "role": ONE_LEVEL}
 
 
+def ex_ante_gaps(builds: list, strategies) -> dict:
+    """The gap between each mix's model volatility and its target, by strategy and primary level (mean and max)."""
+    out = {}
+    for s in strategies:
+        for L in EV.PRIMARY:
+            g = [abs(b["ex_ante_vol"] - b["target"]) for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] == L]
+            if g:
+                out.setdefault(s, {})[L] = {"mean": float(np.mean(g)), "max": float(np.max(g))}
+    return out
+
+
 def label_family(res: dict, market: str) -> None:
     """Every comparison row, confirmatory or descriptive, error stubs included, carries its market's family."""
     for table in (res.get("comparisons", {}), res.get("descriptive", {})):
@@ -492,12 +503,7 @@ def stage_e1(market: str, locks: dict, dry: bool) -> dict:
             res["dsr"][L]["best_benchmark"] = best
             res["dsr"][L]["benchmark"] = es.deflated_sharpe(excess[best], srs, N_TRIALS)
             res["dsr"][L]["benchmark_n_e1"] = es.deflated_sharpe(excess[best], srs, len(srs))
-    res["ex_ante_gap"] = {}
-    for s in strategies:
-        for L in EV.PRIMARY:
-            g = [abs(b["ex_ante_vol"] - b["target"]) for b in builds if "weights" in b and b["task"][3] == s and b["task"][2] == L]
-            if g:
-                res["ex_ante_gap"].setdefault(s, {})[L] = {"mean": float(np.mean(g)), "max": float(np.max(g))}
+    res["ex_ante_gap"] = ex_ante_gaps(builds, strategies)
     # the calibration ablation: ex-ante gap to target, robokit against single-solve lambda
     gaps = {}
     for s in ("robokit", "single_lambda"):
@@ -577,6 +583,7 @@ def stage_e2(market: str, locks: dict) -> dict:
         res["strategies"].setdefault(s, {})[L] = described(p, cash)
         p.to_csv(OUT / f"e2_{market}_{s}_L{L}.csv")
     e2_outputs(res, paths, cash)
+    res["ex_ante_gap"] = ex_ante_gaps(builds, strategies)
     label_family(res, market)
     res["shelves"] = {b["task"][1]: sorted(b["weights"]) for b in builds if b["task"][3] == "robokit" and b["task"][2] == 3}
     return res
@@ -753,13 +760,14 @@ def e5_today(market: str, locks: dict) -> dict:
     # projection precision: the Monte Carlo standard error of the one-year 5th percentile over 10 seeds
     proj = {}
     for L in (1, 2, 3, 4, 5):
-        q = lean(level=L)
-        X = q["returns"]
-        tick = list(q["weights"])
-        w = np.array([q["weights"][t] for t in tick])
-        g = np.full(len(tick), 0.05)
+        # the product's own projection inputs: the long history every fund has, the weights, each fund's planning return
+        q = build_portfolio(Request(market=market, risk_level=L, **base_req), research={**base_extra, "projection_inputs": True})
+        pi = q["projection_inputs"]
         for paths in (2000, 5000):
-            p5 = [project(X[tick].to_numpy(), w, g, n_paths=paths, seed=s)["one_year"]["p5"] for s in range(1, 11)]
+            p5 = [
+                project(pi["history"], pi["weights"], pi["geo_net"], years=pi["years"], n_paths=paths, seed=s)["one_year"]["p5"]
+                for s in range(1, 11)
+            ]
             proj.setdefault(str(L), {})[str(paths)] = {"se": float(np.std(p5, ddof=1) / math.sqrt(10)), "values": p5}
     out["projection_se"] = proj
     # the rule (numerical accuracy only): 0.25 points = 0.0025 in the decimal returns projection.py reports
@@ -841,6 +849,10 @@ def stage_e6(market: str, e1_builds: list) -> dict:
             res[f"bands_min_trade_{int(mt)}"] = AU.summarise_account(
                 AU.account_path(targets, prices, start, flow, "bands", min_trade=mt)["path"], ideal
             )
+        for dest in (0.0, 1.0):  # D49's destination: back to target, or back to the band edge, against the shipped 7/8
+            res[f"bands_destination_{dest:g}"] = AU.summarise_account(
+                AU.account_path(targets, prices, start, flow, "bands", band_kw={"destination": dest})["path"], ideal
+            )
         out["accounts"][key] = res
     U = E._load_all()[0].set_index("yahoo")
     big = AU.account_path(targets, prices, 1_000_000.0, 0.0, "bands")["largest_order"]
@@ -911,7 +923,12 @@ def stage_e7() -> dict:
 
 
 def stage_e8() -> dict:
-    out = {"standin_holdout": {}, "backfill_holdout": {m: AU.backfill_holdout(m) for m in ("CA", "US")}}
+    out = {"standin_holdout": {}, "backfill_holdout": {}}
+    for m in ("CA", "US"):
+        bf = AU.backfill_holdout(m)
+        if not bf["complete"]:  # the registered sample is twenty funds: a short one is an error, not a result
+            bf = {"error": f"only {len(bf['rows'])} candidates have the data", **bf}
+        out["backfill_holdout"][m] = bf
     for m in ("CA", "US"):
         rows = AU.standin_holdout(m)
         shelf = EV.reference_shelf(m).tickers
