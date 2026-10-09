@@ -413,5 +413,23 @@ run 2 equals run 1 in every value except the provenance, the three paths the bug
 | `node web/test_robokit.mjs` (Python-browser parity) | all cases agree |
 | `node web/test_engine.mjs`, `web/test_safety.mjs`, `web/test_parse.mjs`, `web/test_assistant.mjs` | all pass |
 | `python scripts/v3_compare_runs.py` | 47 differences, 0 unexpected |
-| `python scripts/e7e_universe_diff.py` (evaluated universe against the shipped one) | only label columns differ; no slot's candidate list changes |
+| `python scripts/e7e_universe_diff.py` (evaluated universe against the shipped one) | only label columns differ; no slot's candidate list changes (at 3.0.0; see 8.6 for 3.0.1) |
 | `ruff check`, `ruff format --check` | clean |
+
+### 8.6 Second bug hunt and verification re-run (9 Oct 2026, v3.0.1)
+
+Six finders by code area ran the code to find defects; an independent verifier re-ran each one and tried to refute it
+(both Claude models: the other families' limits were reached). 53 findings, 52 true; rulings in docs/DECISIONS.md,
+regression tests in tests/test_v3_bug_hunt.py (both engines where a finding concerned both). One fix was reverted
+before release: refusing a swap plus an exclusion of the same fund (B13) would have broken the page's Remove button,
+as the verifier had ruled.
+
+| Check | Result |
+|---|---|
+| `python -m pytest -q` | 583 passed |
+| `python -m pytest -m ui -q tests/ui` | 70 passed |
+| The five `node web/test_*.mjs` suites (parity included, bundle rebuilt at 3.0.1) | all pass |
+| `ruff check`, `ruff format --check` | clean |
+| `python scripts/v3_verify_rerun.py` (registered run against a re-run of the whole evaluation on the fixed code, output/v3_verify) | 609 values differ, all explained (RESEARCH_LOG section 12); Robo-Kit's own results and every benchmark but the textbook optimizer identical |
+| `python scripts/e7e_universe_diff.py data/v2/universe_v3_evaluated.pkl data/v2/universe.pkl` | 37 funds newly eligible ('Ultra' short-term funds), none lost; five candidate lists lose funds the slot rules exclude (VI.TO, LTPZ, IGLB, EUHY, PEY) and Canadian cash gains GCTB.TO; no reference fund, E2 point-in-time pick or E5 variant pick changes |
+| Final examination of the paper (one examiner from another model family) | no factual error; three points true and fixed (the level-4 non-inferiority wording, "confirmatory" for all 36 rows, a table without the non-inferiority p) |

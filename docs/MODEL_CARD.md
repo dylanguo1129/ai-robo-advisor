@@ -64,4 +64,5 @@ no proven edge over a static mix; crisis replays start in 2008; for BNDX holders
 
 ## Versions
 
+v3.0.1 (October 2026): the second bug hunt's fixes (CHANGELOG); Robo-Kit's evaluated results are unchanged.
 v3.0.0 (October 2026): this card. Earlier versions: docs/RESEARCH_LOG.md sections 1-8.

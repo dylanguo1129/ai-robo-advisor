@@ -224,11 +224,6 @@ def validate_request(req: Request | dict) -> Request:
     if clash:
         raise RoboKitInputError(f"{', '.join(clash)} cannot be both excluded and given a minimum.", {"field": "minimums", "tickers": clash})
     req.minimums = {t: v for t, v in mins.items() if v > 0}  # "at least 0%" places no limit
-    sclash = sorted({t for t in (req.swaps or {}).values() if t in req.exclude})
-    if sclash:  # the slot would otherwise lose its fund with no word (web/robokit.js validateRequest)
-        raise RoboKitInputError(
-            f"{', '.join(sclash)} cannot be both excluded and swapped into a slot.", {"field": "swaps", "tickers": sclash}
-        )
     if req.fixed_weights is not None:
         fw = {t: _finite(v, f"weight for {t}") for t, v in req.fixed_weights.items()}
         if any(v < 0 for v in fw.values()):

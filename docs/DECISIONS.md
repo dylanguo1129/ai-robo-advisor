@@ -391,7 +391,7 @@ after required changes.
 | E8(b) could silently test fewer than twenty funds | true | the twenty largest that have the data; those passed over listed; fewer is an error |
 | E2 lacked the ex-ante gap | true | added |
 | E8(a) skipped the bill-rate stand-ins of the cash funds | true | scored as the engine builds them |
-| Two Holm families (two-sided, non-inferiority) let a reading claim from either | partly true: for one comparison the claims are nested and read from one interval, a closed test (EMEA CPMP/EWP/482/99, section V.1, quoted in the plan); across the 12, each family is Holm-adjusted | the plan states it, with the source |
+| Two Holm families (two-sided, non-inferiority) let a reading claim from either | partly true: for one comparison the claims are nested and read from one interval, a closed test (EMEA CPMP/EWP/482/99, section V.1, quoted in the plan); across the 12, each family is Holm-adjusted. Corrected after the run (B52 below): the code reads non-inferiority one-sided at 5%, which matches a 90% interval, not the single 95% interval of that argument | the plan states it, with the source |
 | D49's 7/8 destination was not varied | true | E6 runs destinations 0 and 1 beside 7/8 |
 
 **Stage 1, eighteenth round (9 Oct 2026).** The same reviewer: accept as is, with no required or recommended changes
@@ -468,6 +468,64 @@ true and fixed (options tags on "Enhanced" and "Hedged Equity" names refused two
 wrong); one open question true and fixed (a slot with no reference fund now takes no swap); three answered. Testing the
 fix found two more defects the examiner had not reported, both fixed: swap notes came out in a different order in the
 two engines, and a money-market fund named "Premium" was tagged options-based. Rulings in docs/research/e7e_taxonomy.md.
+
+**After the run: the second bug hunt (9 Oct 2026).** Six finders, one per code area (requests and validation, numerics, the two engines' agreement, the rebalancer, fund data, evaluation statistics), searched the code by running it; an independent verifier re-ran each finding and tried to refute it. Both were Claude models, the author's own family, because the other families' usage limits had been reached, so this audit is weaker evidence of independence than the examinations above; every finding below was reproduced by running the code. Of 53 findings, 52 were ruled true; 49 were fixed in code with regression tests (tests/test_v3_bug_hunt.py), two in the documentation, and one is kept as a documented limitation. A verification re-run of the whole evaluation on the fixed code (output/v3_verify, docs/RESEARCH_LOG.md section 12) changed only what the disclosed points predict; Robo-Kit's own results and every benchmark other than the textbook optimizer are identical to the last digit.
+
+| Finding | Ruling | Change |
+|---|---|---|
+| B01: The MCP server ignored unknown arguments, so a request for level 5 sent as `risk_level` built level 3 | true | Unknown arguments are refused; refusals name `level`; `relax_limits` reaches the engine |
+| B02: A relative view of a fund against itself became a bearish absolute view (both engines) | true | Refused in both engines |
+| B03: Own weights on an excluded fund were dropped and the rest scaled up with no note | true | Refused: the fund cannot be both excluded and given a weight |
+| B04: Exclusions and minimums naming a fund not in the mix did nothing, silently | true (low: the page resolves names first) | A note names each one |
+| B05: A 0% minimum exempted a fund from the 2% minimum position | true (low: the page clamps minimums at 2%) | A 0% minimum is no limit and is dropped |
+| B06: Refusals told MCP and page users to set `on_infeasible='relax'`, which they could not | true | `relax_limits` on the MCP and tool interfaces; the message names the switch for each interface |
+| B07: `compare_one_fund` accepted any stock share (NaN, 60 meaning 60%) | true | Refused outside 0 to 1, both engines |
+| B08: Only `build_portfolio` read 'ca' as CA or refused 'EU' | true | One market rule in every tool |
+| B09: `scenario_cards`, `plan_contribution` and `search_etfs` accepted invalid numbers and unknown sort keys | true | Refused, both engines |
+| B10: Own weights over MCP without a level were told 'the level you chose' | true | The level is optional; the check says 'the reference level' |
+| B11: String booleans switched options on ('false'), and some mistyped fields escaped as Python errors | true | Type checks in both validators |
+| B12: No upper bound on amounts or own weights; overflow printed '$nan' | true | Bounded at 10^12, refused above |
+| B13: A swap and an exclusion of the same fund remove the slot | false: intended (the page's Remove button sends exactly this to drop a swapped slot, VERIFICATION W7) | None. A refusal added first was reverted, and a test now keeps the behaviour |
+| B14: Own weights dropped views, minimums and the target volatility without a note | true | A note for each |
+| B15: The two validators disagreed on numeric text and on a view without a type | true | One decimal grammar; a view without a type is absolute in both |
+| B16: `resample` with no draws was recorded as resampled | true | Recorded as not resampled, both engines |
+| B17: A jump proven by the 30th evaluation was labelled 'limit', and the engines disagreed | true | The jump test runs first; both say 'jump', though Python stops at 30 evaluations and the browser at 23 (README) |
+| B18: With a view, the calibration block called the pre-view mix within tolerance beside a delivered mix that was not | true | It states what it applies to and reports the delivered volatility |
+| B19: The out-of-reach search moves risk aversion one way only, and a slightly closer mix can exist on the other side | true | Kept, and documented as a limitation (README, paper Section 7): it affects only targets no mix reaches |
+| B20: At zero risk aversion the solver ignored the joint cap on own picks | true | The greedy fill keeps the cap, both engines |
+| B21: Dropping weights under 1e-4 after resampling rescaled a fund at its cap past it (30.0007% at a 30% cap) | true | When rescaling would break a limit, the weights are projected back onto the limits (no evaluated build is affected: bit-identical) |
+| B22: QIS returned NaN on a rank-deficient sample (a duplicated fund, a resampled history with few distinct months) | true | QIS refuses it; the chooser falls back to constant-correlation shrinkage and records why |
+| B23: The sample covariance failed for one fund | true | A 1 x 1 matrix |
+| B24: Python ignored the hedge request on a caller's own slot list; the browser applied it | true (low: no shipped surface sends both) | Applied in Python too |
+| B25: Python's 2008 replay counted a back-filled fund as a peer that existed | true | Peers come from real histories only, as in the browser |
+| B26: The ESG shelf lost its US aggregate-bond and Canadian high-yield slots | true | The ESG words are removed from the slot's exclusions without leaving an empty alternative that matched every name |
+| B27: The engines rounded halves differently in checks, explanations and fees (62% against 63%; 0.12% against 0.13%) | true | One half-up rule; the fee is stored to six places, so the text is not rounded twice. Each share is rounded on its own, so parts can add to 101% at an exact tie: a rule that forced 100% printed figures the engine never computed |
+| B28: Unit counts differed on exact multiples of the price | true | `floor(buy / price + 1e-9)` in both |
+| B29: The browser treated own weights without a level as level 3 | true (low: the page always sends a level) | No default level |
+| B30: Numeric text ('0x10', '1_000') and whole-number float answers were read differently | true | One grammar; 4.0 reads as the option '4' |
+| B31: A whole-unit cost top-up sold more units than were held | true | Sells never exceed the units held |
+| B32: Raising the cash reserve without a withdrawal was refused on accounts that could cover it | true | Sells that fund the reserve count as needed |
+| B33: Trimming buys to cover costs left orders under the minimum trade | true | A trimmed buy under the minimum is dropped |
+| B34: 'Nothing to trade' was printed beside orders | true | The note says whether the bands or only the cash flow traded |
+| B35: With band trades off, every fund was reported in band | true | Drift is reported either way |
+| B36: The browser read missing units or targets as 0 | true | Refused, as in Python |
+| B37: A cost of 100% or more was accepted (Python divided by zero) | true | Refused at 10,000 bps or more |
+| B38: Rule and note text rounded differently in the two engines | true | One formatter in both |
+| B39: The band step can buy an in-band fund already above target, unlike the docstring | true (documentation) | The docstring, the comment and the paper (Section 4.10) now describe what the code does |
+| B40: The ESG shelf drops two slots | true: the cause of B26 | Fixed with B26 |
+| B41: Any name with 'Ultra' was read as leveraged, excluding 37 ultra-short bond and cash funds | true | 'Ultra-short' and 'Ultra Short' names are not read as leverage; the 37 funds are eligible (the 12 'Ultra Buffer' funds among them are options-based and satellite-only) |
+| B42: The swap gate admitted option- and futures-based funds into core slots (PHDG, BOXX, AGGH); the page offered BOXX | true | Refused in core slots and no longer offered |
+| B43: Name variants slipped past slot exclusions (VSS, SPUS, EUHY, LTPZ, IGLB) | true | Theme rules match word stems; names that lost characters take the listing's long name; 'Euro' reads as Europe |
+| B44: PEY, a stock-dividend fund, was labelled fixed income | true (low) | A name with 'equity', 'stock' or 'dividend' is not a bond fund |
+| B45: BITW was labelled equity, so the 5% crypto cap did not apply | true | Generic listing names take the long name; BITW is crypto |
+| B46: VI.TO was labelled unhedged ('(CAD-Hdd)') | true (low) | Truncated hedge markers are read |
+| B47: The like-for-like check did nothing outside broad stock slots (sector small caps, narrow REITs) | true | A fund may not narrow any slot's reference fund |
+| B48: E7(b) scored fallback stand-ins in each fund's own currency, not the portfolio's | true | Portfolio currency; the fallback figure (not in the paper) moves from 0.054 to 0.041 |
+| B49: `validate_request` accepted strings for three switches | true: the same as B11 | Fixed with B11 |
+| B50: The 'studentised 95% interval' is equal-tailed, so it can contradict the p beside it (3 of the 36 E1 and E2 comparisons) | true | The symmetric interval is computed beside the registered one; the paper discloses it (Section 5.2) |
+| B51: The textbook optimizer aimed at a target measured on its own 60 months | true | The code uses the common target; the paper discloses the registered departure and its size |
+| B52: The register said non-inferiority is read from one interval; it is one-sided at 5% | true (documentation) | Corrected in the seventeenth-round row above and in the paper, which says the level-4 readings' Holm-adjusted p clears 5% but not 2.5% |
+| B53: The static mix rescaled silently when a list had no bond or stock fund | true (latent: the run never met one) | Fails closed |
 
 ## Sources checked for this register
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.0.1 (October 2026)
+
+A second bug hunt after the registered run (docs/DECISIONS.md, 53 findings, regression tests in
+tests/test_v3_bug_hunt.py). A verification re-run of the whole evaluation with this version (output/v3_verify,
+scripts/v3_verify_rerun.py) leaves Robo-Kit's own results and every benchmark but the textbook optimizer unchanged.
+
+- Requests: unknown MCP arguments refused; `level` and `relax_limits` on the MCP tool; contradictory inputs refused
+  (a fund long and short against itself, own weights on an excluded fund); unmatched exclusions, unused minimums and
+  inputs that own weights ignore are named in notes; strict types and bounds in both validators and every tool.
+- Numerics: the zero-risk-aversion fill keeps the joint cap on own picks; dropping tiny weights never rescales a fund
+  past its cap; QIS falls back to constant-correlation shrinkage on a rank-deficient sample; one-fund sample
+  covariance; the calibration labels a proven jump correctly and, with a view, reports the delivered volatility.
+- The two engines agree on the hedge for a caller's slot list, crisis peers (real histories only), rounding in
+  checks, explanations and fees, and unit counts.
+- Rebalancer: no sale of more units than held, reserve funding, no orders under the minimum after trimming, notes
+  that match the orders, drift reported with band trades off, null inputs and costs of 100% refused.
+- Fund labels and the swap gate: option- and futures-based funds kept out of core slots, word-stem theme rules,
+  long listing names for generic or damaged ones, 'Ultra' short-term bond funds no longer read as leveraged (37
+  funds eligible), PEY, BITW and VI.TO labelled correctly, the ESG shelf keeps every slot.
+- Evaluation code: the symmetric studentised interval beside the registered equal-tailed one; the textbook
+  benchmark aims at the common target; the static mix fails closed; E7(b) in portfolio currency. The paper
+  discloses the registered intervals, the textbook target and the one-sided 5% non-inferiority test.
+
 ## 3.0.0 (October 2026)
 
 Engine

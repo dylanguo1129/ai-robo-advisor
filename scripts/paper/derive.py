@@ -28,8 +28,10 @@ RESULTS = Path(os.environ.get("V3_RESULTS", ROOT / "output" / "v3" / "results.js
 OUT = Path(os.environ.get("V3_NUMBERS", ROOT / "docs" / "paper" / "build" / "paper_numbers.json"))
 
 
-def _and(items: list[str]) -> str:
-    return "none" if not items else items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+def _and(items: list[str], sep: str = ", ") -> str:
+    if not items:
+        return "none"
+    return items[0] if len(items) == 1 else sep.join(items[:-1]) + (";" if sep == "; " else "") + " and " + items[-1]
 
 
 def _targets(path: Path) -> pd.Series:
@@ -104,7 +106,12 @@ def main():
     }
     # The printed 95% intervals are equal-tailed (the registered method); the two-sided p inverts the symmetric
     # studentised interval, so the two can disagree. The confirmatory rows where they do, in E1 and E2.
-    name = {"static_mix": "static mix", "textbook_60": "textbook optimizer", "erc_cash": "equal risk contribution", "minvar_cash": "minimum variance"}
+    name = {
+        "static_mix": "the static mix",
+        "textbook_60": "the textbook optimizer",
+        "erc_cash": "equal risk contribution",
+        "minvar_cash": "minimum variance",
+    }
     rows, dis = 0, []
     for ex in ("E1", "E2"):
         for m in ("CA", "US"):
@@ -113,8 +120,8 @@ def main():
                     rows += 1
                     lo, hi = c["ci95_annual"]
                     if (c["p_two_sided"] < 0.05) != (lo > 0 or hi < 0):
-                        dis.append(f"{ex} {'Canada' if m == 'CA' else 'US'}, {name[b]} at level {L}")
-    d["intervals"] = {"rows": rows, "disagree_count": len(dis), "disagree": dis, "disagree_text": _and(dis)}
+                        dis.append(f"{ex} {'Canada' if m == 'CA' else 'US'} against {name[b]} at level {L}")
+    d["intervals"] = {"rows": rows, "disagree_count": len(dis), "disagree": dis, "disagree_text": _and(dis, "; ")}
     # The textbook optimizer's target (its own 60 months) against Robo-Kit's (the common window): the 'target' column of
     # the registered paths, one value per estimation date (the January after it), in volatility points
     d["textbook_target"] = {}
@@ -135,6 +142,21 @@ def main():
     tt = [v for ex in d["textbook_target"].values() for mk in ex.values() for v in mk.values()]
     d["textbook_target"]["max_rel_gap_all"] = max(v["max_rel_gap"] for v in tt)
     d["textbook_target"]["max_mean_abs_gap_all"] = max(v["mean_abs_gap_points"] for v in tt)
+    # The verification re-run on the code corrected after the run (output/v3_verify, scripts/v3_verify_rerun.py): the
+    # textbook optimizer's readings at the common target, and whether Robo-Kit's own results moved at all
+    ver = json.loads((RESULTS.parent.parent / "v3_verify" / "results.json").read_text(encoding="utf-8"))
+    tb = [(m, L) for m in ("CA", "US") for L in ("2", "3", "4")]
+    same = [
+        res["E1"][m]["comparisons"]["textbook_60"][L]["reading"] == ver["E1"][m]["comparisons"]["textbook_60"][L]["reading"] for m, L in tb
+    ]
+    d["verify"] = {
+        "textbook_readings": len(same),
+        "textbook_readings_unchanged": sum(same),
+        "robokit_unchanged": all(
+            res[ex][m]["strategies"]["robokit"] == ver[ex][m]["strategies"]["robokit"] for ex in ("E1", "E2") for m in ("CA", "US")
+        ),
+        "e2_us_textbook_3_p": ver["E2"]["US"]["comparisons"]["textbook_60"]["3"]["p_two_sided"],
+    }
     d["provenance"] = {"short_commit": res["provenance"]["commit"][:7]}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({**res, "derived": d}, indent=1, default=str), encoding="utf-8")

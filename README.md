@@ -367,15 +367,18 @@ From the v3 evaluation (docs/paper, output/v3/results.json) and the audits, as o
    out with a note.
 6. **Slot rules and fund labels.** The Canadian "Global bonds, hedged" slot holds a US-only fund (VBU, a CAD-hedged
    US aggregate index fund); the slot's rule accepts it (docs/research/e7e_shelf_audit.md). A fund swap must pass
-   the slot's rule and a like-for-like label, so sector, factor, option-income and single-country funds are refused,
-   but actively managed bond funds and swap-based index funds that a slot's rule admits can still be swapped in. Some
-   region and asset-class labels are wrong (single-country funds labelled "US", a bitcoin-miner fund labelled Crypto);
-   they are listed in docs/research/e7e_taxonomy.md and left for the next evaluation, because the slots' rules read
-   them.
+   the slot's rule and a like-for-like label, so sector, factor, option- and futures-based, values-screened and
+   single-country funds are refused, but actively managed bond funds and swap-based index funds that a slot's rule
+   admits can still be swapped in. The labels that let a fund into the wrong slot were corrected after the run (the
+   second bug hunt in docs/DECISIONS.md); other region and asset-class labels are still wrong (single-country funds
+   labelled "US", a bitcoin-miner fund labelled Crypto) and are listed in docs/research/e7e_taxonomy.md.
 7. **Large accounts.** On a 1,000,000 account, the largest orders in several Canadian funds exceed 1% of their average
    daily traded value; the rebalancer flags them.
 8. **Level 5** is held by the fund limits a little below its volatility target (within half a point; the calibration
-   reports it as out of reach).
+   reports it as out of reach). When a target is out of reach, the search moves risk aversion one way only, and since
+   dropping small positions makes volatility jump, a slightly closer mix can exist on the other side. Near such a
+   jump the two engines can also stop after a different number of evaluations (Python 30, the browser 23), and so
+   at slightly different mixes; both report the jump.
 9. **Fresh-clone Python uses rates one month older** than the web page (the snapshot loader drops the newest rate
    month). Do not run `bundle` without the local cache.
 10. **Data:** survivor-only universe (no delisted funds); TMX and Yahoo endpoints are unofficial and for personal use;

@@ -198,17 +198,20 @@ def test_b12_amounts_and_own_weights_have_an_upper_bound():
 
 
 @needs_data
-def test_b13_a_swap_into_an_excluded_fund_is_refused():
-    with pytest.raises(RoboKitInputError, match="cannot be both excluded and swapped"):
-        _build(risk_level=3, swaps={"ca_us_equity": "XUS.TO"}, exclude=["XUS.TO"])
+def test_b13_not_a_bug_excluding_a_swapped_in_fund_removes_its_slot():
+    # ruled not a defect: the page's Remove button sends exactly this to drop a swapped slot (docs/VERIFICATION.md W7),
+    # and excluding the reference fund with no swap removes the slot the same way
+    a = _weights(_build(risk_level=3, swaps={"ca_us_equity": "XUS.TO"}, exclude=["XUS.TO"]))
+    b = _weights(_build(risk_level=3, exclude=["VFV.TO"]))
+    assert a == b and "XUS.TO" not in a and "VFV.TO" not in a
 
 
 @needs_node
-def test_b13_browser_refuses_it_too():
+def test_b13_browser_removes_it_the_same_way():
     e = _js(
         "out(err(() => RK.buildPortfolio(CA, {risk_level: 3, resample: false, swaps: {ca_us_equity: 'XUS.TO'}, exclude: ['XUS.TO']})));"
     )
-    assert e == "XUS.TO cannot be both excluded and swapped into a slot."
+    assert e is None
 
 
 @needs_data
@@ -253,6 +256,14 @@ def test_b30_a_whole_float_answer_reads_as_its_option():
 def test_b16_no_draws_means_not_resampled():
     p = _build(risk_level=3, resample=True, n_boot=0)
     assert p["method"]["resampled"] is False and p["method"]["n_boot"] == 0
+
+
+@needs_data
+def test_b17_a_jump_proven_on_the_last_evaluation_is_labelled_a_jump():
+    from robokit.engine import build_portfolio
+
+    req = {"market": "CA", "risk_level": 2.93, "min_weight": 0.08, "max_weight": 0.35, "seed": 928, "n_boot": 50, "resample": True}
+    assert build_portfolio(req, lean=True)["calibration"]["outcome"] == "jump"
 
 
 @needs_data
@@ -528,6 +539,22 @@ def test_b44_b45_b46_labels():
     assert U.at["PEY", "asset_class"] == "Equity"
     assert U.at["BITW", "asset_class"] == "Crypto"
     assert bool(U.at["VI.TO", "hedged"])
+
+
+@needs_data
+def test_b48_the_crisis_hold_out_scores_fallback_stand_ins_as_the_replay_builds_them():
+    from robokit import audit as A
+    from robokit.engine import _load, returns_in
+    from robokit.stress import scenario_returns
+
+    rows = {(r["episode"], r["ticker"]): r for r in A.crisis_standin_holdout()}
+    U = _load()[0]
+    for ep, t in (("oil", "CJP.NE"), ("gfc", "XIN.TO")):
+        r = rows[(ep, t)]
+        assert r["peer_rule"] == "class"  # the fallback rule, the one the finding concerned
+        m = U.set_index("yahoo").at[t, "market"]
+        R = returns_in(m, list(U.yahoo)).drop(columns=[t])  # the replay, in the portfolio currency, with the fund hidden
+        assert r["standin"] == pytest.approx(scenario_returns(R, U, [t])[0].at[ep, t], abs=1e-9)
 
 
 # ------------------------------------------------------------------ evaluation statistics

@@ -97,8 +97,6 @@ export function validateRequest(r) {
   }
   if (r.sleeves != null && (!Array.isArray(r.sleeves) || !r.sleeves.every(s => typeof s === 'string'))) throw inputError('sleeves must be a list of slot names.', 'sleeves');
   if (r.swaps != null && (typeof r.swaps !== 'object' || Array.isArray(r.swaps) || !Object.values(r.swaps).every(v => typeof v === 'string'))) throw inputError('swaps must map a slot to a ticker.', 'swaps');
-  const sclash = [...new Set(Object.values(r.swaps || {}).filter(t => r.exclude.includes(t)))].sort();  // as robokit/engine.py
-  if (sclash.length) throw inputError(`${sclash.join(', ')} cannot be both excluded and swapped into a slot.`, 'swaps');
   r.views = validateViews(r.views, num, share);
   if (!['refuse', 'relax'].includes(r.onInfeasible)) throw inputError("on_infeasible must be 'refuse' or 'relax'.", 'on_infeasible');
   for (const [k, name] of [['preferEsg', 'prefer_esg'], ['hedgeUsEquity', 'hedge_us_equity'], ['resample', 'resample'], ['enforceSuitability', 'enforce_suitability'], ['acknowledgedAboveSuggestion', 'acknowledged_above_suggestion']]) if (typeof r[k] !== 'boolean') throw inputError(`${name} must be true or false.`, name);
