@@ -90,6 +90,8 @@ export function symEig(A, maxSweeps = 100) {
 
 /** Quadratic-inverse shrinkage (Ledoit and Wolf, Bernoulli 2022): port of optimizer/estimators.py qis (itself a port
  *  of the authors' reference code). Keeps the sample eigenvectors and shrinks the inverse eigenvalues; for wide lists. */
+const RANK_TOL = 1e-12;  // eigenvalue / largest eigenvalue at or below which the sample counts as rank-deficient
+class RankDeficient extends Error {}
 export function qis(X) {
   const N = X.length, p = X[0].length;
   const mean = zeros(p); for (const row of X) for (let j = 0; j < p; j++) mean[j] += row[j] / N;
@@ -102,6 +104,9 @@ export function qis(X) {
   const lam = Array.from(values, v => Math.max(0, v));
   const h = Math.min(c * c, 1 / (c * c)) ** 0.35 / p ** 0.35;  // smoothing parameter
   const start = Math.max(1, p - n + 1) - 1;
+  const top = lam[p - 1];
+  if (!(top > 0) || lam.slice(start).some(v => v <= top * RANK_TOL))  // collinear returns: the formulas would give NaN (optimizer/estimators.py)
+    throw new RankDeficient('QIS needs a full-rank sample: the returns are collinear (a duplicated fund, or too few distinct months)');
   const inv = lam.slice(start).map(v => 1 / v), m = inv.length;
   const theta = zeros(m), htheta = zeros(m);
   for (let j = 0; j < m; j++) {  // the smoothed Stein shrinker and its conjugate at x = 1/lambda_j, kernels centred on every 1/lambda_i
@@ -130,7 +135,12 @@ export function qis(X) {
 export function chooseCovariance(X, method = 'auto') {
   const t = X.length, n = X[0].length, conc = n / t;
   if (method === 'auto') method = conc > 0.25 ? 'qis' : 'lw_cc';
-  if (method === 'qis') return { sigma: qis(X), shrink: null, method, concentration: conc };
+  if (method === 'qis') {
+    try { return { sigma: qis(X), shrink: null, method, concentration: conc }; } catch (e) {
+      if (!(e instanceof RankDeficient)) throw e;  // rank-deficient sample: constant-correlation shrinkage is still defined
+      const { sigma, shrink } = ledoitWolfConstantCorrelation(X); return { sigma, shrink, method: 'lw_cc', concentration: conc, fallback: `qis: ${e.message}` };
+    }
+  }
   if (method === 'lw_cc') { const { sigma, shrink } = ledoitWolfConstantCorrelation(X); return { sigma, shrink, method, concentration: conc }; }
   throw new Error(`unknown covariance method ${method}`);
 }

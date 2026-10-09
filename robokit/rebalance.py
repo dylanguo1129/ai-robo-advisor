@@ -12,11 +12,14 @@ The rules, in the order they run:
    cannot double before it is touched). An out-of-band fund is traded back to ``destination`` of its band (7/8, from
    Vanguard's 2024 "threshold of 200 bps and a destination of 175 bps"), not to the target: with proportional costs
    the optimal policy trades to the edge of the no-trade region (Donohue and Yip 2003). The other side of those
-   trades is spread over the funds still inside their bands, by the same rule as a cash flow. A fund held but not in
-   the mix has a target and a band of zero, so it is sold.
+   trades is taken by the funds still inside their bands: the mix closest to the one after the flow (weighted by
+   target) in which every fund stays inside its band, so an in-band fund may move toward or past its target but never
+   past its destination edge (nor further out, if it is already beyond that edge). A fund held but not in the mix has
+   a target and a band of zero, so it is sold.
 3. Whole units. Buys round down and sells round up (never more than held). Trades under ``min_trade`` dollars are
-   skipped unless a withdrawal needs them. The cash must cover the orders and their estimated cost; if it does not,
-   buys are trimmed one unit at a time (the most overweight fund first), then sells added.
+   skipped unless a withdrawal or the cash reserve needs them, and a buy trimmed below it is dropped. The cash must
+   cover the orders and their estimated cost; if it does not, buys are trimmed one unit at a time (the most overweight
+   fund first), then sells added, never more than is held.
 4. Residual cash. One unit at a time goes to the fund furthest below target whose unit price and cost fit, while
    buying it brings that fund closer to target, keeping ``cash_reserve`` in cash.
 5. Cost and liquidity. The estimated cost is ``cost_bps`` of the amount traded. When average daily dollar volumes
@@ -37,6 +40,14 @@ DESTINATION = 0.875  # 175 / 200
 MIN_TRADE = 50.0
 COST_BPS = 10.0
 ADV_LIMIT = 0.01
+
+
+def _fmt(x: float, pct: bool = False) -> str:
+    """A number for the notes and the rule, written the same way in both engines: up to two decimals, halves up."""
+    v = 100 * x if pct else x
+    r = math.floor(abs(v) * 100 + 0.5) / 100
+    s = f"{r:,.2f}".rstrip("0").rstrip(".")
+    return ("-" if v < 0 and r else "") + s + ("%" if pct else "")
 
 
 def _num(x, name: str, lo: float | None = None, lo_open: bool = False) -> float:
@@ -152,6 +163,8 @@ def rebalance(
         )
     min_trade, cash_reserve = _num(min_trade, "min_trade", 0.0), _num(cash_reserve, "cash_reserve", 0.0)
     cost_bps, adv_limit = _num(cost_bps, "cost_bps", 0.0), _num(adv_limit, "adv_limit", 0.0, lo_open=True)
+    if cost_bps >= 1e4:
+        raise RoboKitInputError("cost_bps must be below 10,000 (100% of the amount traded).", {"field": "cost_bps"})
 
     n = len(tick)
     value = [u * p for u, p in zip(held, px)]
@@ -173,11 +186,12 @@ def rebalance(
     # 2. bands, after the flow
     w1 = [v / invest for v in v1]
     band = [min(band_abs, band_rel * w) for w in t_w]
-    out = [band_trades and abs(w1[i] - t_w[i]) > band[i] + 1e-12 for i in range(n)]
+    drifted = [abs(w1[i] - t_w[i]) > band[i] + 1e-12 for i in range(n)]
+    out = [band_trades and d for d in drifted]  # bands off: only the flow trades, but the drift is still reported
     band_trade = [0.0] * n
     if any(out):
-        # out-of-band funds end within destination x band of target; funds inside their band may move through their
-        # target but never past the destination edge on the far side, nor further out than they are. Every interval
+        # out-of-band funds end within destination x band of target; funds inside their band may move toward or past
+        # their target but never past the destination edge, nor further out if already beyond it. Every interval
         # contains the target, so a mix inside all of them exists; take the one closest to w1 (weighted by target).
         lo = [t_w[i] - destination * band[i] if out[i] else min(w1[i], t_w[i] - destination * band[i]) for i in range(n)]
         hi = [t_w[i] + destination * band[i] if out[i] else max(w1[i], t_w[i] + destination * band[i]) for i in range(n)]
@@ -194,7 +208,8 @@ def rebalance(
         return -float(min(held[i], math.ceil(-dollars / px[i] - 1e-9)))
 
     q = [to_units(i, trade[i]) if abs(trade[i]) > 1e-9 else 0.0 for i in range(n)]
-    needed_sell = [flow < 0 and flow_trade[i] < 0 and q[i] < 0 for i in range(n)]  # sells that pay a withdrawal
+    short = avail < cash_reserve - 1e-9  # the cash on hand does not cover the reserve
+    needed_sell = [(flow < 0 or short) and flow_trade[i] < 0 and q[i] < 0 for i in range(n)]  # pay a withdrawal or the reserve
     reason = [[] for _ in range(n)]
     for i in range(n):
         if q[i] and abs(q[i] * px[i]) < min_trade and not needed_sell[i]:
@@ -209,7 +224,8 @@ def rebalance(
     def dev(i: int) -> float:  # dollars above target after the orders
         return (held[i] + q[i]) * px[i] - goal[i]
 
-    for _ in range(10 * n + int(sum(abs(x) for x in q)) + 1):  # trim buys, then sell, until the cash covers the orders
+    # trim buys, then sell, until the cash covers the orders (enough passes to sell every unit held, one at a time)
+    for _ in range(10 * n + int(sum(abs(x) for x in q)) + int(sum(held)) + 2):
         if cash_after() >= cash_reserve - 1e-9:
             break
         buys = [i for i in range(n) if q[i] > 0]
@@ -221,9 +237,14 @@ def rebalance(
             if not sellable:
                 break
             i = max(sellable, key=lambda k: (dev(k), -k))
-            q[i] -= 1.0 if whole_units else min(held[i] + q[i], (cash_reserve - cash_after()) / (px[i] * (1 - rate)))
+            room = held[i] + q[i]  # what is still held: a fractional holding is sold whole, never short
+            q[i] -= min(1.0, room) if whole_units else min(room, (cash_reserve - cash_after()) / (px[i] * (1 - rate)))
     if cash_after() < cash_reserve - 1e-6:
         raise RoboKitInputError("The holdings cannot be sold for enough cash to pay the withdrawal.", {"field": "flow"})
+    for i in range(n):  # a buy the trim left under the minimum trade is dropped; its cash stays as residual cash
+        if q[i] > 0 and q[i] * px[i] < min_trade:
+            q[i] = 0.0
+            reason[i].append("under the minimum trade")
 
     # 4. residual cash, one unit at a time, while it brings a fund closer to target
     if whole_units:
@@ -271,7 +292,7 @@ def rebalance(
             "amount": round(abs(dollars), 2),
             "units_after": after_units[i],
             "weight_after": round(after_value[i] / total_after, 6) if total_after > 0 else None,
-            "out_of_band_after_flow": out[i],
+            "out_of_band_after_flow": drifted[i],
             "reason": reason[i] if q[i] else [r for r in reason[i] if r == "under the minimum trade"],
         }
         if adv and tick[i] in adv and q[i]:
@@ -287,16 +308,18 @@ def rebalance(
     after_w = [v / total_after for v in after_value] if total_after > 0 else None
     notes = []
     if not any(out):
-        notes.append(
-            "No fund is outside its band, so only the cash flow is traded." if flow else "No fund is outside its band: nothing to trade."
-        )
+        why = "The bands are off" if any(drifted) else "No fund is outside its band"
+        if any(q):
+            notes.append(f"{why}, so only the {'cash flow' if flow else 'cash on hand'} is traded.")
+        else:
+            notes.append(f"{why}: nothing to trade.")
     skipped = [tick[i] for i in range(n) if "under the minimum trade" in reason[i] and not q[i]]
     if skipped:
-        notes.append(f"Skipped because each order would be under {min_trade:,.0f}: " + ", ".join(skipped) + ".")
+        notes.append(f"Skipped because each order would be under {_fmt(min_trade)}: " + ", ".join(skipped) + ".")
     flagged = [r["ticker"] for r in rows if r.get("liquidity_flag")]
     if flagged:
         notes.append(
-            f"Large against daily trading volume (over {adv_limit:.0%}): "
+            f"Large against daily trading volume (over {_fmt(adv_limit, pct=True)}): "
             + ", ".join(flagged)
             + ". Consider splitting the order over several days."
         )
@@ -314,7 +337,8 @@ def rebalance(
         "largest_gap_after": None if after_w is None else round(max(abs(w - t) for w, t in zip(after_w, t_w)), 6),
         "notes": notes,
         "rule": (
-            f"cash flows first; bands of min({band_abs:.0%}, {band_rel:.0%} of target), traded back to {destination:.0%} of the band; "
-            f"whole units, orders under {min_trade:,.0f} skipped; residual cash to the fund furthest below target"
+            f"cash flows first; bands of min({_fmt(band_abs, pct=True)}, {_fmt(band_rel, pct=True)} of target), traded back to "
+            f"{_fmt(destination, pct=True)} of the band; whole units, orders under {_fmt(min_trade)} skipped; residual cash to the "
+            "fund furthest below target"
         ),
     }

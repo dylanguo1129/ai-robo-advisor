@@ -86,9 +86,12 @@ def _circular_blocks(rng: np.random.Generator, T: int, b: int) -> np.ndarray:
 
 def sharpe_diff_test(ri, rn, block: int = 6, n_boot: int = 5000, seed: int = 0, margin: float = 0.0) -> dict:
     """H0: Sharpe(i) = Sharpe(n) on paired excess returns. Returns the difference (per period), its HAC standard
-    error, the two-sided studentized circular block-bootstrap p-value (Ledoit and Wolf 2008, Section 3.2), the
-    studentized bootstrap 95% interval, and a one-sided non-inferiority p-value for H0: difference <= -margin (per
-    period), all from the same draws. With one seed for every comparison the block draws are common to all of them."""
+    error, the two-sided studentized circular block-bootstrap p-value (Ledoit and Wolf 2008, Section 3.2), two 95%
+    intervals and a one-sided non-inferiority p-value for H0: difference <= -margin (per period), all from the same
+    draws. ``ci95`` is the equal-tailed percentile-t interval the registered evaluation reported; ``ci95_symmetric``
+    is the symmetric interval of Ledoit and Wolf's eq. (7), the one the two-sided p-value inverts (zero lies outside it
+    exactly when p is below 0.05, up to the bootstrap's discreteness). With one seed for every comparison the block
+    draws are common to all of them."""
     ri, rn = np.asarray(ri, dtype=float), np.asarray(rn, dtype=float)
     T = len(ri)
     mi, mn, gi, gn = _sharpe_parts(ri, rn)
@@ -117,12 +120,14 @@ def sharpe_diff_test(ri, rn, block: int = 6, n_boot: int = 5000, seed: int = 0, 
         if abs(dd - d) / se_b >= abs(d) / se:
             exceed += 1
     q_lo, q_hi = np.quantile(tstar, [0.025, 0.975])
+    q_abs = float(np.quantile(np.abs(tstar), 0.95))
     t_ni = (d + margin) / se
     return {
         "diff": d,
         "se": se,
         "p": (exceed + 1) / (n_boot + 1),
         "ci95": (d - q_hi * se, d - q_lo * se),
+        "ci95_symmetric": (d - q_abs * se, d + q_abs * se),
         "p_noninferior": (int((tstar >= t_ni).sum()) + 1) / (n_boot + 1),
         "margin": margin,
         "T": T,

@@ -8,14 +8,24 @@ never needs to invent a number.
 
 from __future__ import annotations
 
+import math
+
+
+def _half_up(x: float, nd: int = 0) -> float:
+    """Round halves away from zero, guarded against binary representation (robokit/engine.py _round_half_up and
+    web/robokit.js roundHalfUp use the same formula, so both engines print the same figures)."""
+    f = 10.0**nd
+    v = math.floor(abs(float(x)) * f + 0.5 + 1e-9) / f
+    return 0.0 if v == 0 else math.copysign(v, x)
+
 
 def _pct(x: float, d: int = 0) -> str:
-    return f"{x * 100:.{d}f}%"
+    return f"{_half_up(x * 100, d):.{d}f}%"
 
 
 def _money(x: float, ccy: str) -> str:
     sym = "$" if ccy in ("CAD", "USD") else ""
-    return f"{sym}{x:,.0f} {ccy}"
+    return f"{sym}{_half_up(x):,.0f} {ccy}"
 
 
 def explain_portfolio(p: dict) -> dict:
@@ -26,7 +36,7 @@ def explain_portfolio(p: dict) -> dict:
     en = []
 
     mix = p["mix"]["asset_class"]
-    parts_en = ", ".join(f"{_pct(v)} {k.lower()}" for k, v in mix.items() if v >= 0.005)
+    parts_en = ", ".join(f"{_pct(v)} {k.lower()}" for k, v in mix.items() if v >= 0.005)  # each a rounded computed share
     en.append(f"The mix: {parts_en}, spread over {s['n_holdings']} funds.")
 
     if r.get("risk_share") is None:  # the person's own weights
@@ -70,7 +80,7 @@ def explain_portfolio(p: dict) -> dict:
         )
 
     top_risk = max(hold, key=lambda h: h["risk_share"])
-    if round(top_risk["risk_share"] * 100) > round(top_risk["weight"] * 100) + 2:  # "but" only when the risk share is clearly larger
+    if _half_up(top_risk["risk_share"] * 100) > _half_up(top_risk["weight"] * 100) + 2:  # "but" only when the risk share is clearly larger
         en.append(
             f"{top_risk['symbol']} is {_pct(top_risk['weight'])} of the money but {_pct(top_risk['risk_share'])} of the risk: "
             "the fund that swings most drives most of the ups and downs."

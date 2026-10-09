@@ -102,16 +102,29 @@ def project_capped_simplex(v: np.ndarray, ub: np.ndarray, total: float = 1.0, to
     return project_weighted_capped_simplex(v, np.ones(len(v)), ub, total, tol)
 
 
-def _greedy_max_return(mu: np.ndarray, lb: np.ndarray, ub: np.ndarray) -> np.ndarray:
-    """lam = 0 limit: fill the highest-mu assets up to their caps."""
+def _greedy_max_return(
+    mu: np.ndarray, lb: np.ndarray, ub: np.ndarray, gmask: np.ndarray | None = None, groom: float = np.inf
+) -> np.ndarray:
+    """lam = 0 limit: fill the highest-mu assets up to their caps, and the group's members only up to the group's
+    room above its minimums (``groom``). Greedy is exact here: the fund caps, the one group and the budget are nested
+    limits, and filling in order of decreasing mu is optimal under nested limits."""
     w = lb.copy()
     room = 1.0 - w.sum()
-    for i in np.argsort(-mu):
-        take = min(ub[i] - w[i], room)
+    for i in np.argsort(-mu, kind="stable"):
+        in_group = gmask is not None and bool(gmask[i])
+        take = max(min(ub[i] - w[i], room, groom if in_group else np.inf), 0.0)
         w[i] += take
         room -= take
+        if in_group:
+            groom -= take
         if room <= EPS:
             break
+    if room > 1e-9:  # the group may not hold what the other funds cannot take: fail closed, as the projection does
+        rest = float((ub - lb)[~gmask].sum()) if gmask is not None else 0.0
+        raise InfeasibleConstraints(
+            f"infeasible: group cap plus room in the other funds {rest:.4f} is below what must be invested",
+            {"kind": "group_cap", "room_rest": rest, "needed": float(1.0 - lb.sum())},
+        )
     return w
 
 
@@ -152,8 +165,18 @@ def solve_qp_pgd(
         raise InfeasibleConstraints(
             f"infeasible: upper bounds sum to {ub.sum():.4f} < 1", {"kind": "caps", "capacity": float(ub.sum()), "needed": 1.0}
         )
+    gmask, ghi = None, np.inf
+    if group_cap is not None:
+        gmask = np.asarray(group_cap[0], dtype=bool)
+        ghi = float(group_cap[1]) - float(lb[gmask].sum())  # in shifted (u) units; a'v = sum u
+        if ghi < -1e-9:
+            raise InfeasibleConstraints(
+                f"infeasible: minimums inside the group add to {lb[gmask].sum():.4f}, above its cap {group_cap[1]:.4f}",
+                {"kind": "group_minimums", "group_cap": float(group_cap[1]), "group_minimums": float(lb[gmask].sum())},
+            )
+        ghi = max(ghi, 0.0)
     if lam <= EPS:
-        return _greedy_max_return(mu, lb, ub)
+        return _greedy_max_return(mu, lb, ub, gmask, ghi)
 
     # shift: u = w - lb lives on {sum u = mass, 0 <= u <= cap}
     mass = 1.0 - lb.sum()
@@ -171,17 +194,10 @@ def solve_qp_pgd(
     lip = lam * float(np.linalg.eigvalsh(corr).max())
     step = 1.0 / max(lip, EPS)
 
-    if group_cap is not None:
-        gmask = np.asarray(group_cap[0], dtype=bool)
-        ghi = float(group_cap[1]) - float(lb[gmask].sum())  # in shifted (u) units; a'v = sum u
-        if ghi < -1e-9:
-            raise InfeasibleConstraints(
-                f"infeasible: minimums inside the group add to {lb[gmask].sum():.4f}, above its cap {group_cap[1]:.4f}",
-                {"kind": "group_minimums", "group_cap": float(group_cap[1]), "group_minimums": float(lb[gmask].sum())},
-            )
+    if gmask is not None:
 
         def proj(z):
-            return project_with_group_cap(z, a, capv, mass, gmask, max(ghi, 0.0))
+            return project_with_group_cap(z, a, capv, mass, gmask, ghi)
     else:
 
         def proj(z):

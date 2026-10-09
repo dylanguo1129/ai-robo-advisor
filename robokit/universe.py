@@ -30,6 +30,11 @@ def load_listings() -> pd.DataFrame:
     if cats:
         cat = pd.concat(cats).drop_duplicates("yahoo")
         L = L.merge(cat, on="yahoo", how="left")
+    # A Nasdaq listing name can be generic ("Common Shares of Beneficial Interest") or lose a "+" ("10  Year"); the
+    # issuer's long name then says what the fund holds, which the classification and the slot rules read.
+    if "longName" in L.columns:
+        bad = L["name"].fillna("").str.contains(r"^(?:common )?shares of beneficial interest$|\d  +year", case=False, regex=True)
+        L.loc[bad & L["longName"].notna(), "name"] = L.loc[bad & L["longName"].notna(), "longName"]
     return L
 
 

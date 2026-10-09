@@ -45,9 +45,45 @@ from .estimators import (
     market_risk_aversion,
 )
 from .rng import Mulberry32, stationary_rows
-from .solver import solve_qp
+from .solver import project_capped_simplex, project_with_group_cap, solve_qp
 
 ON_INFEASIBLE = ("raise", "relax")
+
+
+def _within(w: np.ndarray, lb: np.ndarray, ub: np.ndarray, group_bounds, tol: float = 1e-12) -> bool:
+    """Whether the weights keep every fund limit and group limit."""
+    if (w < lb - tol).any() or (w > ub + tol).any():
+        return False
+    for mask, lo, hi in group_bounds or []:
+        g = float(np.asarray(mask, dtype=float) @ w)
+        if g < float(lo or 0.0) - tol or (hi is not None and g > float(hi) + tol):
+            return False
+    return True
+
+
+def tidy_weights(w: np.ndarray, lb: np.ndarray, ub: np.ndarray, group_bounds, cut: float) -> np.ndarray:
+    """Zero the weights below ``cut`` that no minimum holds, and rescale the rest to 100%. The rescaling must not push a
+    fund past its cap or a group past its limit (a fund at its cap grows with the others): when it would, the weights are
+    projected back onto the limits with the dropped funds held at zero, and if no such projection exists they are left as
+    they came (the solver's answer and the average of its answers keep every limit)."""
+    drop = (np.abs(w) < cut) & (lb <= 0)
+    x = np.where(drop, 0.0, w)
+    x = x / x.sum()
+    if _within(x, lb, ub, group_bounds):
+        return x
+    ub0 = np.where(drop, 0.0, ub)
+    mass = 1.0 - float(lb.sum())
+    try:
+        if not group_bounds:
+            y = lb + project_capped_simplex(x - lb, ub0 - lb, mass)
+        elif len(group_bounds) == 1 and (group_bounds[0][1] or 0) <= 0 and group_bounds[0][2] is not None:
+            m = np.asarray(group_bounds[0][0], dtype=bool)
+            y = lb + project_with_group_cap(x - lb, np.ones(len(x)), ub0 - lb, mass, m, float(group_bounds[0][2]) - float(lb[m].sum()))
+        else:
+            y = None
+    except InfeasibleConstraints:
+        y = None
+    return y if y is not None and _within(y, lb, ub, group_bounds, 1e-9) else w
 
 
 def relax_caps(
@@ -390,9 +426,7 @@ class RoboKitOptimizer:
         return out, relaxations
 
     def _solve(self, sigma: np.ndarray, mu: np.ndarray, lam: float, lb, ub, group_bounds) -> np.ndarray:
-        w = solve_qp(sigma, mu, lam, lb, ub, group_bounds)
-        w[np.abs(w) < 1e-6] = 0.0
-        w = w / w.sum()
+        w = tidy_weights(solve_qp(sigma, mu, lam, lb, ub, group_bounds), lb, ub, group_bounds, 1e-6)
         if self.naive_blend > 0:
             allowed = ub > 0
             ew = allowed / allowed.sum()
@@ -471,9 +505,7 @@ class RoboKitOptimizer:
             if self.resample_method == "stationary":
                 diagnostics["block_length"] = self.block_length
             w_boot = self._resample_weights(tick, idx, lam, lb, ub, gb, n_boot, seed)
-            w_final = w_boot.mean(axis=0)
-            w_final[np.abs(w_final) < 1e-4] = 0.0
-            w_final = w_final / w_final.sum()
+            w_final = tidy_weights(w_boot.mean(axis=0), lb, ub, gb, 1e-4)
             band = pd.DataFrame(
                 {"std": w_boot.std(axis=0), "q05": np.quantile(w_boot, 0.05, axis=0), "q95": np.quantile(w_boot, 0.95, axis=0)},
                 index=tick,

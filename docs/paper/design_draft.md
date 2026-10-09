@@ -2,62 +2,49 @@
 
 ## 5.1 Protocol
 
-The evaluation follows Arnott, Harvey and Markowitz (2019): its design was fixed before any of it was run, and it was run once, with one re-run for a disclosed bug fix (Section 6.9). The plan (RESEARCH_LOG sections 9 and 10) was written, then reviewed in the manner of a registered report's Stage 1 review by outside examiners from model families other than the author's, revised, and reviewed again, eighteen times in all, until a review accepted it as it stood (Section 7). The code that runs it was committed first. The run refuses to start from a working tree with uncommitted changes, and it records the commit, the data snapshot and the package versions with the results. No back-test result changes a default. Two components can change only through rules written in advance and applied by the code: resampling and the point at which QIS takes over. Both rules work on a simulation with a known truth, run first (E3); each runs only on its full sample of 500 replications, and the defaults they lock are the configuration every later part evaluates. After the run, the shipped constants are set to those defaults in both engines in one disclosed commit, and a test fails if they ever differ.
+The evaluation follows Arnott, Harvey and Markowitz (2019): its design was written down before any of it ran (docs/RESEARCH_LOG.md, sections 9 and 10), examined before the run (Section 5.5), and run from committed code that records the commit, the data snapshot and the package versions with its results. It has eight parts.
+
+Table: The eight parts of the evaluation
+
+| Part | Question | Status |
+|---|---|---|
+| E1 Walk-forward | Does each level deliver its target risk, and how does its Sharpe ratio compare with four benchmarks? | Confirmatory in Canada, exploratory in the US |
+| E2 Strict point-in-time | Do E1's risk results survive when nothing after each estimation date is used? | Descriptive |
+| E3 Simulation with a known truth | How far is the engine from the true optimum, does resampling earn its place, and where should QIS take over? | Locks two defaults |
+| E4 Covariance estimators | Does the choice of estimator matter on these funds? | Descriptive |
+| E5 Sensitivities | How much do constants without a source move the mix, and are the projections precise enough? | Descriptive; locks one default |
+| E6 Rebalancing | How do the bands compare with simpler rules on real accounts? | Descriptive |
+| E7 Data audits | Do the data rules, the crisis replays and the fund labels hold up? | Descriptive |
+| E8 Extended histories | How well do the stand-ins and back-filled histories recover real ones? | Descriptive |
+
+No back-test result changes a default. Three defaults can change only through rules written in advance and applied by the code: resampling and the QIS switch point, by E3, which runs first, and the number of projection paths, by E5 (raised from 2,000 to 5,000 if the standard error of the one-year 5th percentile exceeds 0.25 points at any level). Every later part runs on the configuration they lock, and the shipped constants were then set to it in both engines. Levels 2, 3 and 4 are the main levels on which E1 and E2 are read; levels 1 and 5 are reported on their own.
 
 ## 5.2 Walk-forward (E1)
 
-For Canada and the US, the shipped engine is re-estimated every December on the data available then, with an expanding window capped at 180 months. The weights are held for 12 months and rebalanced monthly to target, with 10 bps one way charged on all turnover. The funds are today's reference shelf, extended back with their written stand-ins; returns, interest rates and exchange rates stop at each estimation date. The choice of funds and stand-ins is today's knowledge, a look-ahead that E2 removes. A strategy's path stops, and the run records why, if a held fund has no return in a month, if a month is missing, or if a scheduled December has no build.
+For Canada and the US, the shipped engine is re-estimated every December on the data available then, with an expanding window of up to 180 months, held for 12 months, rebalanced monthly to target and charged 10 bps one way on all turnover. The funds are today's shelf, extended back with their stand-ins; returns, rates and exchange rates stop at each estimation date. A path stops, with the reason recorded, if a held fund has no return in a month or a scheduled build fails.
 
-Robo-Kit is compared with four benchmarks aimed at the same risk:
-- a static stock-bond mix (40, 60 or 80% stocks, aimed at the target by its stock share, since each level targets that share of the stock market's volatility; it is not calibrated, and bonds add volatility of their own, so its ex-ante gap to the target is reported with every strategy's);
-- the textbook optimizer (sample means, 60-month window, no resampling);
-- equal risk contribution mixed with cash to the target;
-- minimum variance mixed with cash to the target.
+Robo-Kit is compared with four benchmarks: a static stock-bond mix of 40, 60 or 80% stocks at levels 2, 3 and 4, aimed at the target by its stock share but not calibrated; the textbook optimizer (sample means over 60 months, one solve, no resampling); and equal risk contribution and minimum variance, each mixed with cash toward the target, or used as they are when already less volatile than it. Each strategy's ex-ante gap, how far its model volatility lies from the target, is reported. Equal weights and seven one-component ablations of the engine are descriptive.
 
-Equal weights and seven one-component ablations are reported descriptively.
+The Sharpe ratio is the mean monthly excess return over its standard deviation (divisor $T$), times $\sqrt{12}$, the form the Ledoit and Wolf (2008) test uses. Each difference is tested with their studentised circular block bootstrap (blocks of six months), and p-values are adjusted by Holm's method over the twelve comparisons of each market. The code reads each comparison in this order:
+1. "benchmark better" or "robokit better" if the adjusted two-sided p is below 0.05;
+2. otherwise "robokit not worse by more than 0.10" if the adjusted p of a non-inferiority test (against Robo-Kit being worse by 0.10 or more) is below 0.05;
+3. otherwise "too short to tell" if Robo-Kit is ahead but the sample is shorter than the minimum track record, the number of months the observed difference would need to be significant (Bailey and Lopez de Prado 2012);
+4. otherwise "inconclusive".
 
-One Sharpe ratio is used throughout: the mean monthly excess return over its standard deviation (divisor $T$), times $\sqrt{12}$, the moment form the Ledoit and Wolf (2008) test uses, so a reported difference is exactly the tested one. Differences are tested with their studentised circular block bootstrap (block 6), with Holm's adjustment over the twelve comparisons of each market; a comparison that cannot be made enters with $p = 1$. Each comparison is read by a rule written in advance and applied by the code: "benchmark better" or "robokit better" when the Holm-adjusted two-sided $p$ is below 0.05; otherwise "robokit not worse by more than 0.10" from a non-inferiority test; otherwise "too short to tell" when robokit is ahead but the sample is shorter than the minimum track record (Bailey and Lopez de Prado 2012); otherwise "inconclusive". The claims are nested and read from one interval, a closed test procedure, so no further multiplicity correction is needed (EMEA 2000, CPMP/EWP/482/99, section V.1). The US comparisons are labelled exploratory on every row.
+The intervals reported beside the readings are unadjusted. Risk delivery is the realised standard deviation divided by the target in force; the main levels count as delivered if their simultaneous 90% intervals all lie inside [0.80, 1.25], as missed at any level whose point estimate lies outside, and as inconclusive otherwise. A power statement written before the run put the Sharpe difference detected half the time at about 0.22 in Canada (0.31 in the US) and 80% of the time at about 0.31 (0.45), so most comparisons were expected to be inconclusive.
 
-Risk delivery is the standard deviation of monthly returns divided by the monthly target in force. Simultaneous 90% intervals over levels 2-4 must lie inside [0.80, 1.25] for the levels to count as delivering their risk; a point estimate outside the band counts as a miss. The run measures how often such intervals cover the truth, and how often a mix that does deliver is read as delivered. Levels 1 and 5 are reported with their own interval only.
-
-A power statement was written before the run. In Canada, a Sharpe difference has to be about 0.22 to be detected half the time and about 0.31 to be detected 80% of the time; in the US, about 0.31 and 0.45. Most comparisons were therefore expected to be inconclusive.
+**Found after the run.** The audit of Section 6.9 found three points on which the registered statistics need a caveat; the results are reported as registered. First, the textbook optimizer's target was measured on its own 60 months, not on the window the other strategies share, so it aimed at a different volatility: at level 3 in E1 its target was {{derived.textbook_target.e1.CA.3.mean_abs_gap_points|f2}} points a year from Robo-Kit's on average in Canada, in both directions, and {{derived.textbook_target.e1.US.3.mean_gap_points|f2}} points higher in the US, and never more than {{derived.textbook_target.max_rel_gap_all|pct0}} away (the code now uses the common target). Second, the intervals are equal-tailed (the bootstrap's 2.5th and 97.5th percentiles of the studentised difference), while the two-sided p inverts the symmetric interval of Ledoit and Wolf (2008); the two disagree in {{derived.intervals.disagree_count|int}} of the {{derived.intervals.rows|int}} confirmatory rows ({{derived.intervals.disagree_text|raw}}), and the readings use only the p-values. Third, the non-inferiority test is one-sided at 5%, as the plan wrote it, which matches a 90% interval, not the single 95% interval on which the closed-test argument for reading superiority and non-inferiority together rests (EMEA 2000); at 2.5% one of the two Canadian non-inferiority readings would not hold (Section 6.2).
 
 ## 5.3 Strict point-in-time returns (E2)
 
-Every series is cut at the estimation date before anything is computed. Each slot holds the best-scoring fund that already had 36 months of its own returns, with no stand-ins; a date whose funds share fewer than 36 months is skipped, and only such dates, before the first one that builds. A test shows the strict mode cannot see the future: replacing every later return, rate and exchange rate with noise leaves the mix unchanged.
+E2 repeats the walk-forward without stand-ins: every series is cut at the estimation date, and each slot holds the best-scoring fund that already had 36 months of its own returns; early Decembers whose funds share fewer than 36 months are skipped. The list of funds and their scores are still today's (Section 7). A test replaces every later return, rate and exchange rate with noise and checks that the mix does not change.
 
 ## 5.4 Simulation with a known truth (E3)
 
-The shipped pipeline runs on simulated histories through its own data loader, 500 per world, with common random numbers: one 192-month path per replication, seen by every method, of which a shorter study takes the first months. The truth comes only from months up to and including the walk-forward's first estimation date; the run stops unless the truth windows are the registered ones. There are three worlds:
-- **a:** equilibrium means, so the model is right;
-- **b:** FP Canada planning returns after fees, so the model is wrong;
-- **c:** world (b) with two volatility regimes, the case block resampling is meant for.
+The shipped pipeline runs on 500 simulated 192-month histories per world, the same paths for every method, with true parameters taken only from months up to the walk-forward's first estimation date. In world a, expected returns are the equilibrium returns, so the model is right; in world b they follow the planning returns of Section 3, so it is wrong; world c adds two volatility regimes to b, the case block resampling is meant for. Methods are scored by certainty-equivalent loss against the true constrained optimum. Resampling is dropped only if the one-sided 95% lower bound of its cost exceeds 2 basis points in both worlds b and c. Two sub-studies test the 36-month minimum history and the QIS switch: on twenty real funds, under a structured truth (their constant-correlation covariance) and an unstructured one (their sample covariance), the switch moves only if one-sided tests at $N/T$ of 0.20, 0.25 and 0.30 find QIS changing the true variance of the minimum-variance portfolio by more than 1% the same way in both truths and no test points the other way.
 
-Methods are scored by certainty-equivalent loss against the true constrained optimum at the level's own risk aversion. Resampling is dropped only if the one-sided 95% lower bound of its cost exceeds 2 basis points in both worlds b and c. Two sub-studies test the 36-month minimum history and the QIS switch point; the switch moves only if the evidence in both of two truths points one way and nothing points the other.
+## 5.5 Examination before the run
 
-## 5.5 The rest
+The plan and its code were examined, in the manner of a registered report's Stage 1 review, by AI models from families other than the one that wrote them, since a reviewer from the same family tends to share the author's blind spots. Each examiner was briefed as a professor examining a graduate team's work from three angles, finance, statistics and numerical mathematics, and received only the code, the documents and the claim under examination: no reasoning from the authors and no other examiner's conclusions. Every finding had to quote what it concerned and was checked against the repository before it was ruled true, partly true or false (docs/DECISIONS.md).
 
-- **E4:** covariance estimators, in a walk-forward horse race and a fixed-weight forecast check, with every loss centred on a mean predicted from the past only.
-- **E5:** sensitivity to every constant that has no source, including the Politis and White (2004) block length, and the Monte Carlo precision of the projections, measured on the product's own projection inputs.
-- **E6:** the shipped rebalancer on simulated accounts at real prices, against monthly and annual rebalancing and other band destinations.
-- **E7:** audits of the data rules.
-- **E8:** hold-out tests of the stand-in and back-filled histories.
-
-# 7. Adversarial validation
-
-A model is not checked well by the people who built it, so outside examiners were asked to question every part of the optimizer. They came from model families other than the author's, because a reviewer from the same family tends to share the author's blind spots. Each was briefed as a professor examining a graduate team's work, from three angles: finance, quantitative statistics and numerical mathematics. They received the code, the documents and the claim under examination, and nothing else: no reasoning from the authors and no conclusions from another examiner. Every finding had to quote the code or text it concerned, and was checked against the repository before it was ruled true, partly true or false.
-
-There were two stages:
-1. **The optimizer (round 1).** Nineteen findings after duplicates were merged: fourteen ruled true and fixed with regression tests, three partly true, one false, and one split (its claim about $\delta$ false, its claim about the prior true).
-2. **The evaluation plan (Stage 1, eighteen rounds).** The plan and its code were examined before anything ran, until a review accepted them as they stood. The examiners found, among other things:
-   - defaults that could have changed while the walk-forward was testing them;
-   - a simulation truth estimated from months the walk-forward would later test;
-   - reading rules that rewarded an underpowered test, and a locking rule that could move on contradictory evidence;
-   - failed builds and missing months that would have silently stretched a holding period;
-   - a benchmark solver and several data paths that failed open;
-   - a reported Sharpe ratio that was not the one tested;
-   - register entries whose cited evidence did not test the decision.
-
-   All were fixed before the run. Rounds 1 to 6 had two examiners from different families; from round 7 the usage limits of the examiners' model pools left one reviewer family, which reviewed rounds 8 to 18.
-
-The record of every finding and ruling is in docs/DECISIONS.md. Testing the fixes found further bugs the examiners had not reported, among them two in the browser engine and an audit that compared a fund with itself.
+A first round examined the optimizer itself; of nineteen findings, fourteen were ruled true and fixed with regression tests. The plan was then examined in eighteen rounds, revised after each, until a review accepted it as it stood. The examiners found, among other things, defaults that could have changed while being tested, a simulation truth estimated from months the walk-forward would later test, a reading rule that rewarded an underpowered test, missing months that would have silently stretched a holding period, and a reported Sharpe ratio that was not the one tested. All were fixed before the run.

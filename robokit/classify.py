@@ -132,13 +132,14 @@ _LEV = [
     (r"\bultrapro\s+short\b", -3.0),
     (r"\bultrapro\b", 3.0),
     (r"\bultrashort\b", -2.0),
-    (r"\bultra\b", 2.0),
+    # "Ultra" is leverage only as a product line ("ProShares Ultra QQQ"), not in "Ultra-Short Income" or "Ultra Dividend"
+    (r"\bultra\b(?![- ](short|low|dividend|buffer)\b)", 2.0),
     (r"\bdouble\s+short\b", -2.0),
     (r"\bdouble\s+long\b", 2.0),
     (r"\btriple\s+short\b", -3.0),
     (r"\btriple\s+long\b", 3.0),
 ]
-BEAR = r"\b(bear|inverse|short\b(?!.?term|.?duration|.?maturity|er)|ultrashort|-1x|-2x|-3x)"
+BEAR = r"\b(bear|inverse|(?<!ultra-)(?<!ultra )short\b(?!.?term|.?duration|.?maturity|er)|ultrashort|-1x|-2x|-3x)"
 SINGLE_STOCK_HINT = (
     r"\b(yield shares|highshares|enhanced high income shares|option income strategy|yieldboost|"
     r"savvylong|daily target 2x|2x long|2x short|autocallable|growth & income etf|"
@@ -181,7 +182,7 @@ REGION_RULES = [
     (r"\bchin(?:a|ese)\b|\bhang seng\b|\bcsi\b|\bhong kong\b", "China"),
     (r"\bjapan\b|\bnikkei\b|\btopix\b", "Japan"),
     (
-        r"\beurope\b|\beuropean\b|\beurozone\b|\bstoxx\b|\bgermany\b|\bfrance\b|\buk\b|\bunited kingdom\b|\bswitzerland\b|\bitaly\b|\bspain\b|\bnetherlands\b|\bsweden\b",
+        r"\beurope\b|\beuropean\b|\beuro\b|\beurozone\b|\bstoxx\b|\bgermany\b|\bfrance\b|\buk\b|\bunited kingdom\b|\bswitzerland\b|\bitaly\b|\bspain\b|\bnetherlands\b|\bsweden\b",
         "Europe",
     ),
     (r"\basia\b|\bpacific\b|\baustralia\b|\bsingapore\b", "Asia-Pacific"),
@@ -227,15 +228,16 @@ THEME_RULES = [
     ("Industrials", r"\b(industrial\w*|aerospace|defen[cs]e|transportation)\b"),
     (
         "Small / mid cap",
-        r"\b(small[- ]?cap|mid[- ]?cap|smallcap|midcap|smid|micro[- ]?cap|russell 2000|junior|extended market|completion)\b",
+        r"\b(small[- ]?cap|mid[- ]?cap|smallcap|midcap|smcp|sm cap|smid|micro[- ]?cap|russell 2000|junior|extended market|completion)\b",
     ),
+    ("Values screen", r"\b(sharia\w*|islamic|catholic|christian|biblical|faith\w*|ethical)\b"),
     ("Factor: value", r"\bvalue\b"),
     ("Factor: growth", r"\bgrowth\b(?! portfolio| etf portfolio| asset allocation)"),
     ("Factor: momentum", r"\bmomentum\b"),
     ("Factor: quality", r"\bquality\b"),
     (
         "Factor: other",
-        r"\b(multi-?factor|factors?|rafi|fundamental\w*|profitability|alphadex|activebeta|moat|cash cows|smart beta|quant\w*|tilt\w*|targeted value|research enhanced|nxtgen|next gen|high beta|garp)\b",
+        r"\b(multi-?factor|factors?|rafi|fundamental\w*|profitability|alphadex|activebeta|moat|cash cows|smart beta|quant\w*|tilt\w*|targeted value|research enhanced|nxtgen|next gen|high beta|garp|revenue|diversified return|freedom)\b",
     ),
     ("Equal weight", r"\bequal[- ]weight\w*\b"),
     ("Single country", SINGLE_COUNTRY),
@@ -412,7 +414,7 @@ def classify_row(r: pd.Series) -> dict:
             ac = "Alternative"
             why.append(f"alternative strategy ({ycat or style or 'name'})")
     elif (
-        _RX["bond"].search(name)
+        (_RX["bond"].search(name) and not re.search(r"\b(equity|stocks?)\b|dividend", low))  # "High Yield Equity Dividend" is stocks
         or any(k in ycat for k in ("Bond", "Muni", "Treasury", "Inflation-Protected", "Bank Loan", "Preferred", "Securitized", "Credit"))
         or any(k in style for k in ("Bond", "Quality", "Fixed Income", "High Yield"))
     ):
@@ -474,7 +476,7 @@ def classify_row(r: pd.Series) -> dict:
     if re.search(
         # "premium" is an option premium, not "Premium Money Market" or "Premium Cash"; "enhanced" alone is a manager's
         # word ("Fidelity Enhanced High Yield", "Research Enhanced"), and "Hedged Equity" is usually currency hedging
-        r"covered call|option|overlay|buywrite|buffer|yield shares|highshares|enhanced (?:yield|income|dividend|premium)|premium(?! money| cash| t-bill)|defined outcome|autocallable|daymax|yieldboost",
+        r"covered call|option|overlay|buywrite|downside hedged|\bbox\b|tail risk|defined risk|\bswan\b|simplify|buffer|yield shares|highshares|enhanced (?:yield|income|dividend|premium)|premium(?! money| cash| t-bill)|defined outcome|autocallable|daymax|yieldboost",
         low,
     ):
         derivs.append("options")
@@ -511,7 +513,7 @@ def classify_row(r: pd.Series) -> dict:
     trade_ccy = "USD" if (r.get("market") == "US" or re.search(r"-U\.(TO|NE)$", yh) or str(r.get("currency")) == "USD") else "CAD"
     out["currency"] = trade_ccy
     hedged = bool(
-        re.search(r"hedged(?! series)|\bhedge\b(?!d? fund)|cad-hedged|hedged to cad|\(cad hedged\)|usd hedged", low)
+        re.search(r"hedged(?! series)|\bhedge\b(?!d? fund)|cad-hedged|hedged to cad|\(cad hedged\)|usd hedged|cad-hd[dg]|\bhd[dg]\b", low)
     ) and not re.search(r"unhedged|non-hedged", low)
     out["hedged"] = hedged
 

@@ -214,10 +214,17 @@ ITEMS = [
 ITEM = {i["id"]: i for i in ITEMS}
 
 
+def _answer_text(value) -> str:
+    """An answer as the browser reads it (String(v)): JSON cannot tell 4 from 4.0, so a whole float is '4'."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
 def _opt(item_id: str, value):
     item = ITEM[item_id]
     for o in item["options"]:
-        if o["value"] == str(value):
+        if o["value"] == _answer_text(value):
             return o
     raise ValueError(f"{item_id}: unknown answer {value!r}; options: {[o['value'] for o in item['options']]}")
 
