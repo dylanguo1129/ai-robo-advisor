@@ -53,7 +53,9 @@ def main():
         shares = res["E6"][m]["largest_order_share_of_daily_volume"]
         over = sorted(t for t, v in shares.items() if v is not None and v > 0.01)
         d["e6"][m]["funds_over_1pct_adv"] = over
-        d["e6"][m]["funds_over_1pct_adv_text"] = (", ".join(over[:-1]) + " and " + over[-1]) if len(over) > 1 else (over[0] if over else "none")
+        d["e6"][m]["funds_over_1pct_adv_text"] = (
+            (", ".join(over[:-1]) + " and " + over[-1]) if len(over) > 1 else (over[0] if over else "none")
+        )
         d["e6"][m]["funds_over_1pct_adv_count"] = len(over)
         d["e6"][m]["max_adv_share"] = max(v for v in shares.values() if v is not None)
     # E8(b): medians across the twenty funds
