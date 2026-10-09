@@ -421,3 +421,13 @@ def test_the_projection_inputs_reproduce_the_builds_own_projection():
 def test_e7d_keeps_falls_from_2000_on():
     for m in ("CA", "US"):
         assert all(r["peak"] >= "2000-01-01" for r in AU.crisis_episode_rule(m))
+
+
+def test_a_benchmark_without_cash_builds_on_a_shelf_without_a_cash_fund():
+    """Run 1 of the registered evaluation: the strict Canadian shelf of December 2009 and 2010 has no cash fund (CASH.TO's
+    own history starts in 2021), and the static mix, which holds no cash, failed looking one up. It builds now; a
+    benchmark that mixes with cash still refuses, saying why."""
+    b = EV.build_at(("CA", "2009-12-31", 3, "static_mix", "strict", {}))
+    assert "weights" in b and abs(sum(b["weights"].values()) - 1) < 1e-9
+    e = EV.build_at(("CA", "2009-12-31", 3, "erc_cash", "strict", {}))
+    assert "no cash fund" in e["error"]

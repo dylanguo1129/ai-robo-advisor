@@ -94,6 +94,8 @@ def outside_weights(
     if name == "equal_weight":
         w[risky] = 1.0 / len(risky)
         return w, True
+    if cash is None:  # only the benchmarks mixed with cash need a cash fund
+        raise ValueError(f"{name} mixes with cash, and this shelf has no cash fund")
     S, _ = choose_covariance(X[tickers].to_numpy(), "lw_cc")
     S = pd.DataFrame(S * 12, index=tickers, columns=tickers)
     Sr = S.loc[risky, risky].to_numpy()
@@ -132,7 +134,8 @@ def build_at(task: tuple) -> dict:
                     if r.ticker in tick:
                         prior[r.ticker] += prior_share(market, r.sleeve)
                 prior = prior / prior.sum()
-                cash = shelf.loc[shelf.role == "cash", "ticker"].iloc[0]
+                cash_rows = shelf.loc[shelf.role == "cash", "ticker"]
+                cash = cash_rows.iloc[0] if len(cash_rows) else None  # a strict (E2) shelf may have no cash fund yet
                 eq = [r.ticker for _, r in shelf.iterrows() if r.asset_class == "Equity"]
                 fi = [r.ticker for _, r in shelf.iterrows() if r.asset_class == "Fixed income"]
                 w, reachable = outside_weights(strategy, tick, X, prior, cash, eq, fi, level, q["target_vol"])

@@ -405,6 +405,15 @@ rounds 8 to 18 came from one reviewer family, the only one available until the l
 from this commit; a later review by the first examiner's family, if made, is reported beside the results and cannot
 change them.
 
+**Run record (9 Oct 2026).** Run 1, from commit d243791 (500 replications, 2 h 22 min), finished cleanly except for
+one bug, caught by the protocol's own fail-closed rule: in E2, the strict Canadian shelf of December 2009 and 2010 has no
+cash fund (CASH.TO's own history starts in 2021), and the code that builds the benchmarks looked one up for every
+benchmark, so the static mix, which holds no cash, failed at those two dates and its three paths stopped (recorded
+under path_errors). The fix lets a benchmark without cash build on such a shelf and makes a benchmark that mixes with
+cash refuse with a reason; nothing else changed. Under the section 6 rule, run 1 is archived intact in
+output/v3_run1/ and the evaluation is run again from the fix commit. Every stage is deterministic, so the re-run also
+checks reproducibility: every result other than E2's Canadian static mix must equal run 1's.
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).
