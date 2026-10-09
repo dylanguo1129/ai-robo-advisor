@@ -394,6 +394,17 @@ after required changes.
 | Two Holm families (two-sided, non-inferiority) let a reading claim from either | partly true: for one comparison the claims are nested and read from one interval, a closed test (EMEA CPMP/EWP/482/99, section V.1, quoted in the plan); across the 12, each family is Holm-adjusted | the plan states it, with the source |
 | D49's 7/8 destination was not varied | true | E6 runs destinations 0 and 1 beside 7/8 |
 
+**Stage 1, eighteenth round (9 Oct 2026).** The same reviewer: accept as is, with no required or recommended changes
+and no bugs; it re-checked the earlier fixes against the current tree.
+
+**Stage 1 closed.** The plan in RESEARCH_LOG sections 9 and 10 is frozen at this commit. What the record shows about
+the examiners, stated plainly: rounds 1 to 6 had two examiners from model families other than the author's (round 5
+onwards with a third family as the second examiner, when the usual one reached its usage limit); the first examiner's
+last complete review (round 6) required changes, all made, and its round-7 review was cut off by its own usage limit;
+rounds 8 to 18 came from one reviewer family, the only one available until the limits reset. The run is made once
+from this commit; a later review by the first examiner's family, if made, is reported beside the results and cannot
+change them.
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).
