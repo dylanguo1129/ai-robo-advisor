@@ -255,20 +255,31 @@ Full catalogue, licences and limits: [data/README.md](data/README.md); field dic
      are too noisy to optimise on.
    - **Covariance Σ** uses Ledoit-Wolf shrinkage on up to 15 years of monthly returns. Young funds are extended
      backwards with a closely correlated older fund.
-   - **λ (risk aversion)** is solved for so the mix hits the level's target volatility. The solver is accelerated
-     projected gradient (FISTA) with an exact projection onto the capped simplex.
+   - **λ (risk aversion)** is calibrated on the mix you actually get (after resampling and after small positions are
+     dropped, with the same random draws at every step), so each level lands within 0.005 percentage points of its
+     target volatility, or the result says why not (a jump of the minimum-position rule, or a fund limit). The solver
+     is accelerated projected gradient (FISTA) with an exact projection onto the capped simplex and fails closed
+     without a convergence certificate.
    - **Resampling:** the whole fit is repeated on 200 bootstrap re-draws of history and the weights are averaged
      (with a 5-95% band per fund); positions under 2% are dropped.
-5. **Report.** Planning returns from FP Canada's 2026 assumptions after each fund's fee; a 2,000-path bootstrap
+5. **Report.** Planning returns from FP Canada's 2026 assumptions after each fund's fee; a 5,000-path bootstrap
    projection; seven historical crisis replays (2008, 2011, 2014-16, 2018, 2020, 2022, 2025); fees in dollars;
    rule-based checks; and market-context flags (VIX, credit spreads, GPR, EPU, trends, news) that are shown for
    context only and never move the weights.
 
-Pre-registered back-tests after costs found no statistically significant edge over a static mix of the same funds
-(and in the US the textbook sample-mean optimizer did better at level 3); the honest read is "transparent and
-well-behaved", not "beats the market". Method and evidence:
-[docs/METHOD.md](docs/METHOD.md), [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) section 7,
-[docs/RESEARCH_LOG.md](docs/RESEARCH_LOG.md).
+6. **Orders and disclosure.** A rebalancer turns holdings and a cash flow into whole-unit orders: cash flows first,
+   bands of min(2 points, 25% of target) traded back to 7/8 of the band, a minimum order of $50, and orders above 1% of
+   a fund's daily traded value flagged. Every mix shows its NI 81-102 Appendix F risk rating. Suitability checks are
+   opt-in; the level policy is unchanged.
+
+**Evidence.** Version 3 was evaluated under a plan written before any of it ran, examined in eighteen rounds by
+outside reviewers, and run from a committed protocol (one re-run for a disclosed bug fix). In Canada each level's
+realised volatility over 2010-2026 was within a few percent of its target; in the US over 2019-2026 it was about a
+third above. No Sharpe-ratio difference from the benchmarks was detected, and in simulation a static mix did slightly
+better when the model's expected returns were wrong: the honest read is "close to its stated risk in Canada (the registered
+reading is inconclusive), and fails safely", not "beats the market". The paper ([docs/paper](docs/paper)), every design decision with its source or test
+([docs/DECISIONS.md](docs/DECISIONS.md)), the plan ([docs/RESEARCH_LOG.md](docs/RESEARCH_LOG.md) sections 9-11) and
+the results ([output/v3/results.json](output/v3/results.json)) are in the repository.
 
 ## Repository layout
 
@@ -338,25 +349,43 @@ Engineering conventions:
 
 ## Known limitations
 
-Found during the 30 Sep 2026 audit and not yet fixed:
+From the v3 evaluation (docs/paper, output/v3/results.json) and the audits, as of October 2026:
 
-1. **US levels 2-3 do not see 2008 in their ranges.** The international bond fund BNDX starts in 2013 and its only
-   stand-in correlates too weakly (0.68 < 0.80), so for US mixes holding BNDX the bad year and projections use
-   history from July 2013, although the page says ranges include 2008 (the crisis replay itself still shows 2008).
-2. **Chat and MCP fund swaps are too permissive.** The page's own menu limits a swap to the asset class's
-   candidates, but the chat tool and `build_portfolio` accept any eligible fund in a core slot (e.g. a crypto ETF).
-3. **Parity gap:** the Black-Litterman "view" reference case names IAUM, which is no longer the default gold fund
-   (GLDM is), so the view is not applied and that path is not parity-tested; resampled weights differ slightly between Python and the browser (different
-   random-number generators).
-4. **Fresh-clone Python uses rates one month older** than the web page (the snapshot loader drops the newest
-   rate month). Do not run `bundle` without the local cache.
-5. **Data:** survivor-only universe (no delisted funds); TMX and Yahoo endpoints are unofficial; a per-ticker
-   rate-limit failure inside a successful price chunk is not recorded; news is partly carried over from an earlier
-   fetch.
-6. **Level 5** is close to a corner solution and lands slightly below its volatility target after resampling.
-7. **The page without the assistant reads messages with keyword rules** (`web/parse.js`, cases in `web/test_parse.mjs`).
-   Unusual phrasings can get "Nothing matched"; the assistant handles free text.
-8. **A phone held sideways with the largest text size** leaves little room above the composer for the self-check.
+1. **US risk ran above target.** Over 2019-2026 the US levels' realised volatility was about a third above their
+   targets (the Canadian levels were within a few percent over 2010-2026). A level's stated volatility is a long-run
+   estimate, and recent years exceeded it.
+2. **No proven edge.** No Sharpe-ratio difference from the benchmarks was detected after adjusting for multiple tests;
+   in a simulation where the model's expected returns are wrong, a static stock-bond mix did slightly better.
+   Resampling neither helped nor hurt. The honest read is "close to its stated risk in Canada, and fails safely", not
+   "beats simple alternatives".
+3. **Crisis replays start in 2008.** None covers the 2000-2002 bear market.
+4. **US levels 2-3 do not see 2008 in their ranges.** BNDX starts in 2013 and its written stand-in (BWX, unhedged)
+   correlates 0.68 with it, below the 0.80 the stand-in rule requires, so it is never used; for mixes holding BNDX the
+   bad year and projections use history from July 2013 (the crisis replay itself still shows 2008).
+5. **An own pick from the other market** (for example a US-listed fund in a Canadian mix) is built by Python and the
+   MCP server, converted to the portfolio currency, but the web page carries only one market's funds and leaves it
+   out with a note.
+6. **Slot rules and fund labels.** The Canadian "Global bonds, hedged" slot holds a US-only fund (VBU, a CAD-hedged
+   US aggregate index fund); the slot's rule accepts it (docs/research/e7e_shelf_audit.md). A fund swap must pass
+   the slot's rule and a like-for-like label, so sector, factor, option-income and single-country funds are refused,
+   but actively managed bond funds and swap-based index funds that a slot's rule admits can still be swapped in. Some
+   region and asset-class labels are wrong (single-country funds labelled "US", a bitcoin-miner fund labelled Crypto);
+   they are listed in docs/research/e7e_taxonomy.md and left for the next evaluation, because the slots' rules read
+   them.
+7. **Large accounts.** On a 1,000,000 account, the largest orders in several Canadian funds exceed 1% of their average
+   daily traded value; the rebalancer flags them.
+8. **Level 5** is held by the fund limits a little below its volatility target (within half a point; the calibration
+   reports it as out of reach).
+9. **Fresh-clone Python uses rates one month older** than the web page (the snapshot loader drops the newest rate
+   month). Do not run `bundle` without the local cache.
+10. **Data:** survivor-only universe (no delisted funds); TMX and Yahoo endpoints are unofficial and for personal use;
+   a per-ticker rate-limit failure inside a successful price chunk is not recorded; news is partly carried over from
+   an earlier fetch.
+11. **The page without the assistant reads messages with keyword rules** (`web/parse.js`, cases in
+    `web/test_parse.mjs`). Unusual phrasings can get "Nothing matched"; the assistant handles free text.
+12. **A phone held sideways with the largest text size** leaves little room above the composer for the self-check.
+13. **Not advice.** In Canada, advice from an engine like this must be given by a registered portfolio manager with
+    human oversight (CSA Staff Notice 31-342). Robo-Kit is a research and teaching tool.
 
 ## How this was built: the prompts
 

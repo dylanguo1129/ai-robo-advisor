@@ -21,6 +21,7 @@ import pandas as pd
 from . import __version__, glossary
 from . import profile as prof
 from .engine import Request, _load, build_portfolio, ladder, snapshot_id
+from .errors import InfeasibleConstraints, RoboKitInputError, SolverNotConverged
 from .shelf import PRIOR, candidates, sleeves_for
 from .signals import market_flags, news_digest, trend_state
 
@@ -345,6 +346,7 @@ def build_portfolio_tool(
     years: int = 10,
     goal: float | None = None,
     fixed_weights: dict | None = None,
+    relax_limits: bool = False,
 ) -> dict:
     """What the model does with the chosen funds at the chosen level: weights, risk, fees, stress tests, projections, checks.
     ``fixed_weights`` ({ticker: share}) skips the optimizer and reports the person's own weights the same way.
@@ -365,6 +367,7 @@ def build_portfolio_tool(
         years=years,
         goal=goal,
         fixed_weights=fixed_weights or None,
+        on_infeasible="relax" if relax_limits else "refuse",
     )
     p = build_portfolio(req)
     p.pop("history", None)
@@ -493,7 +496,11 @@ def call(name: str, args: dict | None = None) -> dict:
         return {"error": f"unknown tool {name!r}", "tools": sorted(TOOLS)}
     try:
         return TOOLS[name](**(args or {}))
+    except (RoboKitInputError, InfeasibleConstraints) as e:  # the person can act on these: plain message plus details
+        return {"error": str(e), "details": e.details}
+    except SolverNotConverged as e:
+        return {"error": "The optimizer did not reach an answer, so nothing was built.", "details": e.details}
     except TypeError as e:
         return {"error": f"bad arguments for {name}: {e}"}
-    except (ValueError, KeyError, IndexError) as e:
+    except (ValueError, KeyError, IndexError, AttributeError) as e:
         return {"error": f"{type(e).__name__}: {e}"}

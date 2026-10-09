@@ -10,7 +10,8 @@ Method (docs/research/methods-signals.md section 6):
 2. Blocks of months are drawn with replacement (stationary bootstrap, mean
    block six months) so crashes and calm spells cluster the way they did.
    Each draw applies the same months to every fund, which keeps their
-   co-movement.
+   co-movement. The draws come from the generator both engines share
+   (optimizer/rng.py), so Python and the browser show the same ranges.
 3. The portfolio is rebalanced monthly to its weights; contributions are added
    at the end of each month.
 
@@ -27,6 +28,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from optimizer.rng import stationary_rows_many
+
 DISCLOSURE = {
     "en": (
         "The projections are hypothetical in nature, do not reflect actual investment results and are not "
@@ -35,19 +38,6 @@ DISCLOSURE = {
         "not considered may have characteristics similar or superior to those analysed."
     ),
 }
-
-
-def _stationary_rows(rng: np.random.Generator, t: int, n: int, block: float) -> np.ndarray:
-    rows = np.empty(n, dtype=int)
-    i = 0
-    p = 1.0 / block
-    while i < n:
-        start = rng.integers(0, t)
-        length = rng.geometric(p)
-        take = min(length, n - i)
-        rows[i : i + take] = (start + np.arange(take)) % t
-        i += take
-    return rows
 
 
 def recentre(asset_returns: np.ndarray, annual_geo: np.ndarray) -> np.ndarray:
@@ -67,7 +57,7 @@ def project(
     monthly_contribution: float = 0.0,
     years: int = 10,
     goal: float | None = None,
-    n_paths: int = 2000,
+    n_paths: int = 5000,
     block: float = 6.0,
     seed: int = 7,
 ) -> dict:
@@ -77,23 +67,19 @@ def project(
     t = len(port)
     months = int(years * 12)
     paths = np.empty((n_paths, months + 1))
-    growth = np.empty((n_paths, months))  # pure return paths (no contributions) for holding-period ranges
     lasting = np.full(n_paths, months)  # months of withdrawals paid in full (months = it lasted)
-    for p in range(n_paths):
-        # one generator per path: the first year of every path is the same whatever the horizon,
-        # so changing the number of years never reshuffles the one-year range
-        rng = np.random.default_rng([seed, p])
-        r = port[_stationary_rows(rng, t, months, block)]
-        growth[p] = r
-        v = amount
-        paths[p, 0] = v
-        for m in range(months):
-            v = v * (1 + r[m]) + monthly_contribution
-            if v < 0:  # a withdrawal the money could not cover: that month was not paid in full
-                if lasting[p] == months:
-                    lasting[p] = m
-                v = 0.0
-            paths[p, m + 1] = v
+    # one generator per path, seeded as web/robokit.js does: the first year of every path is the same whatever the
+    # horizon (changing the number of years never reshuffles the one-year range), and both engines draw the same paths
+    seeds = (int(seed) * 1000003 + np.arange(n_paths, dtype=np.int64) * 7919 + 1) & 0xFFFFFFFF
+    growth = port[stationary_rows_many(seeds, t, months, block)]  # pure return paths (no contributions)
+    v = np.full(n_paths, float(amount))
+    paths[:, 0] = v
+    for m in range(months):
+        v = v * (1 + growth[:, m]) + monthly_contribution
+        short = v < 0  # a withdrawal the money could not cover: that month was not paid in full
+        lasting[short & (lasting == months)] = m
+        v[short] = 0.0
+        paths[:, m + 1] = v
     qs = (10, 25, 50, 75, 90)
     yearly = [{"year": y, **{f"p{q}": round(float(np.percentile(paths[:, y * 12], q)), 2) for q in qs}} for y in range(years + 1)]
     final = paths[:, -1]

@@ -159,6 +159,13 @@ REAL_ESTATE = r"\b(reits?|real estate|property|properties)\b"
 CASH = r"\b(high interest savings|savings etf|money market|cash management|t-?bill|treasury bill|premium cash|cash etf|ultra short|0-3 month|1-3 month treasury|ultrashort bond|floating rate note|short term discount)\b"
 BOND = r"\b(bond|fixed income|treasury|treasuries|govt|government|aggregate|corporate(?! class)|municipal|muni|debt|income fund|credit|loan|tips|real return|inflation[- ]protected|inflation[- ]linked|mortgage|mbs|clo|preferred|fixed rate|ibonds|bulletshares|target 20\d\d|term tips|investment grade|high yield|junk|duration)\b"
 BALANCED = r"\b(balanced|growth etf portfolio|conservative etf portfolio|conservative etf$|asset allocation|all-in-one|all equity etf portfolio|income etf portfolio|conservative income|growth portfolio|allocation etf|target date|retirement|multi-asset|monthly income)\b"
+# one foreign country (not a home market); "ex China" or "ex-Japan" names a region without that country
+SINGLE_COUNTRY = (
+    r"(?<!ex )(?<!ex-)\b(argentina|australia|austria|belgium|brazil|chile|china|colombia|denmark|egypt|finland|france|germany"
+    r"|greece|hong kong|india|indonesia|ireland|israel|italy|japan|south korea|korea|kuwait|malaysia|mexico|netherlands"
+    r"|new zealand|nigeria|norway|pakistan|peru|philippines|poland|portugal|qatar|saudi arabia|saudi|singapore"
+    r"|south africa|spain|sweden|switzerland|taiwan|thailand|turkey|uae|united arab emirates|united kingdom|uk|vietnam)\b"
+)
 ALTERNATIVE = r"\b(long/short|long-short|market neutral|managed futures|alternative|arbitrage|merger|hedge fund|tail risk|volatility|vix|trend|absolute return|multi-strategy|buffer|defined outcome|dual directional|accelerated)\b"
 
 REGION_RULES = [
@@ -195,8 +202,9 @@ THEME_RULES = [
         "Covered call / option income",
         r"\b(covered call|option income|premium yield|enhanced yield|yield maximizer|buywrite|option writing|income target|premium income|yieldboost|enhanced income|highshares|daymax)\b",
     ),
-    ("Buffer / defined outcome", r"\b(buffer|defined outcome|dual directional|accelerated|max buffer|autocallable|floor)\b"),
-    ("Dividend", r"\b(dividend|dividends|high yield equity|dividend growth|aristocrat|shareholder yield|dividend leaders)\b"),
+    # word stems take \w* so plurals and compounds match ("Pharmaceuticals", "Industrials", "Buffer20", "Cybersecurity")
+    ("Buffer / defined outcome", r"\b(buffer\w*|defined outcome|dual directional|accelerated|autocallable|floor\d*)\b"),
+    ("Dividend", r"\b(dividends?|high yield equity|aristocrats?|shareholder yield)\b"),
     ("Low volatility", r"\b(low vol|low volatility|minimum volatility|min vol|defensive)\b"),
     (
         "ESG / climate",
@@ -204,28 +212,42 @@ THEME_RULES = [
     ),
     (
         "Technology / AI",
-        r"\b(technology|tech|artificial intelligence|\bai\b|robotics|semiconductor|cyber|cloud|internet|software|innovation|digital|fintech|blockchain technologies|metaverse|5g|nasdaq-100|nasdaq 100)\b",
+        r"\b(technolog\w*|tech|artificial intelligence|ai|robotics|semiconductor\w*|cyber\w*|cloud|internet|software|innovation|digital|fintech|blockchain technologies|metaverse|5g|nasdaq-100|nasdaq 100)\b",
     ),
-    ("Clean energy", r"\b(clean energy|solar|wind|renewable|hydrogen|battery|lithium|uranium|nuclear|electric vehicle|ev\b)\b"),
-    ("Healthcare", r"\b(health|healthcare|biotech|pharma|medical|genomic|longevity)\b"),
-    ("Financials / banks", r"\b(bank|banks|financial|financials|insurance|lifeco)\b"),
-    ("Energy", r"\b(energy|oil|gas|pipeline|midstream|mlp)\b"),
-    ("Materials / mining", r"\b(mining|miners|materials|metals|gold producer|gold miners|junior gold|silver miners|copper miners|steel)\b"),
+    ("Clean energy", r"\b(clean energy|solar|wind|renewable|hydrogen|battery|lithium|uranium|nuclear|electric vehicle|ev)\b"),
+    ("Healthcare", r"\b(health\w*|biotech\w*|pharma\w*|medical|genomic\w*|longevity)\b"),
+    ("Financials / banks", r"\b(banks?|financials?|insurance|lifeco|business development|bdcs?|capital markets|brokers?)\b"),
+    ("Energy", r"\b(energy|oil|gas|pipelines?|midstream|mlps?)\b"),
+    ("Materials / mining", r"\b(mining|miners|materials|metals|gold producers?|junior gold|steel)\b"),
     ("Infrastructure / utilities", r"\b(infrastructure|utilities|utility)\b"),
+    ("Communication / media", r"\b(communication\w*|media|telecom\w*)\b"),
+    ("Sector", r"\b(select sector|sector)\b"),
     ("Real estate", REAL_ESTATE),
     ("Consumer", r"\b(consumer|retail|staples|discretionary)\b"),
-    ("Industrials", r"\b(industrial|aerospace|defense|defence|transportation)\b"),
-    ("Small / mid cap", r"\b(small[- ]?cap|mid[- ]?cap|smallcap|midcap|smid|micro[- ]?cap|russell 2000|junior)\b"),
+    ("Industrials", r"\b(industrial\w*|aerospace|defen[cs]e|transportation)\b"),
+    (
+        "Small / mid cap",
+        r"\b(small[- ]?cap|mid[- ]?cap|smallcap|midcap|smid|micro[- ]?cap|russell 2000|junior|extended market|completion)\b",
+    ),
     ("Factor: value", r"\bvalue\b"),
     ("Factor: growth", r"\bgrowth\b(?! portfolio| etf portfolio| asset allocation)"),
     ("Factor: momentum", r"\bmomentum\b"),
     ("Factor: quality", r"\bquality\b"),
-    ("Equal weight", r"\bequal[- ]weight\b"),
+    (
+        "Factor: other",
+        r"\b(multi-?factor|factors?|rafi|fundamental\w*|profitability|alphadex|activebeta|moat|cash cows|smart beta|quant\w*|tilt\w*|targeted value|research enhanced|nxtgen|next gen|high beta|garp)\b",
+    ),
+    ("Equal weight", r"\bequal[- ]weight\w*\b"),
+    ("Single country", SINGLE_COUNTRY),
     (
         "Broad market",
-        r"\b(total market|total stock|all cap|composite|s&p 500|s&p500|tsx 60|tsx capped|msci world|msci eafe|acwi|ftse developed|core s&p|core msci|total u\.s\.|all-world|all world|broad market|market cap)\b",
+        r"\b(total market|total stock|total international|total world|all[- ]cap|composite|s&p 500|s&p500|s&p 1500|tsx 60|tsx capped|msci world|msci eafe|msci acwi|acwi|msci usa|msci canada|msci emerging|ftse developed|ftse emerging|ftse canada|ftse all|developed world|developed markets|emerging markets|core s&p|core msci|total u\.s\.|all-world|all world|all country|all-country|broad market|market cap|russell 1000|russell 3000|crsp us|large[- ]cap|equity market|equity index|international equity|international stock|u\.s\. stock|us stock)\b",
     ),
 ]
+# Index providers: a fund named after one tracks an index
+INDEX_FAMILY = r"\b(msci|ftse|s&p|russell|nasdaq|dow jones|crsp|bloomberg|solactive|morningstar|stoxx|tsx)\b"
+# Markers of a manager's own picks, beyond the word "active" (the strategy field)
+ACTIVE_MARKERS = r"\b(active\w*|focus\w*|conviction|concentrated|research enhanced|congress\w*|unconstrained)\b"
 
 
 def _rx(p: str) -> re.Pattern:
@@ -248,6 +270,8 @@ _RX = {
         balanced=BALANCED,
         alternative=ALTERNATIVE,
         notbullion=NOT_BULLION,
+        activemarkers=ACTIVE_MARKERS,
+        indexfamily=INDEX_FAMILY,
     ).items()
 }
 _REGION = [(_rx(p), r) for p, r in REGION_RULES]
@@ -436,7 +460,10 @@ def classify_row(r: pd.Series) -> dict:
     themes = [t for t, rx in _THEME if rx.search(name)]
     if style == "Option Writing" or ycat == "Derivative Income":
         themes.append("Covered call / option income")
-    out["theme"] = "; ".join(dict.fromkeys(themes)) if themes else ("Broad market" if ac == "Equity" else "")
+    if ac != "Equity":  # "emerging markets" in a bond fund's name is not a broad stock market
+        themes = [t for t in themes if t != "Broad market"]
+    # "Broad market" needs the name of a whole-market index; an equity name with no theme is left unlabelled
+    out["theme"] = "; ".join(dict.fromkeys(themes))
     top_sector = _top(r.get("tmx_sectors"), exclude=("Other",))
     out["sector"] = top_sector[0] if top_sector and top_sector[1] >= 60 else ("Diversified" if ac == "Equity" else "")
 
@@ -445,16 +472,28 @@ def classify_row(r: pd.Series) -> dict:
     if lev != 1.0:
         derivs.append("leverage/inverse (swaps or futures)")
     if re.search(
-        r"covered call|option|buffer|yield shares|highshares|enhanced|premium|defined outcome|autocallable|daymax|yieldboost", low
+        # "premium" is an option premium, not "Premium Money Market" or "Premium Cash"; "enhanced" alone is a manager's
+        # word ("Fidelity Enhanced High Yield", "Research Enhanced"), and "Hedged Equity" is usually currency hedging
+        r"covered call|option|overlay|buywrite|buffer|yield shares|highshares|enhanced (?:yield|income|dividend|premium)|premium(?! money| cash| t-bill)|defined outcome|autocallable|daymax|yieldboost",
+        low,
     ):
         derivs.append("options")
-    if re.search(r"futures|managed futures|commodity index|vix", low):
+    # a commodity fund that does not hold bullion holds futures (E7(e): HGER, COMB), unless it says it is physical
+    if re.search(r"futures|managed futures|commodity index|vix", low) or (
+        ac == "Commodity" and not _RX["gold"].search(name) and "physical" not in low
+    ):
         derivs.append("futures")
     if re.search(r"\bswap\b|total return index|corporate class|\btri\b", low):
         derivs.append("swap-based")
     out["derivatives"] = "; ".join(derivs)
-    if re.search(r"\bactive\b|actively managed|activeetf|activ\b", low) or (
-        "Index" not in name and "index" not in low and re.search(r"\bfund\b|\bpool\b|opportunit|select|strategic|tactical|alpha", low)
+    if (
+        re.search(r"\bactive\b|actively managed|activeetf|activ\b", low)
+        or _RX["activemarkers"].search(name)
+        or (
+            "index" not in low
+            and not _RX["indexfamily"].search(name)  # "iShares Russell 3000 Fund" tracks an index
+            and re.search(r"\bfund\b|\bpool\b|opportunit|select|strategic|tactical|alpha", low)
+        )
     ):
         strategy = "Active"
     elif re.search(r"low vol|momentum|quality|value|equal weight|dividend|factor|fundamental|multifactor|smart beta|quant", low):

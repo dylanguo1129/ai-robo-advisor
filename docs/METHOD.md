@@ -39,7 +39,7 @@ lam    = multiplier(profile) * delta      low 0.6 | mid 1.0 | high 2.5   (or cal
 w*     = argmin (lam/2) w'Sigma w - mu'w   s.t. sum w = 1, 0 <= w <= cap, client rules
         |
         v
-resampling: 500 stationary-bootstrap histories, re-estimate, re-solve, average; keep the 5-95% band
+resampling: 200 stationary-bootstrap histories, re-estimate, re-solve, average; keep the 5-95% band
         |
         v
 outputs: weights, expected return/vol, risk contributions, effective N, band, plain-language notes
@@ -90,7 +90,7 @@ Long-only, fully invested, 35% cap per ETF (cash ETF capped by `cash_max`, defau
 
 ### 3.6 Resampling (`RoboKitOptimizer.optimize(resample=True)`)
 
-The history is resampled 500 times with the stationary block bootstrap (Politis & Romano 1994; mean block six months, so volatility clustering survives), Sigma and mu are re-estimated on each draw, the problem re-solved, and the reported weights are the average with a 5–95% band per weight. This is Michaud's resampled efficiency and what Betterment does: "Averaging the allocation weights across the thousands of return samples gives a single set of allocation weights optimized to perform in the face of a wide range of market scenarios." The band is shown to the client as "how sure the model is". An optional Tu–Zhou blend with equal weights (`naive_blend`) exists; the grid shows it lowers turnover without improving risk-adjusted return, so it is off by default.
+The history is resampled 200 times (500 before v3) with the stationary block bootstrap (Politis & Romano 1994; mean block six months, so volatility clustering survives), Sigma and mu are re-estimated on each draw, the problem re-solved, and the reported weights are the average with a 5–95% band per weight. This is Michaud's resampled efficiency and what Betterment does: "Averaging the allocation weights across the thousands of return samples gives a single set of allocation weights optimized to perform in the face of a wide range of market scenarios." The band is shown to the client as "how sure the model is". An optional Tu–Zhou blend with equal weights (`naive_blend`) exists; the grid shows it lowers turnover without improving risk-adjusted return, so it is off by default.
 
 ### 3.7 What the interface receives
 
@@ -203,3 +203,24 @@ Sections 1-7 describe the v1 optimizer on the 20-ETF prototype and still hold fo
 | Back-test | 2016/2018 samples, one market | Pre-registered walk-forward on both markets, 2009-2026 (CA) and 2018-2026 (US), five strategies, three levels | See PRODUCT_SPEC.md section 10 and RESEARCH_LOG.md section 6 |
 
 v2 back-test in one paragraph (hypothetical, after costs): in Canada the risk levels delivered almost exactly their target volatility, and Robo-Kit, a static 60/40 of the same funds and the textbook optimizer are statistically tied. In the shorter US window (2018-2026) the textbook optimizer beat Robo-Kit by 1.5% a year at level 3 (t = -2.1), and realised volatility ran above target through 2020 and 2022. The trend tilt failed its pre-registered bar and stays off. v1's open items 1 and 2 are closed (written prior; Bank of Canada and US bill rates by month); item 3 is answered by `robokit/profile.py`; item 4 is in the page (stress tests next to every mix).
+
+## 9. v3 (Oct 2026): what changed, and how it was evaluated
+
+The full account is the paper in docs/paper (design, three propositions with proofs, the evaluation and its results);
+every decision, with its source, proof or test, is in docs/DECISIONS.md. In short:
+
+- **Risk aversion is calibrated on the mix the client receives**, not on an intermediate solve: the resampled average
+  after small positions are dropped, with the same bootstrap draws at every step, so its volatility is a deterministic
+  function of lambda. The search brackets the target and narrows it by Illinois regula falsi (Dowell and Jarratt 1971).
+  Each result is within 0.005 percentage points of the target, a proven jump of the minimum-position rule, or a bound
+  of lambda, and carries its evidence. Reason: averaged resampled portfolios drift off the target the single solve was
+  calibrated to (Scherer 2002), and their volatility is not monotone in lambda.
+- **Numerics:** the exact projection onto the capped simplex (Appendix A of the paper), the exact largest eigenvalue for
+  the step, a convergence certificate or a refusal, one random generator in both engines.
+- **Implementation layer:** a rebalancer (cash flows first; bands with a destination; whole units; minimum order;
+  liquidity flag), the NI 81-102 Appendix F rating of every mix, opt-in suitability checks.
+- **Evaluation:** pre-registered in RESEARCH_LOG sections 9-10 and examined in eighteen rounds before it ran; the
+  results (output/v3/results.json) are summarised in the paper. Canada's levels came within a few percent of their stated volatility over
+  2010-2026 (the registered reading is inconclusive: two intervals reach just past the band); the US levels ran about a third above target over 2019-2026; no Sharpe-ratio
+  difference from the benchmarks was detected; resampling had no measurable effect; the projection paths rose to
+  5,000 under a registered rule.

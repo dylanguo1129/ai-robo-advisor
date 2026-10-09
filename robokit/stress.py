@@ -65,6 +65,22 @@ SCENARIOS = [
 ]
 
 
+def standin_peers(meta: pd.DataFrame, t: str, available) -> tuple[list[str], str]:
+    """The funds whose median episode return stands in for ``t``: eligible funds among ``available`` (those with data
+    through the whole episode) of the same asset class, region and market; if there are none, of the same asset class
+    anywhere. The replay uses it, and so does its hold-out test (robokit/audit.py), with the fund itself left out.
+    Returns the peers and the rule that found them."""
+    if t not in meta.index:
+        return [], "none"
+    ac, rg, mk = meta.at[t, "asset_class"], meta.at[t, "region"], meta.at[t, "market"]
+    pool = meta[meta.eligible & meta.index.isin(list(available))]
+    peers = list(pool[(pool.asset_class == ac) & (pool.region == rg) & (pool.market == mk)].index)
+    if peers:
+        return peers, "class, region and market"
+    peers = list(pool[pool.asset_class == ac].index)
+    return peers, ("class" if peers else "none")
+
+
 def scenario_returns(returns_full: pd.DataFrame, universe: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
     """Episode return per fund (rows: scenarios, columns: tickers) and a proxied flag frame."""
     meta = universe.set_index("yahoo")
@@ -81,14 +97,7 @@ def scenario_returns(returns_full: pd.DataFrame, universe: pd.DataFrame, tickers
             if t in win.columns and bool(full.get(t, False)):
                 row[t], prow[t] = float(ep[t]), False
                 continue
-            ac = meta.at[t, "asset_class"] if t in meta.index else None
-            rg = meta.at[t, "region"] if t in meta.index else None
-            mk = meta.at[t, "market"] if t in meta.index else None
-            peers = meta[(meta.eligible) & (meta.asset_class == ac) & (meta.region == rg) & (meta.market == mk)].index
-            peers = [p for p in peers if p in win.columns and bool(full.get(p, False))]
-            if not peers:
-                peers = meta[(meta.eligible) & (meta.asset_class == ac)].index
-                peers = [p for p in peers if p in win.columns and bool(full.get(p, False))]
+            peers, _ = standin_peers(meta, t, set(full.index[full]) - {t})
             row[t] = float(np.median(ep[peers])) if peers else np.nan
             prow[t] = True
         out[sc["key"]], proxied[sc["key"]] = row, prow

@@ -165,6 +165,9 @@ def qis(returns, demean: bool = True) -> np.ndarray:
     return sigma
 
 
+QIS_SWITCH = 0.25  # N/T above which QIS replaces constant-correlation shrinkage (tested: RESEARCH_LOG section 10, E3)
+
+
 def choose_covariance(returns, method: str = "auto") -> tuple[np.ndarray, dict]:
     """Dispatch on ``method`` and return ``(sigma, info)``.
 
@@ -177,8 +180,9 @@ def choose_covariance(returns, method: str = "auto") -> tuple[np.ndarray, dict]:
     x = _as_2d(returns)
     t, n = x.shape
     conc = n / t
-    if method == "auto":
-        method = "qis" if conc > 0.25 else "lw_cc"
+    if method.startswith("auto"):  # 'auto' switches at N/T = 0.25; 'auto:0.2' at another point (evaluation only)
+        cut = float(method.split(":", 1)[1]) if ":" in method else QIS_SWITCH
+        method = "qis" if conc > cut else "lw_cc"
     info: dict = {"method": method, "concentration_ratio": conc, "n_assets": n, "n_obs": t}
     if method == "sample":
         sigma = sample_covariance(x)

@@ -252,7 +252,7 @@ The product labels every back-test "hypothetical" and says that volatility is a 
 
 ## 11. Projections and stress tests
 
-- **Projections** (`robokit/projection.py`): each fund's monthly history is re-centred on its planning assumption after fees, then 2,000 paths are drawn by stationary bootstrap.
+- **Projections** (`robokit/projection.py`): each fund's monthly history is re-centred on its planning assumption after fees, then 5,000 paths are drawn by stationary bootstrap.
   - The planning assumptions come from the FP Canada 2026 Projection Assumption Guidelines. For US bonds and cash, today's Treasury yields are used.
   - Outputs: a 10-90 and 25-75 percentile fan, the one-year range, ranges by holding period (1, 3, 5, 10 years) and, when a goal is set, the "chance you would need to adjust" and the typical shortfall. There is no "success %".
   - The fixed disclosure uses FINRA 2214 language.

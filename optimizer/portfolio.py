@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from .data import MONTHS_PER_YEAR
+from .errors import InfeasibleConstraints
 from .estimators import (
     black_litterman_posterior,
     choose_covariance,
@@ -43,7 +44,55 @@ from .estimators import (
     james_stein_returns,
     market_risk_aversion,
 )
+from .rng import Mulberry32, stationary_rows
 from .solver import solve_qp
+
+ON_INFEASIBLE = ("raise", "relax")
+
+
+def relax_caps(
+    tick: list[str], ub: np.ndarray, need_total: float, relax_order: list[list[str]] | None, frozen: set[str]
+) -> tuple[np.ndarray, list[dict]]:
+    """Raise caps that cannot reach ``need_total``, one group at a time in ``relax_order``.
+
+    Inside a group every cap is multiplied by the same factor (capped at 100%), so the caps keep their
+    proportions; a later group is touched only if the earlier ones could not make enough room. Funds in
+    ``frozen`` (exclusions) never come back. Returns the new caps and one record per cap that moved."""
+    ub = ub.astype(float).copy()
+    pos = {t: i for i, t in enumerate(tick)}
+    groups = relax_order if relax_order else [list(tick)]
+    seen: set[str] = set()
+    ordered = []
+    for g in groups + [list(tick)]:  # anything not named in relax_order goes last
+        members = [t for t in g if t in pos and t not in seen and t not in frozen]
+        seen.update(members)
+        if members:
+            ordered.append(members)
+    steps = []
+    for members in ordered:
+        need = need_total - ub.sum()
+        if need <= 1e-12:
+            break
+        idx = np.array([pos[t] for t in members])
+        before = ub[idx].copy()
+        room = float(np.sum(1.0 - before))
+        if room <= 1e-12 or not (before > 0).any():
+            continue
+        if room <= need + 1e-12:
+            ub[idx] = 1.0
+        else:  # the factor f >= 1 with sum(min(1, f * cap)) - sum(cap) = need
+            lo, hi = 1.0, 1.0 / float(before[before > 0].min())
+            for _ in range(200):
+                f = 0.5 * (lo + hi)
+                if np.minimum(1.0, f * before).sum() - before.sum() < need:
+                    lo = f
+                else:
+                    hi = f
+            ub[idx] = np.minimum(1.0, hi * before)
+        for k, i in enumerate(idx):
+            if ub[i] > before[k] + 1e-12:
+                steps.append({"limit": "cap", "ticker": tick[i], "requested": float(before[k]), "applied": float(ub[i])})
+    return ub, steps
 
 
 @dataclass
@@ -77,6 +126,7 @@ class OptimizationResult:
     weight_band: pd.DataFrame | None  # columns: std, q05, q95 (resampling)
     notes: list[str] = field(default_factory=list)
     diagnostics: dict = field(default_factory=dict)
+    relaxations: list[dict] = field(default_factory=list)  # every limit that was relaxed (on_infeasible="relax" only)
 
     def to_dict(self) -> dict:
         d = {
@@ -90,6 +140,7 @@ class OptimizationResult:
             "effective_n": round(self.effective_n, 3),
             "notes": self.notes,
             "diagnostics": self.diagnostics,
+            "relaxations": self.relaxations,
         }
         if self.weight_band is not None:
             d["weight_band"] = {k: {c: round(float(v), 6) for c, v in row.items()} for k, row in self.weight_band.iterrows()}
@@ -254,7 +305,21 @@ class RoboKitOptimizer:
     # ------------------------------------------------------------------ #
     # Optimization
     # ------------------------------------------------------------------ #
-    def _bounds(self, tick: list[str], w_max: float, forced: dict[str, float], excluded: list[str], caps: dict[str, float] | None = None):
+    def _bounds(
+        self,
+        tick: list[str],
+        w_max: float,
+        forced: dict[str, float],
+        excluded: list[str],
+        caps: dict[str, float] | None = None,
+        on_infeasible: str = "raise",
+        relax_order: list[list[str]] | None = None,
+    ):
+        """(lower bounds, upper bounds, relaxations). Caps that cannot reach 100% either raise
+        ``InfeasibleConstraints`` (the default) or, with ``on_infeasible="relax"``, are raised group by group
+        in ``relax_order`` and every change is returned. A client minimum above a cap overrides the cap."""
+        if on_infeasible not in ON_INFEASIBLE:
+            raise ValueError(f"on_infeasible must be one of {ON_INFEASIBLE}")
         n = len(tick)
         lb = np.zeros(n)
         ub = np.full(n, w_max)
@@ -268,11 +333,61 @@ class RoboKitOptimizer:
                 ub[i] = 0.0  # exclusion wins over every other rule
             elif t in forced:
                 lb[i] = max(lb[i], float(forced[t]))
-        ub = np.maximum(ub, lb)
+        relaxations: list[dict] = []
+        for i, t in enumerate(tick):  # a client minimum above a fund's limit is a conflict, not a silent override
+            if lb[i] > ub[i] + 1e-12:
+                details = {"kind": "minimum_above_cap", "ticker": t, "minimum": float(lb[i]), "cap": float(ub[i])}
+                if on_infeasible == "raise":
+                    raise InfeasibleConstraints(f"The minimum of {lb[i]:.1%} for {t} is above its limit of {ub[i]:.1%}.", details)
+                relaxations.append({"limit": "cap", "ticker": t, "requested": float(ub[i]), "applied": float(lb[i]), "reason": "minimum"})
+                ub[i] = lb[i]
+        if lb.sum() > 1 + 1e-9:
+            raise InfeasibleConstraints(
+                f"The minimums add up to {lb.sum():.0%}, more than 100%.",
+                {
+                    "kind": "minimums",
+                    "minimums_total": float(lb.sum()),
+                    "minimums": {t: float(lb[i]) for i, t in enumerate(tick) if lb[i] > 0},
+                },
+            )
         if ub.sum() < 1 - 1e-9:
-            # caps too tight for the shortlist: relax proportionally and say so
-            ub = ub * (1.0 / ub.sum()) if ub.sum() > 0 else ub
-        return lb, ub
+            details = {"kind": "caps", "capacity": float(ub.sum()), "needed": 1.0, "caps": {t: float(ub[i]) for i, t in enumerate(tick)}}
+            if on_infeasible == "raise":
+                raise InfeasibleConstraints(
+                    f"The limits on these funds add up to {ub.sum():.0%}, so they cannot hold 100% of the money.", details
+                )
+            ub, steps = relax_caps(tick, ub, 1.0, relax_order, set(excluded))
+            relaxations += steps
+            if ub.sum() < 1 - 1e-9:
+                raise InfeasibleConstraints(f"Even with every limit relaxed these funds hold only {ub.sum():.0%}.", details)
+        return lb, ub, relaxations
+
+    def _group_bounds(self, tick, lb, ub, group_bounds, on_infeasible):
+        """Masks for the group limits, checked against the fund caps: (list of (mask, lo, hi), relaxations)."""
+        out, relaxations = [], []
+        for name, (members, lo, hi) in group_bounds.items():
+            mask = np.array([t in members for t in tick], dtype=float)
+            m = mask.astype(bool)
+            if not m.any():
+                continue
+            lo = float(lo or 0.0)
+            hi = 1.0 if hi is None else float(hi)
+            needed = max(float(lb[m].sum()), 1.0 - float(ub[~m].sum()))  # the group must hold its minimums and what the rest cannot
+            if lo > float(ub[m].sum()) + 1e-9:
+                raise InfeasibleConstraints(
+                    f"The group '{name}' must hold {lo:.0%} but its funds can hold only {ub[m].sum():.0%}.",
+                    {"kind": "group_floor", "group": name},
+                )
+            if hi < needed - 1e-9:
+                details = {"kind": "group_cap", "group": name, "cap": hi, "needed": needed, "group_minimums": float(lb[m].sum())}
+                if on_infeasible == "raise":
+                    raise InfeasibleConstraints(
+                        f"The limit of {hi:.0%} on '{name}' cannot hold: the group needs at least {needed:.0%}.", details
+                    )
+                relaxations.append({"limit": "group", "group": name, "requested": hi, "applied": needed})
+                hi = needed
+            out.append((mask, lo, hi))
+        return out, relaxations
 
     def _solve(self, sigma: np.ndarray, mu: np.ndarray, lam: float, lb, ub, group_bounds) -> np.ndarray:
         w = solve_qp(sigma, mu, lam, lb, ub, group_bounds)
@@ -299,6 +414,8 @@ class RoboKitOptimizer:
         seed: int = 0,
         min_weight: float = 0.0,
         caps: dict[str, float] | None = None,
+        on_infeasible: str = "raise",
+        relax_order: list[list[str]] | None = None,
     ) -> OptimizationResult:
         """Optimal weights for one client.
 
@@ -314,6 +431,10 @@ class RoboKitOptimizer:
                       client is not asked to buy 0.5% of a fund (implementation
                       constraint, not an estimation choice). 0 = keep everything.
         caps          {ticker: maximum weight} for individual funds, tighter than w_max.
+        on_infeasible 'raise' (default): limits that cannot all hold raise InfeasibleConstraints.
+                      'relax': caps are raised group by group in ``relax_order`` (then any
+                      fund not named), group caps to the smallest workable value, and every
+                      change is listed in ``result.relaxations``.
         """
         self._require_fit()
         tick = list(tickers) if tickers else list(self.tickers)
@@ -329,15 +450,17 @@ class RoboKitOptimizer:
         idx = [self.tickers.index(t) for t in tick]
         sigma = self.sigma.to_numpy()[np.ix_(idx, idx)]
         mu = self.mu_excess.to_numpy()[idx]
-        lb, ub = self._bounds(tick, w_max, forced, excluded, caps)
-        if ub.sum() < 1 + 1e-9 and w_max < 1 and self.cash_ticker not in tick:
-            notes.append(f"With {len(tick)} ETFs a {w_max:.0%} cap per fund cannot reach 100%; caps were relaxed proportionally.")
+        lb, ub, relaxations = self._bounds(tick, w_max, forced, excluded, caps, on_infeasible, relax_order)
         gb = None
         if group_bounds:
-            gb = []
-            for members, lo, hi in group_bounds.values():
-                mask = np.array([t in members for t in tick], dtype=float)
-                gb.append((mask, lo, hi))
+            gb, g_relax = self._group_bounds(tick, lb, ub, group_bounds, on_infeasible)
+            relaxations += g_relax
+            gb = gb or None
+        for r in relaxations:
+            what = f"the limit on {r['ticker']}" if r["limit"] == "cap" else f"the limit on '{r['group']}'"
+            notes.append(
+                f"{what[0].upper() + what[1:]} was raised from {r['requested']:.0%} to {r['applied']:.0%} so the funds can hold 100%."
+            )
 
         w_point = self._solve(sigma, mu, lam, lb, ub, gb)
 
@@ -406,6 +529,7 @@ class RoboKitOptimizer:
             weight_band=band,
             notes=notes,
             diagnostics=diagnostics,
+            relaxations=relaxations,
         )
 
     def _bootstrap_rows(self, rng: np.random.Generator, t: int) -> np.ndarray:
@@ -433,14 +557,17 @@ class RoboKitOptimizer:
 
     def _resample_weights(self, tick, idx, lam, lb, ub, gb, n_boot, seed) -> np.ndarray:
         """Bootstrap the monthly history; re-estimate Sigma (and mu, through
-        the estimator) on each draw; re-solve; stack."""
-        rng = np.random.default_rng(seed)
+        the estimator) on each draw; re-solve; stack. The stationary draws come from
+        the generator both engines share (optimizer/rng.py; web/engine.js), seeded
+        ``seed + 1`` as the browser does, so both engines resample the same histories."""
         x_full = self.returns.to_numpy()
         t = x_full.shape[0]
+        shared = self.resample_method == "stationary"
+        rng = Mulberry32(seed + 1) if shared else np.random.default_rng(seed)
         w0 = self.prior_weights.to_numpy()
         out = np.zeros((n_boot, len(tick)))
         for b in range(n_boot):
-            rows = self._bootstrap_rows(rng, t)
+            rows = stationary_rows(rng, t, t, self.block_length) if shared else self._bootstrap_rows(rng, t)
             xb = x_full[rows]
             sig_b, _ = choose_covariance(xb, self.cov_info["method"])
             sig_b = sig_b * MONTHS_PER_YEAR

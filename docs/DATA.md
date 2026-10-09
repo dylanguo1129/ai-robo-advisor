@@ -35,7 +35,7 @@ Snapshot in this repo: prices through 31 Aug 2026, listings and context fetched 
 | `dividend_yield`, `pe`, `pb` | From Yahoo and TMX where published |
 | `why` | Which classification rules fired |
 | `eligible`, `excluded_because` | Optimizer eligibility and the plain-language reason when not eligible |
-| `satellite_only` | Eligible but narrow or complex; allowed only as a capped satellite |
+| `satellite_only` | Eligible but narrow or complex: crypto, alternatives, option-overlay and futures-based funds, and every stock fund that is not a broad index fund (broad needs a whole-market index name and no narrower theme; `robokit.universe.broad_equity`). Held as a capped own pick; it can stand in a core slot only if the slot's reference fund is itself narrow and the slot's rule admits it (`robokit.shelf.slot_members`) |
 
 ## Suppliers and failure modes (model governance)
 

@@ -26,13 +26,18 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
+from optimizer.estimators import qis
+from optimizer.rng import Mulberry32
+
 from . import __version__, cma, glossary
 from . import profile as prof
 from .config import OUTPUT_DIR, ROOT
 from .engine import ONE_FUND, SLEEVE_CAPS, Request, _load, build_portfolio, returns_in, risk_free, snapshot_id, us_rates
+from .errors import RoboKitInputError
 from .history import PROXIES, proxies_for
 from .projection import DISCLOSURE as PROJ_DISCLOSURE
-from .shelf import PRIOR, candidates, prior_share, sleeves_for
+from .rebalance import rebalance
+from .shelf import PRIOR, candidates, like_for_like, prior_share, sleeves_for, slot_members
 from .signals import market_flags, news_digest
 from .stress import SCENARIOS
 from .tools import DISCLOSURE
@@ -161,8 +166,11 @@ def _sleeves(U: pd.DataFrame, market: str) -> list:
                 "cap": SLEEVE_CAPS.get(s.key),
                 "hedged": s.hedged,
                 "rule": {"include": s.include, "exclude": s.exclude},
-                "candidates": list(c["yahoo"].head(8)),
-                "candidates_esg": list(c_esg["yahoo"].head(8)),
+                # the reference fund first, then the like-for-like alternatives the page offers (shelf.like_for_like)
+                "candidates": list(like_for_like(c, c.iloc[0] if len(c) else None)["yahoo"].head(8)),
+                "candidates_esg": list(like_for_like(c_esg, c_esg.iloc[0] if len(c_esg) else None)["yahoo"].head(8)),
+                "members": slot_members(U, s),  # what a swap may put in the slot (engine.select_funds)
+                "members_esg": slot_members(U, s, prefer_esg=True),
                 "proxies": [{"ticker": t, "convert": cv} for t, cv in proxies_for(s.key, False, lh)],
                 "proxies_hedged": [{"ticker": t, "convert": cv} for t, cv in proxies_for(s.key, True, lh)],
             }
@@ -213,6 +221,115 @@ def reference_profiles(n: int = 400, seed: int = 5) -> list:
     return out
 
 
+SUIT_ANSWERS = {
+    "A2": "yes",
+    "A3": "no",
+    "B1": "10to19",
+    "B2": "10plus",
+    "B4": "10to25",
+    "B5": "mostly",
+    "C1": "4",
+    "C2": "wait",
+    "C3": "3",
+    "C4": "both",
+}
+WIDE_US = [
+    "VTI",
+    "IVV",
+    "SPY",
+    "QQQ",
+    "VUG",
+    "VEA",
+    "VTV",
+    "VO",
+    "IEFA",
+    "VB",
+    "SPYM",
+    "VGT",
+    "IEMG",
+    "VIG",
+    "IWF",
+    "IJH",
+    "XLK",
+    "SCHD",
+    "IJR",
+    "VT",
+    "RSP",
+    "VYM",
+    "VEU",
+    "ITOT",
+    "VXF",
+    "IWD",
+    "IWM",
+    "EFA",
+    "IVW",
+    "VV",
+    "SCHX",
+    "SCHF",
+    "VBR",
+    "SMH",
+]
+
+
+def qis_checks() -> list:
+    """QIS on inputs both engines can rebuild from the shared generator (row by row, uniform draws minus one half,
+    times 0.1), one case with fewer funds than months and one with more."""
+    out = []
+    for t, n, seed in ((30, 12, 11), (20, 28, 12)):
+        r = Mulberry32(seed)
+        x = np.array([[r() - 0.5 for _ in range(n)] for _ in range(t)]) * 0.1
+        out.append({"t": t, "n": n, "seed": seed, "sigma": qis(x).tolist()})
+    return out
+
+
+def rebalance_cases() -> list:
+    """Rebalancer inputs and Python outputs for the JavaScript parity test: hand-made accounts plus seeded random ones."""
+    T = {"XIC.TO": 0.3, "ZAG.TO": 0.4, "VFV.TO": 0.25, "CASH.TO": 0.05}
+    P = {"XIC.TO": 40.12, "ZAG.TO": 13.9, "VFV.TO": 150.3, "CASH.TO": 50.0, "OLD": 20.0}
+    U = {"XIC.TO": 300, "ZAG.TO": 500, "VFV.TO": 40, "CASH.TO": 20, "OLD": 50}
+    cases = [
+        dict(targets=T, units={}, prices=P, opts=dict(flow=25_000.0)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=5_000.0)),
+        dict(targets=T, units=U, prices=P, opts=dict()),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=-8_000.0)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=5_000.0, cash_reserve=500.0, min_trade=0.0)),
+        dict(targets=T, units=U, prices=P, opts=dict(whole_units=False, min_trade=0.0)),
+        dict(targets=T, units={"XIC.TO": 200, "ZAG.TO": 760, "VFV.TO": 44, "CASH.TO": 26}, prices=P, opts=dict(flow=60.0)),
+        dict(targets=T, units={}, prices=P, opts=dict(flow=1_000_000.0, adv={"XIC.TO": 5_000_000.0, "ZAG.TO": 100_000_000.0})),
+        dict(targets=T, units=U, prices=P, opts=dict(band_trades=False)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=5_000.0, band_trades=False)),
+        dict(targets=T, units=U, prices=P, opts=dict(flow=-3_000.0, band_trades=False)),
+    ]
+    r = Mulberry32(2026)
+    for _ in range(40):
+        k = 2 + int(r() * 6)
+        names = [f"F{i}" for i in range(k)]
+        raw = [0.05 + r() for _ in names]
+        w = [round(v / sum(raw), 4) for v in raw]
+        w[-1] = round(1 - sum(w[:-1]), 4)
+        prices = {t: round(5 + 295 * r(), 2) for t in names}
+        units = {t: float(int(400 * r())) for t in names if r() < 0.8}
+        held = sum(units[t] * prices[t] for t in units)
+        u = r()
+        flow = 0.0 if u < 0.3 else round(100 + 20_000 * r(), 2) if u < 0.65 else -round(0.9 * r() * held, 2)
+        cases.append(
+            dict(
+                targets=dict(zip(names, w)),
+                units=units,
+                prices=prices,
+                opts=dict(cash=round(500 * r(), 2), flow=flow, min_trade=[0.0, 25.0, 100.0][int(r() * 3)]),
+            )
+        )
+    out = []
+    for c in cases:
+        try:
+            res = rebalance(c["targets"], c["units"], c["prices"], **c["opts"])
+        except RoboKitInputError as e:
+            res = {"error": str(e)}
+        out.append({**c, "result": res})
+    return out
+
+
 def reference_cases() -> list:
     """Python results with resampling off, for the JavaScript parity test."""
     cases = [
@@ -223,14 +340,51 @@ def reference_cases() -> list:
         dict(market="US", risk_level=4),
         dict(market="CA", risk_level=4, satellites=["XIT.TO", "ZEB.TO"]),
         dict(
-            market="US", risk_level=3, views=[{"type": "relative", "long": "IAUM", "short": "BND", "difference": 0.02, "confidence": 0.6}]
+            market="US", risk_level=3, views=[{"type": "relative", "long": "GLDM", "short": "BND", "difference": 0.02, "confidence": 0.6}]
+        ),
+        dict(
+            market="CA",
+            risk_level=3,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
+        ),
+        dict(market="CA", risk_level=3, max_weight=0.05, on_infeasible="relax"),
+        dict(market="CA", target_vol=0.03),
+        # review regressions (v3): both engines must agree on the hard cases too
+        dict(market="CA", risk_level=2, sleeves=["ca_agg_bond", "ca_short_bond", "ca_global_bond", "ca_cash"]),
+        dict(
+            market="CA",
+            risk_level=4,
+            max_weight=0.131,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
+        ),
+        dict(market="CA", risk_level=4, max_weight=0.3, min_weight=0.2),
+        dict(market="US", risk_level=5, max_weight=0.3, min_weight=0.1),
+        dict(market="CA", risk_level=5, satellites=["XIT.TO"], minimums={"XIT.TO": 0.15}, satellite_max_each=0.10, on_infeasible="relax"),
+        dict(
+            market="CA",
+            risk_level=5,
+            views=[{"type": "relative", "long": "VFV.TO", "short": "XIC.TO", "difference": 0.02, "confidence": 0.5}],
+        ),
+        dict(market="CA", risk_level=3, max_weight=0.094, on_infeasible="relax"),
+        dict(
+            market="CA",
+            risk_level=2.5,
+            max_weight=0.1,
+            min_weight=0.2,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
         ),
         dict(market="CA", risk_level=3, hedge_us_equity=True),
         dict(market="CA", risk_level=4, swaps={"ca_us_equity": "VSP.TO"}),
         dict(market="US", risk_level=4, swaps={"us_equity": "TQQQ", "us_reit": "NOPE"}),
+        dict(market="US", risk_level=3, swaps={"us_equity": "BITO", "us_reit": "GLDM", "us_agg_bond": "VGSH"}),
         dict(market="CA", risk_level=4, fixed_weights={"VFV.TO": 0.4, "XIC.TO": 0.3, "ZAG.TO": 0.3}),
         dict(market="US", risk_level=5, satellites=["QQQ", "SCHD", "BITO"]),
         dict(market="US", risk_level=4, satellites=["BITO"], minimums={"BITO": 0.05}),
+        # a wide list (43 funds over 158 months, N/T > 0.25): both engines switch to QIS
+        dict(market="US", risk_level=4, satellites=WIDE_US),
+        # opt-in suitability checks: built at the suggestion, or at the level chosen once the extra risk is confirmed
+        dict(market="CA", risk_level=5, answers=SUIT_ANSWERS, enforce_suitability=True),
+        dict(market="CA", risk_level=5, answers=SUIT_ANSWERS, enforce_suitability=True, acknowledged_above_suggestion=True),
     ]
     out = []
     for c in cases:
@@ -241,12 +395,48 @@ def reference_cases() -> list:
                 "weights": {h["ticker"]: h["weight"] for h in p["holdings"]},
                 "volatility": p["stats"]["volatility"],
                 "lambda": p["risk"]["lambda"],
+                "calibration": p["risk"]["calibration"],
+                "ni81_102": p["stats"]["ni81_102"],
                 "target_vol": p["risk"]["target_vol"],
                 "window": p["window"],
                 "planning_return_net": {h["ticker"]: h["planning_return_net"] for h in p["holdings"]},
                 "stress": {s["scenario"]: s["portfolio_return"] for s in p["stress"]},
                 "notes": p["notes"],
                 "checks": [c_["id"] for c_ in p["checks"]],
+            }
+        )
+    return out
+
+
+def resampled_cases() -> list:
+    """Python results with resampling and projections on (the defaults), for the JavaScript parity test. Both engines
+    draw from the same generator (optimizer/rng.py), so these agree to rounding rather than to Monte Carlo noise."""
+    cases = [
+        dict(market="CA", risk_level=3),
+        dict(market="CA", risk_level=1),
+        dict(market="US", risk_level=5),
+        dict(market="CA", risk_level=4, satellites=["XIT.TO"], amount=50_000.0, monthly_contribution=500.0, years=20, goal=300_000.0),
+        dict(market="US", risk_level=2, amount=400_000.0, monthly_contribution=-2_500.0, years=25),
+        dict(
+            market="CA",
+            risk_level=3,
+            views=[{"type": "relative", "long": "XIC.TO", "short": "ZAG.TO", "difference": 0.03, "confidence": 0.8}],
+        ),
+    ]
+    out = []
+    for c in cases:
+        p = build_portfolio(Request(**c))
+        pr = p["projection"]
+        out.append(
+            {
+                "request": c,
+                "weights": {h["ticker"]: h["weight"] for h in p["holdings"]},
+                "bands": {h["ticker"]: h["band"] for h in p["holdings"]},
+                "volatility": p["stats"]["volatility"],
+                "calibration": p["risk"]["calibration"],
+                "projection": {
+                    k: pr.get(k) for k in ("final", "one_year", "yearly", "by_holding_period", "withdrawal", "chance_need_to_adjust")
+                },
             }
         )
     return out
@@ -308,6 +498,9 @@ def export_bundle(with_reference: bool = True) -> dict:
         "context": {"flags": market_flags(), "news": news_digest()},
         "backtest": json.loads(bt.read_text()) if bt.exists() else None,
         "reference_cases": reference_cases() if with_reference else [],
+        "resampled_cases": resampled_cases() if with_reference else [],
+        "qis_checks": qis_checks() if with_reference else [],
+        "rebalance_cases": rebalance_cases() if with_reference else [],
     }
     (WEB_DATA / "core.json").write_text(json.dumps(core, separators=(",", ":"), default=str), encoding="utf-8")
     if with_reference:  # test fixture only: not part of the published page data

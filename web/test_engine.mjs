@@ -1,52 +1,64 @@
-// node web/test_engine.mjs  -- checks the JS port against the Python reference outputs
+// node web/test_engine.mjs  -- the building blocks in web/engine.js against Python and against their definitions.
+// The whole engine (web/robokit.js) is checked against Python by web/test_robokit.mjs.
 import { readFileSync } from 'node:fs';
-import { RoboKit } from './engine.js';
+import { ledoitWolfConstantCorrelation, equilibriumReturns, sampleMeanExcess, projectWeightedCappedSimplex, symEig, qis, chooseCovariance, mulberry32, stationaryBootstrapRows } from './engine.js';
 
 const data = JSON.parse(readFileSync(new URL('../output/robokit_web_data.json', import.meta.url), 'utf8'));
-const kit = new RoboKit(data);
 let fails = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`); if (!ok) fails++; };
 
-// 1. covariance matches Python (annualized LW constant-correlation). Returns are stored to 8 decimals in the JSON, hence 1e-8 tolerances.
-let maxSig = 0;
-for (let i = 0; i < kit.n; i++) for (let j = 0; j < kit.n; j++) maxSig = Math.max(maxSig, Math.abs(kit.sigma[i][j] - data.reference.sigma[i][j]));
-check('sigma vs python', maxSig < 1e-8, `max abs diff ${maxSig.toExponential(2)}, shrinkage js ${kit.shrink.toFixed(6)} py ${data.reference.cov_shrinkage.toFixed(6)}`);
+// 1. Ledoit-Wolf constant-correlation shrinkage matches Python (returns are stored to 8 decimals, hence 1e-8)
+const X = data.returns_monthly, n = data.tickers.length;
+const { sigma: sm, shrink } = ledoitWolfConstantCorrelation(X);
+const sigma = sm.map(r => Array.from(r, v => v * 12));
+let maxSig = 0; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) maxSig = Math.max(maxSig, Math.abs(sigma[i][j] - data.reference.sigma[i][j]));
+check('Ledoit-Wolf sigma vs python', maxSig < 1e-8, `max abs diff ${maxSig.toExponential(2)}, shrinkage js ${shrink.toFixed(6)} py ${data.reference.cov_shrinkage.toFixed(6)}`);
+check('the rule picks constant correlation for this list', chooseCovariance(X).method === 'lw_cc', `N/T = ${(n / X.length).toFixed(3)}`);
 
-// 2. equilibrium mu matches
-let maxMu = 0;
-kit.tickers.forEach((t, i) => { maxMu = Math.max(maxMu, Math.abs(kit.mu[i] - data.reference.mu_excess[t])); });
-check('mu vs python', maxMu < 1e-8, `max abs diff ${maxMu.toExponential(2)}`);
-let maxMs = 0;
-kit.tickers.forEach((t, i) => { maxMs = Math.max(maxMs, Math.abs(kit.muSample[i] - data.reference.mu_excess_sample[t])); });
+// 2. equilibrium and sample means match Python
+const prior = data.tickers.map(t => data.prior_weights[t]);
+const mu = equilibriumReturns(sigma, prior, data.delta); let maxMu = 0;
+data.tickers.forEach((t, i) => { maxMu = Math.max(maxMu, Math.abs(mu[i] - data.reference.mu_excess[t])); });
+check('equilibrium mu vs python', maxMu < 1e-8, `max abs diff ${maxMu.toExponential(2)}`);
+const ms = sampleMeanExcess(X, data.rf); let maxMs = 0;
+data.tickers.forEach((t, i) => { maxMs = Math.max(maxMs, Math.abs(ms[i] - data.reference.mu_excess_sample[t])); });
 check('sample mu vs python', maxMs < 1e-8, `max abs diff ${maxMs.toExponential(2)}`);
 
-// 3. the six test cases (point estimates, no resampling)
-for (const c of data.reference.test_cases) {
-  const inp = c.input;
-  const t0 = performance.now();
-  const r = kit.optimize({ profile: inp.profile, tickers: inp.tickers, forced: inp.forced, excluded: inp.excluded, wMax: inp.w_max, resample: false });
-  const ms = performance.now() - t0;
-  let maxW = 0;
-  r.tickers.forEach((t, k) => { maxW = Math.max(maxW, Math.abs(r.weights[k] - c.expected_weights[t])); });
-  const volOk = Math.abs(r.expVol - c.expected_vol) < 1e-5;
-  const sum = r.weights.reduce((a, b) => a + b, 0);
-  check(`case ${c.name}`, maxW < c.tolerance && volOk && Math.abs(sum - 1) < 1e-8, `max |dw| ${maxW.toExponential(2)}, vol js ${r.expVol.toFixed(5)} py ${c.expected_vol.toFixed(5)}, lam ${r.lam.toFixed(3)}, ${ms.toFixed(0)} ms`);
+// 3. the exact projection: on the set, and equal to a 300-step bisection on tau (its definition), 2,000 random cases
+const rng = mulberry32(3); let worst = 0, onSet = true;
+for (let c = 0; c < 2000; c++) {
+  const k = 1 + Math.floor(rng() * 11); const x = [], a = [], cap = [];
+  for (let i = 0; i < k; i++) { x.push((rng() - 0.5) * 2); a.push(0.2 + 2.8 * rng()); cap.push(0.05 + 0.95 * rng()); }
+  let acap = 0; for (let i = 0; i < k; i++) acap += a[i] * cap[i]; const total = (0.01 + 0.98 * rng()) * acap;
+  const v = projectWeightedCappedSimplex(x, a, cap, total);
+  let s = 0; for (let i = 0; i < k; i++) { s += a[i] * v[i]; if (v[i] < 0 || v[i] > cap[i] + 1e-15) onSet = false; }
+  if (Math.abs(s - total) > 1e-12) onSet = false;
+  let lo = Math.min(...x.map((xi, i) => (xi - cap[i]) / a[i])) - 1, hi = Math.max(...x.map((xi, i) => xi / a[i])) + 1;
+  for (let it = 0; it < 300; it++) { const tau = 0.5 * (lo + hi); let g = 0; for (let i = 0; i < k; i++) g += a[i] * Math.min(cap[i], Math.max(0, x[i] - tau * a[i])); if (g > total) lo = tau; else hi = tau; }
+  const tau = 0.5 * (lo + hi); for (let i = 0; i < k; i++) worst = Math.max(worst, Math.abs(v[i] - Math.min(cap[i], Math.max(0, x[i] - tau * a[i]))));
 }
+check('exact projection = bisection definition', onSet && worst < 1e-9, `max |dv| ${worst.toExponential(2)}`);
+check('projection with a zero budget is zero', projectWeightedCappedSimplex([0.3, -0.1, 0.5], [1, 1, 1], [1, 1, 1], 0).every(v => v === 0));
 
-// 4. resampling: sums to one, band contains the mean, deterministic per seed, fast enough for the browser
-const t0 = performance.now();
-const a = kit.optimize({ profile: 'high', resample: true, nBoot: 200, seed: 7 });
-const ms = performance.now() - t0;
-const b = kit.optimize({ profile: 'high', resample: true, nBoot: 200, seed: 7 });
-const sameSeed = a.weights.every((w, k) => Math.abs(w - b.weights[k]) < 1e-15);
-const sumA = a.weights.reduce((x, y) => x + y, 0);
-const inBand = a.weights.every((w, k) => w === 0 || (w >= a.band[k].q05 - 0.05 && w <= a.band[k].q95 + 0.05));
-check('resampling 200 draws', sameSeed && Math.abs(sumA - 1) < 1e-8 && inBand, `${ms.toFixed(0)} ms, cash ${a.weights[kit.tickers.indexOf('PSA.TO')].toFixed(3)}, effN ${a.effectiveN.toFixed(2)}`);
+// 4. Jacobi eigen-decomposition: A U = U diag(values), U orthonormal
+const B = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => rng() - 0.5));
+const A = B.map((_, i) => B.map((__, j) => B[i].reduce((s, v, k) => s + v * B[j][k], 0)));
+const { values, vectors: U } = symEig(A); let res = 0, orth = 0;
+for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
+  let s = 0, o = 0; for (let k = 0; k < 8; k++) { s += U[i][k] * values[k] * U[j][k]; o += U[k][i] * U[k][j]; }
+  res = Math.max(res, Math.abs(s - A[i][j])); orth = Math.max(orth, Math.abs(o - (i === j ? 1 : 0)));
+}
+check('symEig reconstructs A with orthonormal vectors', res < 1e-12 && orth < 1e-12, `residual ${res.toExponential(2)}, orthogonality ${orth.toExponential(2)}`);
 
-// 5. textbook toggle produces the concentrated portfolio the report describes
-const tb = kit.optimize({ profile: 'mid', muMethod: 'sample', resample: false });
-const nz = tb.weights.filter(w => w > 0.005).length;
-check('textbook mu concentrates', nz <= 6 && tb.effectiveN < 5, `non-zero holdings ${nz}, effN ${tb.effectiveN.toFixed(2)}`);
+// 5. QIS keeps the trace of the sample covariance and is positive definite (Python equality is in test_robokit.mjs)
+const W = Array.from({ length: 40 }, () => Array.from({ length: 30 }, () => (rng() - 0.5) * 0.1));
+const Q = qis(W); let trQ = 0, trS = 0; const m = W[0].map((_, j) => W.reduce((s, r) => s + r[j], 0) / W.length);
+for (let j = 0; j < 30; j++) { trQ += Q[j][j]; trS += W.reduce((s, r) => s + (r[j] - m[j]) ** 2, 0) / (W.length - 1); }
+check('QIS keeps the trace and is positive definite', Math.abs(trQ - trS) < 1e-12 * trS && symEig(Q).values[0] > 0, `trace ${trQ.toExponential(4)} vs ${trS.toExponential(4)}`);
+
+// 6. the bootstrap is deterministic per seed and stays inside the history
+const r1 = stationaryBootstrapRows(mulberry32(8), 40, 6), r2 = stationaryBootstrapRows(mulberry32(8), 40, 6);
+check('bootstrap rows are deterministic and in range', r1.every((v, i) => v === r2[i] && v >= 0 && v < 40), Array.from(r1.slice(0, 8)).join(','));
 
 console.log(fails === 0 ? '\nALL CHECKS PASSED' : `\n${fails} CHECK(S) FAILED`);
 process.exit(fails === 0 ? 0 : 1);
