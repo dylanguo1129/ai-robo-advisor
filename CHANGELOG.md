@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.0.2 (October 2026)
+
+Currency-hedging labels, found while the team's optimizer report was reviewed (docs/research/v302_hedging_labels.md,
+docs/DECISIONS.md, docs/RESEARCH_LOG.md section 13; tests in tests/test_v302_labels.py).
+
+- VALT, the Canadian gold fund, is CI's CAD-hedged unit but was labelled unhedged (its name has no hedging word), so
+  it was extended before 2021 with unhedged gold. It now gets GLD in US dollars, unconverted, as the stand-in rule
+  requires. This changes the Canadian default mixes slightly; a re-run of the Canadian walk-forward with the label
+  corrected (output/v3_valt_check, scripts/v3_valt_check.py) leaves the risk readings unchanged and turns the level-4
+  non-inferiority reading against the static mix to "inconclusive". The registered results stand as registered.
+- The name rule reads "C$ Hedged Series" and "Currency Neutral" as hedged and "Non-Currency" or "Non-FX Hedged" as not
+  hedged (it read the last two backwards). Plain-named hedged units get an issuer-sourced override shown in the fund's
+  note: VALT, KILO, HUG (also futures-based), HHL, BASE, DGR, TXF, CESG and IQD. 37 labels change in all; no default
+  fund, ranked candidate list or eligibility changes, but HUG leaves the gold slot's swap list.
+- The strict point-in-time shelf (E2, robokit/research.py) now takes only funds the swap gate admits. HUG was its only
+  Canadian gold fund with 36 months of history from 2012 to 2022, so E2 would now leave gold out in those years; the
+  registered E2's level-3 mixes held HUG in 2012 to 2015. E2 is not re-run.
+- Documents: the issuer-return check is 14 of 17 funds within 0.05 points a year, not 15 (VALT 1.20 below, mostly
+  the gap between market price and NAV); counts, test numbers and versions updated in README, PRODUCT_SPEC, METHOD,
+  MODEL_CARD and data/README; the plugin manifests carry the engine version; the hand-off files regenerated; three
+  paper sentences qualified (the 66% coverage figure is for 120 months, the deflated Sharpe ratio is if anything too
+  favourable, the E5 cap test scaled the slot caps only).
+
 ## 3.0.1 (October 2026)
 
 A second bug hunt after the registered run (docs/DECISIONS.md, 53 findings, regression tests in

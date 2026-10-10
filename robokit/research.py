@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .engine import _load_all
-from .shelf import PRIOR, SLEEVES, candidates
+from .shelf import PRIOR, SLEEVES, candidates, like_for_like
 
 
 def default_sleeves(market: str) -> list[str]:
@@ -37,6 +37,8 @@ def pit_shelf(market: str, date, min_months: int = 36) -> tuple[dict, list[str],
     swaps, kept, chosen = {}, [], {}
     for k in default_sleeves(market):
         c = candidates(U, SLEEVES[k])
+        if not c.empty:  # only funds the swap gate admits: like for like with today's reference fund (slot_members)
+            c = like_for_like(c, c.iloc[0])
         c = c[c.yahoo.map(lambda t: int(months.get(t, 0))) >= min_months]
         if c.empty:
             continue

@@ -149,7 +149,7 @@ Yahoo, TMX and Nasdaq allow personal use only. The bundled snapshot is fine for 
 - at least $20M (Canada) or $50M (US) in assets;
 - at least $50K / $250K traded per day.
 
-Result: 637 eligible Canadian funds and 1,973 eligible US funds. The leading exclusion reasons are short history, small size and thin trading.
+Result: 636 eligible Canadian funds and 1,997 eligible US funds (version 3.0.1 and later; the registered evaluation used the earlier labels, under which 630 and 1,966 passed). The leading exclusion reasons are short history, small size and thin trading.
 
 **The reference shelf (`robokit/shelf.py`).** Each asset class is defined by a written rule: asset class, region, a name pattern, exclusions and a hedging requirement. The fund shown first is chosen by a published score (low fee, large, liquid, long history), and the runners-up are listed so the person can swap. Current picks:
 
@@ -313,7 +313,7 @@ Requirement checklist (R-numbers from `research/regulation.md`):
 
 ## 15. Quality and verification
 
-- `python -m pytest tests -q`: 120 tests (103 run on a fresh clone; 16 engine tests need the local data cache in `data/v2/` and one v1 test needs `data/prices_daily_adjclose.csv`). They cover the v1 solver and estimators, the classification rules, profile scoring (gates, flags, the lower-of rule, rejection of unknown answers), the group-capped solver against SLSQP, bounded views, the provenance validator, engine invariants (weights sum to 1, caps hold, volatility rises with level, the cash cap), exclusion of leveraged funds with a reason, the satellite cap, the claim that explanations use only computed numbers, the tool contract, and 18 regressions from the code review (docs/VERIFICATION.md section 3).
+- `python -m pytest tests -q`: 599 tests (516 run on a fresh clone and in CI; the 83 others need the local data cache in `data/v2/` or the v1 price file). They cover the v1 solver and estimators, the classification rules, profile scoring (gates, flags, the lower-of rule, rejection of unknown answers), the group-capped solver against SLSQP, bounded views, the provenance validator, engine invariants (weights sum to 1, caps hold, volatility rises with level, the cash cap), exclusion of leveraged funds with a reason, the satellite cap, the claim that explanations use only computed numbers, the tool contract, and 18 regressions from the code review (docs/VERIFICATION.md section 3).
 - `node web/test_robokit.mjs`: the browser engine against the Python engine.
 - MCP end-to-end: a stdio client lists all 15 tools and the `robo_kit_guide` prompt, and calls them.
 - The API-key agent loop was tested with a stub model. The validator caught an invented return and an invented ticker, and forced a rewrite.

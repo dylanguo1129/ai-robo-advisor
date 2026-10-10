@@ -27,7 +27,7 @@ docs/DECISIONS.md.
 ## Data
 
 Monthly adjusted closes of every Canadian and US exchange-traded fund with usable data (snapshot ending 31 Aug 2026):
-630 Canadian and 1,966 US funds pass the eligibility screens. Bank of Canada and US Treasury bill yields for cash.
+636 Canadian and 1,997 US funds pass the eligibility screens (630 and 1,966 in the universe the registered evaluation used, before the 3.0.1 label fix). Bank of Canada and US Treasury bill yields for cash.
 FP Canada / Institute of Financial Planning 2026 planning assumptions for projections. Sources, refresh and licences:
 docs/DATA.md.
 
@@ -64,5 +64,6 @@ no proven edge over a static mix; crisis replays start in 2008; for BNDX holders
 
 ## Versions
 
+v3.0.2 (October 2026): currency-hedging labels corrected (VALT and 36 others; HUG is also futures-based, so the strict point-in-time test would now leave gold out in 2012-2022); a re-run of the Canadian walk-forward with VALT's label corrected leaves the risk readings unchanged and turns the level-4 non-inferiority reading against the static mix to inconclusive (docs/RESEARCH_LOG.md section 13).
 v3.0.1 (October 2026): the second bug hunt's fixes (CHANGELOG); Robo-Kit's evaluated results are unchanged.
 v3.0.0 (October 2026): this card. Earlier versions: docs/RESEARCH_LOG.md sections 1-8.

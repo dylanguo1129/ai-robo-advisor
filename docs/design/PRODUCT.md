@@ -24,7 +24,7 @@ Launch path A (docs/research/regulation.md): an impersonal, free learning simula
 
 ## Capabilities and Constraints
 
-- Universe: 2,187 Canadian listings (CAD) and 5,770 US listings, every one classified with reasons; 2,610 eligible for the optimizer after written rules (no leverage, no single-stock, 36+ months, size and liquidity floors).
+- Universe: 2,187 Canadian listings (CAD) and 5,770 US listings, every one classified with reasons; 2,633 eligible for the optimizer after written rules (no leverage, no single-stock, 36+ months, size and liquidity floors).
 - Self-check: fixed items A0-D2, capacity and tolerance scored separately, lower wins, gates for short horizon, no emergency fund and heavy debt.
 - Engine: reference shelf, spliced histories, equilibrium mean-variance with guardrails, resampling, optional bounded views, stress tests, projections on FP Canada 2026 planning assumptions, suitability-style checks, plain-language explanations. The JavaScript port matches the Python engine (web/test_robokit.mjs).
 - Chat: `sample` capability (viewer pays, model tier quick / default / complex), page functions as tools, a number-provenance validator on every reply. The page works fully without AI.

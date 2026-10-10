@@ -37,7 +37,9 @@ Our figure: $(\prod_{t=1}^{60}(1 + r_t))^{12/60} - 1$ over the 60 months ending 
 | CASH | 3.27 since inception | NAV | 2026-09-30 | after the data snapshot; under 5 years | | |
 
 **Findings.**
-- Fifteen of the seventeen funds that could be compared agree within 0.05 points a year.
+- Fourteen of the seventeen funds that could be compared agree within 0.05 points a year; the three outside are XIC
+  (-0.31), XRE (-0.25) and VALT (-1.20). (Corrected on 9 Oct 2026: this line first said fifteen, which the table
+  above does not support.)
 - **VALT** (CI Gold Bullion ETF, CAD-hedged): the issuer's 18.72% is on NAV; on 31 Aug 2026 the units traded at $53.12
   against a NAV of $54.40 (CI fund profile), a 2.4% discount. Our data are market prices, so most of the gap is the
   difference between NAV and market price, not an error in the data.

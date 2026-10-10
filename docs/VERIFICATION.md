@@ -398,7 +398,7 @@ run 2 equals run 1 in every value except the provenance, the three paths the bug
 
 ### 8.4 Post-run audits (E7(e))
 
-- Issuer returns: 15 of 17 comparable reference funds within 0.05 points a year (docs/research/e7e_issuer_check.md).
+- Issuer returns: 14 of 17 comparable reference funds within 0.05 points a year; XIC, XRE and VALT are outside (docs/research/e7e_issuer_check.md; first written as 15 of 17 and corrected in 3.0.2).
 - Shelf: each slot's top five candidates (docs/research/e7e_shelf_audit.md).
 - Fund labels: 140 funds labelled blind from the issuers' pages; the swap gate was found too permissive and fixed;
   held-out agreement after the fix 29 of 30 (narrow labels) and 26 of 30 (broad labels, product definition)
@@ -433,3 +433,25 @@ as the verifier had ruled.
 | `python scripts/v3_verify_rerun.py` (registered run against a re-run of the whole evaluation on the fixed code, output/v3_verify) | 609 values differ, all explained (RESEARCH_LOG section 12); Robo-Kit's own results and every benchmark but the textbook optimizer identical |
 | `python scripts/e7e_universe_diff.py data/v2/universe_v3_evaluated.pkl data/v2/universe.pkl` | 37 funds newly eligible ('Ultra' short-term funds), none lost; five candidate lists lose funds the slot rules exclude (VI.TO, LTPZ, IGLB, EUHY, PEY) and Canadian cash gains GCTB.TO; no reference fund, E2 point-in-time pick or E5 variant pick changes |
 | Final examination of the paper (one examiner from another model family) | no factual error; three points true and fixed (the level-4 non-inferiority wording, "confirmatory" for all 36 rows, a table without the non-inferiority p) |
+
+### 8.7 Currency-hedging labels (9 Oct 2026, v3.0.2)
+
+A review of the optimizer report found the gold fund VALT labelled unhedged; it is CI's CAD-hedged unit. A sweep of
+every hedging label against the fund names and, where a name is silent, the issuers' documents found 37 wrong
+(docs/research/v302_hedging_labels.md). `robokit/classify.py` now reads more hedging words, does not read
+"non-hedged" phrases as hedged, and takes nine labels from the issuers (`LABEL_OVERRIDES`, each with its source);
+regression tests in tests/test_v302_labels.py. HUG is also futures-based, so the swap gate refuses it in the gold
+slot; the strict point-in-time shelf (E2) now applies the same rule (robokit/research.py), which leaves gold out of
+E2 in 2012-2022 (the registered E2's level-3 mixes held HUG in 2012-2015). On the 3.0.2 fund list, those gold picks
+are the only point-in-time picks the rule changes, in either market, for every December from 2000 to 2025. The
+registered evaluation is not re-run; the check below is labelled as not registered.
+
+| Check | Result |
+|---|---|
+| `python -m pytest -q` | 599 passed (without `data/v2/`: 516 passed, 83 skipped) |
+| `python -m pytest -m ui -q tests/ui` | 70 passed |
+| The five `node web/test_*.mjs` suites (bundle rebuilt at 3.0.2) | all pass |
+| `ruff check`, `ruff format --check` | clean |
+| `python scripts/e7e_universe_diff.py data/v2/universe_v3_evaluated.pkl data/v2/universe.pkl` | 38 hedging labels differ from the evaluated list (VI.TO from 3.0.1, the 37 above from 3.0.2); eligibility and the slot candidate lists are as in 8.6, so 3.0.2 changes no eligible fund, candidate list or reference fund |
+| `python -B scripts/v3_valt_check.py --full` (E1 Canada and E8(a) with only VALT relabelled; output/v3_valt_check) | VALT's stand-in becomes GLD unconverted (correlation 0.986 over 67 months); realised over target volatility 1.04, 1.03, 1.00 at levels 2 to 4, still "inconclusive"; Robo-Kit's Sharpe ratios fall by 0.005 to 0.010; static-mix non-inferiority holds at level 3 (Holm p = 0.014) but becomes "inconclusive" at level 4 (p = 0.059) |
+| `python scripts/export_handoff.py` | hand-off files at 3.0.2; Canadian λ 2.0811, 2.8824, 4.3703 |

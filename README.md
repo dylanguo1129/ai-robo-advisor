@@ -15,9 +15,9 @@ reply from Claude that contains a number or a ticker no tool produced.
 > Educational tool, not a registered advisor or dealer. Results are hypothetical. It never tells anyone what to buy.
 
 - **Universe:** every ETF you can buy in Canadian dollars in Canada (TSX, Cboe Canada) and every US-listed ETF:
-  7,957 listings, of which 637 Canadian and 1,973 US pass the eligibility rules.
+  7,957 listings, of which 636 Canadian and 1,997 US pass the eligibility rules.
 - **Data snapshot:** prices through 31 Aug 2026, listings and market context fetched 28 Sep 2026 (`web/data/`).
-- **Engine:** v2.2.0. English only.
+- **Engine:** v3.0.2. English only.
 
 ---
 
@@ -324,12 +324,13 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 126 passed with the local data cache; on a fresh clone and in CI 109 pass and 17 are skipped (16 engine tests need `data/v2/`, one v1 test needs `data/prices_daily_adjclose.csv`). The browser tests below are opt-in and deselected here |
+| Python tests | `python -m pytest -q` | 599 passed with the local data cache; on a fresh clone and in CI 516 pass and the 83 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
 | Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
-| Browser engine vs Python | `node web/test_robokit.mjs` | 13 reference portfolios, 400 self-check answer sets, one-fund and resampled checks all match |
+| Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |
 | Chat layer | `node web/test_assistant.mjs` | 7 cases, with a scripted model: each card appears once per turn, including across the rewrite pass |
-| v1 browser engine | `node web/test_engine.mjs` | 11 checks |
+| v1 browser engine | `node web/test_engine.mjs` | 9 checks |
+| Swap and request safety | `node web/test_safety.mjs` | 44 checks: refused swaps, slot rules and request validation in the browser engine |
 | Published files | `python scripts/check_publish.py` | the 12 files in `web/publish.json` (plus the page) are exactly what the page loads, within the Artifact size limits; also run by pytest |
 | Lint / format | `ruff check .`, `ruff format --check .` | clean |
 
@@ -370,8 +371,12 @@ From the v3 evaluation (docs/paper, output/v3/results.json) and the audits, as o
    the slot's rule and a like-for-like label, so sector, factor, option- and futures-based, values-screened and
    single-country funds are refused, but actively managed bond funds and swap-based index funds that a slot's rule
    admits can still be swapped in. The labels that let a fund into the wrong slot were corrected after the run (the
-   second bug hunt in docs/DECISIONS.md); other region and asset-class labels are still wrong (single-country funds
-   labelled "US", a bitcoin-miner fund labelled Crypto) and are listed in docs/research/e7e_taxonomy.md.
+   second bug hunt in docs/DECISIONS.md), and so were 37 currency-hedging labels in 3.0.2, among them the gold fund
+   VALT, which the registered evaluation extended with unhedged gold although it is CAD-hedged
+   (docs/research/v302_hedging_labels.md; its effect on the evaluation is in docs/RESEARCH_LOG.md section 13). Other
+   region and asset-class labels are still wrong (single-country funds labelled "US", a bitcoin-miner fund labelled
+   Crypto) and are listed in docs/research/e7e_taxonomy.md; hedging is read from the name, so a hedged unit with a
+   plain name needs an issuer-sourced override.
 7. **Large accounts.** On a 1,000,000 account, the largest orders in several Canadian funds exceed 1% of their average
    daily traded value; the rebalancer flags them.
 8. **Level 5** is held by the fund limits a little below its volatility target (within half a point; the calibration
