@@ -448,7 +448,7 @@ registered evaluation is not re-run; the check below is labelled as not register
 
 | Check | Result |
 |---|---|
-| `python -m pytest -q` | 599 passed (without `data/v2/`: 516 passed, 83 skipped) |
+| `python -m pytest -q` | 599 passed (in CI, without the local data: 515 passed, 84 skipped) |
 | `python -m pytest -m ui -q tests/ui` | 70 passed |
 | The five `node web/test_*.mjs` suites (bundle rebuilt at 3.0.2) | all pass |
 | `ruff check`, `ruff format --check` | clean |
