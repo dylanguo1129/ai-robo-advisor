@@ -396,6 +396,10 @@ def _z(x: pd.Series) -> pd.Series:
 SCORE = {"aum": 1.0, "volume": 0.5, "fee": -1.5, "history": 0.5, "esg": 0.75}  # the written ranking rule
 
 
+# the words an ESG shelf stops excluding
+ESG_WORDS = {"esg", "sustainab", "climate", "paris", "responsible", "clean"}
+
+
 def candidates(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False, coef: dict | None = None) -> pd.DataFrame:
     """Eligible funds that fit a sleeve, best first, with the score that ranked them. ``coef`` replaces the score's
     coefficients (evaluation only: the sensitivity of the shelf to its ranking rule)."""
@@ -405,8 +409,8 @@ def candidates(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = False,
     name = u["name"].fillna("")
     m = name.str.contains(sleeve.include, flags=re.I, regex=True)
     excl = sleeve.exclude
-    if prefer_esg:
-        excl = re.sub(r"\|?esg|\|?sustainab|\|?climate|\|?paris|\|?responsible|\|?clean", "", excl)
+    if prefer_esg:  # drop the ESG words from the exclusion list, whole alternatives only (an empty one matches all)
+        excl = "|".join(x for x in excl.split("|") if x and x not in ESG_WORDS)
     if excl:
         m &= ~name.str.contains(excl, flags=re.I, regex=True)
     if sleeve.hedged is True:
@@ -443,14 +447,23 @@ def slot_members(universe: pd.DataFrame, sleeve: Sleeve, prefer_esg: bool = Fals
 
 
 def like_for_like(c: pd.DataFrame, reference: pd.Series | None) -> pd.DataFrame:
-    """The candidates that may stand in for ``reference``: none built on options or futures, and none labelled narrow
-    when the reference fund is broad. The order (best first) is kept."""
+    """The candidates that may stand in for ``reference``: none built on options or futures, none labelled narrow when
+    the reference fund is broad, and none with a narrowing theme the reference fund does not have (a sector small-cap
+    fund in the small-cap slot, a data-centre REIT in the REIT slot). The order (best first) is kept."""
     if c.empty:
         return c
     ok = ~c["derivatives"].fillna("").str.contains("options|futures")
-    if reference is not None and not bool(reference["satellite_only"]):
-        ok &= ~c["satellite_only"].astype(bool)
+    if reference is not None:
+        if not bool(reference["satellite_only"]):
+            ok &= ~c["satellite_only"].astype(bool)
+        allowed = _narrowing(reference.get("theme"))
+        ok &= c["theme"].map(lambda x: _narrowing(x) <= allowed)
     return c[ok]
+
+
+def _narrowing(theme) -> frozenset:
+    """The themes that make a fund narrower than its market (an ESG screen of a broad index does not)."""
+    return frozenset(t.strip() for t in str(theme or "").split(";") if t.strip()) - {"Broad market", "ESG / climate"}
 
 
 def build_shelf(

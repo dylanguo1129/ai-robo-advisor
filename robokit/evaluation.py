@@ -17,7 +17,7 @@ from optimizer.estimators import choose_covariance
 
 from . import evalstats as es
 from . import profile as prof
-from .engine import Request, as_of, build_portfolio, build_returns, returns_in, select_funds
+from .engine import MAX_WINDOW, Request, as_of, build_portfolio, build_returns, returns_in, select_funds
 from .research import pit_shelf
 from .shelf import prior_share
 
@@ -37,7 +37,13 @@ ENGINE = {
     "single_lambda": ({}, {"calibrate": "single"}),
     "sample_mu": ({}, {"mu_method": "sample"}),
     "james_stein_mu": ({}, {"mu_method": "james_stein"}),
-    "textbook_60": ({"resample": False, "min_weight": 0.0}, {"mu_method": "sample", "max_window": 60, "calibrate": "single"}),
+    # 60-month sample means and covariance, but the common level target (target_window: the yardstick on the same
+    # window as robokit's), as the plan says ("all aimed at the same target"); the registered run (ea426ad) measured the
+    # yardstick on the 60 months too, a departure disclosed in docs/DECISIONS.md
+    "textbook_60": (
+        {"resample": False, "min_weight": 0.0},
+        {"mu_method": "sample", "max_window": 60, "target_window": MAX_WINDOW, "calibrate": "single"},
+    ),
 }
 OUTSIDE = ("static_mix", "equal_weight", "erc_cash", "minvar_cash")  # built here from the same as-of data
 CONFIRMATORY = ("static_mix", "textbook_60", "erc_cash", "minvar_cash")  # risk-matched benchmarks
@@ -87,6 +93,8 @@ def outside_weights(
         s = prof.risk_share(prof.engine_level(level))
         e = [t for t in eq if t in tickers]
         f = [t for t in fi if t in tickers]
+        if not (e and f and prior[e].sum() > 0 and prior[f].sum() > 0):  # fail closed: never a different stock share
+            raise ValueError("the static mix needs a stock fund and a bond fund with a positive policy share")
         w[e] = s * prior[e] / prior[e].sum()
         w[f] = (1 - s) * prior[f] / prior[f].sum()
         return w, True
@@ -289,7 +297,8 @@ def compare(a: pd.Series, b: pd.Series, cash: pd.Series, block: int = 6, n_boot:
         "sharpe_robokit": float(ra.mean() / ra.std() * math.sqrt(12)),  # so sharpe_robokit - sharpe_other = sharpe_diff_annual
         "sharpe_other": float(rb.mean() / rb.std() * math.sqrt(12)),
         "sharpe_diff_annual": lw["diff"] * math.sqrt(12),
-        "ci95_annual": [lw["ci95"][0] * math.sqrt(12), lw["ci95"][1] * math.sqrt(12)],
+        "ci95_annual": [lw["ci95"][0] * math.sqrt(12), lw["ci95"][1] * math.sqrt(12)],  # equal-tailed (as registered)
+        "ci95_symmetric_annual": [lw["ci95_symmetric"][0] * math.sqrt(12), lw["ci95_symmetric"][1] * math.sqrt(12)],
         "p_two_sided": lw["p"],
         "p_noninferior": lw["p_noninferior"],
         "mean_diff_annual": nw["mean"] * 12,

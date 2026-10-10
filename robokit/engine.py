@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, fields, replace
 from functools import lru_cache
@@ -114,8 +115,22 @@ class Request:
 MARKETS = ("CA", "US")
 
 
+AMOUNT_MAX = 1e12  # more than any account: larger amounts overflow the fee and projection arithmetic
+_DECIMAL = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")  # the same text the browser engine accepts
+
+
+def market_code(market) -> str:
+    """The one market rule every tool uses (as validate_request): upper-cased, and CA or US only."""
+    m = market.strip().upper() if isinstance(market, str) else market
+    if m not in MARKETS:
+        raise RoboKitInputError(f"market must be one of {', '.join(MARKETS)}; got {market!r}.", {"field": "market"})
+    return m
+
+
 def _finite(v, name: str) -> float:
     if isinstance(v, bool) or not isinstance(v, (int, float, str, np.integer, np.floating)):
+        raise RoboKitInputError(f"{name} must be a number, not {v!r}.", {"field": name})
+    if isinstance(v, str) and not _DECIMAL.fullmatch(v.strip()):
         raise RoboKitInputError(f"{name} must be a number, not {v!r}.", {"field": name})
     try:
         x = float(v)
@@ -156,12 +171,16 @@ def validate_request(req: Request | dict) -> Request:
             raise RoboKitInputError(f"risk_level must be between 1 and 5; got {req.risk_level:g}.", {"field": "risk_level"})
     if req.target_vol is not None:
         req.target_vol = _share(req.target_vol, "target_vol", 0.0, 1.0, lo_open=True)
-    if req.profile is not None and req.profile not in prof.PRESETS:
+    if req.profile is not None and (not isinstance(req.profile, str) or req.profile not in prof.PRESETS):
         raise RoboKitInputError(f"profile must be one of {', '.join(prof.PRESETS)}; got {req.profile!r}.", {"field": "profile"})
     req.amount = _finite(req.amount, "amount")
     if req.amount <= 0:
         raise RoboKitInputError("amount must be above 0.", {"field": "amount"})
+    if req.amount > AMOUNT_MAX:
+        raise RoboKitInputError("amount must be at most 1,000,000,000,000.", {"field": "amount"})
     req.monthly_contribution = 0.0 if req.monthly_contribution is None else _finite(req.monthly_contribution, "monthly_contribution")
+    if abs(req.monthly_contribution) > AMOUNT_MAX:
+        raise RoboKitInputError("monthly_contribution must be at most 1,000,000,000,000 either way.", {"field": "monthly_contribution"})
     y = _finite(req.years, "years")
     if y != int(y) or not 1 <= y <= 100:
         raise RoboKitInputError(f"years must be a whole number from 1 to 100; got {req.years!r}.", {"field": "years"})
@@ -170,6 +189,8 @@ def validate_request(req: Request | dict) -> Request:
         req.goal = _finite(req.goal, "goal")
         if req.goal <= 0:  # a goal of 0 means "no goal"
             req.goal = None
+        elif req.goal > 100 * AMOUNT_MAX:
+            raise RoboKitInputError("goal must be at most 100,000,000,000,000.", {"field": "goal"})
     req.max_weight = _share(req.max_weight, "max_weight", 0.0, 1.0, lo_open=True)
     if req.satellite_cap is not None:
         req.satellite_cap = _share(req.satellite_cap, "satellite_cap")
@@ -189,7 +210,9 @@ def validate_request(req: Request | dict) -> Request:
         if not isinstance(v, (list, tuple)) or not all(isinstance(t, str) for t in v):
             raise RoboKitInputError(f"{name} must be a list of tickers.", {"field": name})
         setattr(req, name, list(v))
-    if not isinstance(req.swaps or {}, dict):
+    if req.sleeves is not None and (not isinstance(req.sleeves, (list, tuple)) or not all(isinstance(s, str) for s in req.sleeves)):
+        raise RoboKitInputError("sleeves must be a list of slot names.", {"field": "sleeves"})
+    if not isinstance(req.swaps or {}, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in (req.swaps or {}).items()):
         raise RoboKitInputError("swaps must map a slot to a ticker.", {"field": "swaps"})
     for k in ("minimums", "fixed_weights"):
         if getattr(req, k) is not None and not isinstance(getattr(req, k), dict):
@@ -200,19 +223,28 @@ def validate_request(req: Request | dict) -> Request:
     clash = sorted(t for t, v in mins.items() if v > 0 and t in req.exclude)
     if clash:
         raise RoboKitInputError(f"{', '.join(clash)} cannot be both excluded and given a minimum.", {"field": "minimums", "tickers": clash})
-    req.minimums = mins
+    req.minimums = {t: v for t, v in mins.items() if v > 0}  # "at least 0%" places no limit
     if req.fixed_weights is not None:
         fw = {t: _finite(v, f"weight for {t}") for t, v in req.fixed_weights.items()}
         if any(v < 0 for v in fw.values()):
             raise RoboKitInputError("Your own weights cannot be negative.", {"field": "fixed_weights"})
         if fw and sum(fw.values()) <= 0:
             raise RoboKitInputError("Your own weights must add up to more than 0.", {"field": "fixed_weights"})
+        if any(v > AMOUNT_MAX for v in fw.values()):
+            raise RoboKitInputError("Each of your own weights must be at most 1,000,000,000,000.", {"field": "fixed_weights"})
+        clash = sorted(t for t, v in fw.items() if v > 0 and t in req.exclude)
+        if clash:
+            raise RoboKitInputError(
+                f"{', '.join(clash)} cannot be both excluded and given a weight.", {"field": "fixed_weights", "tickers": clash}
+            )
         req.fixed_weights = fw
     req.views = _valid_views(req.views)
     if req.on_infeasible not in ("refuse", "relax"):
         raise RoboKitInputError("on_infeasible must be 'refuse' or 'relax'.", {"field": "on_infeasible"})
-    for k in ("enforce_suitability", "acknowledged_above_suggestion"):
-        if not isinstance(getattr(req, k), bool):
+    for k in ("prefer_esg", "hedge_us_equity", "resample", "enforce_suitability", "acknowledged_above_suggestion"):
+        if isinstance(getattr(req, k), np.bool_):
+            setattr(req, k, bool(getattr(req, k)))
+        if not isinstance(getattr(req, k), bool):  # a string "false" would otherwise switch it on
             raise RoboKitInputError(f"{k} must be true or false.", {"field": k})
     if req.answers is not None and not isinstance(req.answers, dict):
         raise RoboKitInputError("answers must be an object of question ids and answers.", {"field": "answers"})
@@ -229,7 +261,7 @@ def _valid_views(views) -> list[dict]:
     for k, v in enumerate(views, 1):
         if not isinstance(v, dict):
             raise RoboKitInputError(f"View {k} must be an object.", {"field": "views"})
-        typ = v.get("type", "absolute")
+        typ = "absolute" if v.get("type") is None else v.get("type")  # a null type is no type, as in the browser
         if typ not in ("absolute", "relative"):
             raise RoboKitInputError(f"View {k}: type must be 'absolute' or 'relative'.", {"field": "views"})
         c = v.get("confidence")
@@ -237,6 +269,8 @@ def _valid_views(views) -> list[dict]:
         if typ == "relative":
             if not isinstance(v.get("long"), str) or not isinstance(v.get("short"), str):
                 raise RoboKitInputError(f"View {k}: a relative view names a 'long' and a 'short' fund.", {"field": "views"})
+            if v["long"] == v["short"]:
+                raise RoboKitInputError(f"View {k}: the 'long' and the 'short' fund must differ.", {"field": "views"})
             out.append(
                 {
                     "type": "relative",
@@ -564,9 +598,9 @@ def select_funds(req: Request, notes: list[dict] | None = None) -> tuple[pd.Data
     U, _, _, _ = _load()
     shelf = build_shelf(U, req.market, prefer_esg=req.prefer_esg)
     default = [k for k, v in PRIOR[req.market].items() if v > 0] + [f"{req.market.lower()}_cash"]
-    if req.market == "CA" and req.hedge_us_equity:
-        default = [("ca_us_equity_hedged" if k == "ca_us_equity" else k) for k in default]
-    keys = req.sleeves if req.sleeves is not None else default
+    keys = list(req.sleeves) if req.sleeves is not None else default
+    if req.market == "CA" and req.hedge_us_equity:  # a caller's own slot list too, as the browser engine does
+        keys = [("ca_us_equity_hedged" if k == "ca_us_equity" else k) for k in keys]
     shelf = shelf[shelf.sleeve.isin(keys)].copy()
     meta = U.set_index("yahoo")
     swaps = req.swaps or {}
@@ -590,6 +624,12 @@ def select_funds(req: Request, notes: list[dict] | None = None) -> tuple[pd.Data
             )
         else:
             shelf.loc[shelf.sleeve == k, ["ticker", "fund", "mer", "aum"]] = [t, meta.at[t, "name"], meta.at[t, "mer"], meta.at[t, "aum"]]
+    for lab in shelf.loc[shelf.ticker.isna(), "label"]:  # never drop a slot silently
+        notes.append(_note(f"No eligible fund fits the {lab} slot, so its share is spread over the other funds."))
+    present = set(shelf.ticker.dropna()) | set(req.satellites) | set(req.fixed_weights or {})
+    for t in dict.fromkeys(req.exclude):
+        if t not in present:
+            notes.append(_note(f"{t} is not in this mix, so excluding it changes nothing."))
     shelf = shelf[shelf.ticker.notna() & ~shelf.ticker.isin(req.exclude)]
     core = list(dict.fromkeys(shelf.ticker))
     sats = [t for t in dict.fromkeys(req.satellites) if t not in core and t not in req.exclude]
@@ -620,6 +660,7 @@ RESEARCH_KEYS = {
     "prior",
     "block_length",
     "max_window",
+    "target_window",
     "stand_ins",
     "delta",
     "yardstick",
@@ -635,7 +676,8 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
     (scripts/run_v3_evaluation.py), never set by the product. research keys: cov_method ('auto' | 'lw_cc' | 'lw_id' |
     'qis' | 'sample'), mu_method ('equilibrium' | 'sample' | 'james_stein'), sleeve_caps (False drops the sleeve and
     cash caps, keeping the per-fund maximum), cash_caps (False drops only the cash cap), calibrate ('final' |
-    'single'), prior ({sleeve: share}), block_length (months), max_window (months), stand_ins (False: each fund's own
+    'single'), prior ({sleeve: share}), block_length (months), max_window (months), target_window (months: the window on
+    which the level's stock-market yardstick is measured, when it differs from the estimation window), stand_ins (False: each fund's own
     history only), delta (equilibrium risk aversion), yardstick ({sleeve: weight}: the stock-market mix whose
     volatility sets the level targets, in place of the policy-weighted equity slots), cap_scale (the sleeve caps
     multiplied by this factor, at most 1), lambda (the final pipeline at this risk aversion, not calibrated: re-checks
@@ -698,7 +740,10 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
             f"These funds share only {len(X)} months of history; at least {MIN_WINDOW} are needed.",
             {"kind": "short_history", "months": int(len(X))},
         )
-    eq_vol = market_vol(req.market, X, shelf, notes)
+    # the level targets come from the stock-market yardstick; an estimation window cut short (the textbook benchmark's
+    # 60 months) must not move the target the other strategies aim at
+    X_target = common_window(X_full, int(research["target_window"])) if "target_window" in research else X
+    eq_vol = market_vol(req.market, X_target, shelf, notes)
     if "yardstick" in research:  # evaluation only: another stock-market mix as the yardstick
         ys = {
             shelf.loc[shelf.sleeve == k, "ticker"].iloc[0]: float(v) for k, v in research["yardstick"].items() if (shelf.sleeve == k).any()
@@ -740,6 +785,10 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
 
     sat_cap = req.satellite_cap if req.satellite_cap is not None else prof.satellite_cap(lvl10)
     forced = {t: float(v) for t, v in (req.minimums or {}).items() if t in tickers}
+    if not fixed:
+        for t in req.minimums or {}:
+            if t not in tickers:
+                notes.append(_note(f"The minimum for {t} was not used: {t} is not in this mix."))
     group = {"satellites": (ok_sats, 0.0, sat_cap)} if ok_sats else None
     k_cap = float(research.get("cap_scale", 1.0))
     caps = {
@@ -775,6 +824,12 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
 
     views_info, lam, band, dropped, relaxations, views_applied, calibration = None, None, None, [], [], False, None
     if fixed:  # the person's own weights: no optimisation, same report
+        if req.views:
+            notes.append(_note("Views do not apply to your own weights, so they were not used."))
+        if req.minimums:
+            notes.append(_note("Minimums do not apply to your own weights, so they were not used."))
+        if req.target_vol is not None:
+            notes.append(_note("A target volatility does not apply to your own weights; the report shows how much they swing."))
         w = pd.Series({t: fixed.get(t, 0.0) for t in tickers}, dtype=float)
         w = w[w > 0] / w[w > 0].sum()
     else:
@@ -914,6 +969,13 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
     sig = opt.sigma.loc[w.index, w.index].to_numpy()
     wv = w.to_numpy()
     vol = float(np.sqrt(wv @ sig @ wv))
+    if views_applied and calibration is not None:  # the record says which mix it calibrated, and what was delivered
+        calibration = {
+            **calibration,
+            "applies_to": "the mix before the view",
+            "delivered_vol": round(vol, 6),
+            "delivered_within_tolerance": bool(abs(vol - tv) <= CAL_TOL),
+        }
     if lean:  # the evaluation needs the weights and how they were reached, nothing shown to a person
         return {
             "weights": {t: float(v) for t, v in w.items()},
@@ -1012,11 +1074,12 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
         mix_class[h["asset_class"]] = mix_class.get(h["asset_class"], 0) + h["weight"]
         mix_region[h["region"]] = mix_region.get(h["region"], 0) + h["weight"]
 
-    full_all = returns_in(req.market, list(R.columns))  # stand-in peers in the portfolio currency too
+    own = returns_in(req.market, list(R.columns))  # every fund's own history in the portfolio currency: the stand-in peers
+    full_all = own.copy()
     for t in w.index:  # portfolio funds: extended history in the portfolio currency
         full_all[t] = X_full[t].reindex(full_all.index)
     first = {t: (None if pd.isna(meta.at[t, "first_month"]) else str(pd.Timestamp(meta.at[t, "first_month"]).date())) for t in w.index}
-    stress = stress_test(w, full_all, U, amount=req.amount, first_month=first)
+    stress = stress_test(w, full_all, U, amount=req.amount, first_month=first, peer_returns=own)
 
     # projections resample the longest history every fund has (spliced and back-filled as disclosed),
     # so a bad year reflects 2008 as well as the 15-year estimation window (RESEARCH_LOG section 7)
@@ -1074,9 +1137,9 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
             "risk_free": round(rf, 4),
             "risk_free_source": rf_src,
             "sharpe_model": round((model_ret - rf) / vol, 3) if vol > 0 else None,
-            "weighted_mer": None if wmer is None else round(wmer, 5),
-            "fee_per_year": None if wmer is None else round(wmer * req.amount, 2),
-            "fee_per_10k": None if wmer is None else round(wmer * 10_000, 2),
+            "weighted_mer": None if wmer is None else _round_half_up(wmer, 6),  # 6 places: no second rounding in the 2-place text
+            "fee_per_year": None if wmer is None else _round_half_up(wmer * req.amount, 2),
+            "fee_per_10k": None if wmer is None else _round_half_up(wmer * 10_000, 2),
             "fee_unknown": [str(meta.at[t, "symbol"]) for t in w.index if pd.isna(meta.at[t, "mer"])],
             "effective_holdings": round(float(1 / np.sum(wv**2)), 2),
             "n_holdings": int(len(w)),
@@ -1100,8 +1163,8 @@ def build_portfolio(req: Request | dict, *, lean: bool = False, research: dict |
             "delta": opt.delta,
             "covariance": opt.cov_info.get("method"),
             "shrinkage": opt.cov_info.get("shrinkage"),
-            "resampled": bool(req.resample and not fixed),
-            "n_boot": req.n_boot if (req.resample and not fixed) else 0,
+            "resampled": bool(req.resample and req.n_boot > 0 and not fixed),  # no draws, no resampling
+            "n_boot": req.n_boot if (req.resample and req.n_boot > 0 and not fixed) else 0,
             "prior": {t: round(float(v), 4) for t, v in prior.items() if v > 0},
             "sleeve_caps": {t: c for t, c in caps.items()},
             "on_infeasible": req.on_infeasible,
@@ -1139,7 +1202,7 @@ def _plain_infeasible(e: InfeasibleConstraints, sat_cap: float) -> InfeasibleCon
     """The optimizer's infeasibility, in words a person can act on."""
     d = dict(e.details)
     kind = d.get("kind")
-    tip = " To build anyway, ask for the limits to be relaxed (on_infeasible='relax'); every relaxed limit is then listed."
+    tip = " To build anyway, ask for the limits to be relaxed (relax_limits in the tools, on_infeasible='relax' in the engine); every relaxed limit is then listed."
     if kind == "caps":
         msg = (
             f"The limits on these funds add up to {_pct(d.get('capacity', 0), 1)}, so together they cannot hold all the money. "
@@ -1293,6 +1356,9 @@ def _calibrate_final(final, target: float, first: dict, resampled: bool = True) 
         if abs(best["vol"] - target) <= CAL_TOL:
             outcome = "within tolerance"
             break
+        if a is not None and b is not None and b - a < CAL_WIDTH:  # a proven jump, whichever evaluation closed it
+            outcome = "jump"
+            break
         if evals >= CAL_MAX:
             break
         if a is None or b is None:  # 1. bracket
@@ -1357,16 +1423,16 @@ def _reach_note(target: float, vol: float, outcome: str) -> dict | None:
     """Say so when the final mix is more than half a point from the level's target, and why (the calibration outcome)."""
     if outcome == "out of reach" and vol < target - 0.005:
         return _note(
-            f"The funds on this list cannot reach the {target:.1%} volatility this level aims for; the riskiest mix they allow is {vol:.1%}."
+            f"The funds on this list cannot reach the {_pct(target, 1)} volatility this level aims for; the riskiest mix they allow is {_pct(vol, 1)}."
         )
     if outcome == "out of reach" and vol > target + 0.005:
         return _note(
-            f"Even the steadiest mix of these funds swings about {vol:.1%} a year, above the {target:.1%} this level aims for. "
+            f"Even the steadiest mix of these funds swings about {_pct(vol, 1)} a year, above the {_pct(target, 1)} this level aims for. "
             "Adding cash or short-term bonds would bring it down."
         )
     if abs(vol - target) > 0.005:
         return _note(
-            f"This mix swings about {vol:.1%} a year against the {target:.1%} this level aims for: with the minimum position size, "
+            f"This mix swings about {_pct(vol, 1)} a year against the {_pct(target, 1)} this level aims for: with the minimum position size, "
             "the risk moves in steps as funds enter or leave the mix."
         )
     return None
@@ -1380,7 +1446,7 @@ def _calibrate(solve, target: float) -> tuple[float, float, dict | None]:
     if target >= v_lo:
         msg = (
             _note(
-                f"The funds on this list cannot reach the {target:.1%} volatility this level aims for; the riskiest mix they allow is {v_lo:.1%}."
+                f"The funds on this list cannot reach the {_pct(target, 1)} volatility this level aims for; the riskiest mix they allow is {_pct(v_lo, 1)}."
             )
             if target > v_lo + 0.005
             else None
@@ -1389,7 +1455,7 @@ def _calibrate(solve, target: float) -> tuple[float, float, dict | None]:
     if target <= v_hi:
         msg = (
             _note(
-                f"Even the steadiest mix of these funds swings about {v_hi:.1%} a year, above the {target:.1%} this level aims for. "
+                f"Even the steadiest mix of these funds swings about {_pct(v_hi, 1)} a year, above the {_pct(target, 1)} this level aims for. "
                 "Adding cash or short-term bonds would bring it down."
             )
             if target < v_hi - 0.005
@@ -1430,7 +1496,7 @@ def checks(
         {
             "id": "concentration",
             "level": "info" if top["weight"] <= 0.5 else "warn",
-            "en": f"Largest single fund: {top['symbol']} at {top['weight']:.0%}.",
+            "en": f"Largest single fund: {top['symbol']} at {_pct(top['weight'])}.",
         }
     )
     C = X[w.index].corr()
@@ -1452,7 +1518,7 @@ def checks(
                 {
                     "id": "liquidity",
                     "level": "warn",
-                    "en": f"{h['symbol']} trades about ${h['dollar_volume'] / 1e3:,.0f}K a day. Use limit orders; the bid-ask spread may be wide.",
+                    "en": f"{h['symbol']} trades about ${_round_half_up(h['dollar_volume'] / 1e3):,.0f}K a day. Use limit orders; the bid-ask spread may be wide.",
                 }
             )
     if wmer is not None:
@@ -1465,7 +1531,7 @@ def checks(
                 {
                     "id": f"fee_drag_{yrs}",
                     "level": "info",
-                    "en": f"Over {yrs} years, fund fees of {wmer:.2%} a year would cost about ${gross - net:,.0f} {ccy} on ${req.amount:,.0f} {ccy} (at the planning return)."
+                    "en": f"Over {yrs} years, fund fees of {_pct(wmer, 2)} a year would cost about ${_round_half_up(gross - net):,.0f} {ccy} on ${_round_half_up(req.amount):,.0f} {ccy} (at the planning return)."
                     + (" Withdrawals make the balance smaller, so the real cost is lower." if wd else ""),
                 }
             )
@@ -1480,7 +1546,7 @@ def checks(
         )
     for h in holdings:
         if h["role"] == "satellite" and h["asset_class"] in ("Crypto", "Alternative"):
-            cap_en = f"It is {h['weight']:.0%} of your weights." if fixed else "It is capped at a small weight."
+            cap_en = f"It is {_pct(h['weight'])} of your weights." if fixed else "It is capped at a small weight."
             out.append(
                 {
                     "id": "complex_product",
@@ -1495,7 +1561,7 @@ def checks(
             {
                 "id": "own_weights",
                 "level": "warn" if off else "info",
-                "en": f"Your own weights, not the model's: they swing like level {lvl5:.1f} (volatility {vol:.1%} a year)."
+                "en": f"Your own weights, not the model's: they swing like level {_round_half_up(lvl5, 1):.1f} (volatility {_pct(vol, 1)} a year)."
                 + (
                     (
                         f" That is not level {chosen:g}, the level you chose."
@@ -1542,6 +1608,10 @@ ONE_FUND = {  # asset-allocation ETFs and the stock share their names state
 
 def one_fund_choice(market: str, stock_share: float) -> tuple[str | None, float | None]:
     """The eligible asset-allocation ETF whose stated stock share is closest; the cheaper one on ties."""
+    market = market_code(market)
+    stock_share = _finite(stock_share, "stock_share")
+    if not 0.0 <= stock_share <= 1.0:  # a share, not a percentage: 60 would otherwise pick the all-stock fund
+        raise RoboKitInputError(f"stock_share must be between 0 and 1 (0.6 for 60%), not {stock_share:g}.", {"field": "stock_share"})
     U = _load()[0].set_index("yahoo")
     best = None
     for t, s in ONE_FUND.get(market, []):
@@ -1556,6 +1626,7 @@ def one_fund_choice(market: str, stock_share: float) -> tuple[str | None, float 
 
 def one_fund(market: str, stock_share: float, amount: float = 10_000.0, monthly_contribution: float = 0.0, years: int = 10) -> dict | None:
     """The same report for a single asset-allocation ETF, on the same window: the do-nothing benchmark."""
+    market = market_code(market)
     t, s = one_fund_choice(market, stock_share)
     if t is None:
         return None
@@ -1599,8 +1670,18 @@ def plan_contribution(holdings: list[dict], new_money: float, current: dict | No
 
     Each fund first gets what it lacks at the new total (in proportion when the money is short); money left after every
     gap is closed goes by target weight. Units round down at the last close."""
-    cash = max(0.0, float(new_money or 0))
-    cur = {h["ticker"]: max(0.0, float((current or {}).get(h["ticker"]) or 0)) for h in holdings}
+    cash = _finite(new_money, "new_money")
+    if not 0.0 < cash <= AMOUNT_MAX:
+        raise RoboKitInputError("new_money must be above 0.", {"field": "new_money"})
+    for h in holdings:
+        if not 0.0 <= _finite(h.get("weight"), "weight") <= 1.0:
+            raise RoboKitInputError(f"The weight of {h['ticker']} must be between 0 and 1.", {"field": "weight", "ticker": h["ticker"]})
+        if h.get("price") is not None and _finite(h["price"], "price") <= 0:
+            raise RoboKitInputError(f"The price of {h['ticker']} must be above 0.", {"field": "price", "ticker": h["ticker"]})
+    for t, v in (current or {}).items():
+        if v is not None and _finite(v, "current") < 0:
+            raise RoboKitInputError(f"The amount held in {t} cannot be negative.", {"field": "current", "ticker": t})
+    cur = {h["ticker"]: float((current or {}).get(h["ticker"]) or 0) for h in holdings}
     held_now = sum(cur.values())
     total = held_now + cash
     gaps = [max(0.0, h["weight"] * total - cur[h["ticker"]]) for h in holdings]
@@ -1617,8 +1698,8 @@ def plan_contribution(holdings: list[dict], new_money: float, current: dict | No
                 "target": h["weight"],
                 "now": cur[h["ticker"]],
                 "now_weight": cur[h["ticker"]] / held_now if held_now else None,
-                "buy": round(b, 2),
-                "units": int(round(b, 2) // price) if price else None,
+                "buy": _round_half_up(b, 2),
+                "units": int(math.floor(_round_half_up(b, 2) / price + 1e-9)) if price else None,  # an exact multiple buys its last unit
                 "price": price,
                 "after_weight": after / total if total else None,
             }

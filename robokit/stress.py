@@ -81,9 +81,14 @@ def standin_peers(meta: pd.DataFrame, t: str, available) -> tuple[list[str], str
     return peers, ("class" if peers else "none")
 
 
-def scenario_returns(returns_full: pd.DataFrame, universe: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
-    """Episode return per fund (rows: scenarios, columns: tickers) and a proxied flag frame."""
+def scenario_returns(
+    returns_full: pd.DataFrame, universe: pd.DataFrame, tickers: list[str], peer_returns: pd.DataFrame | None = None
+) -> pd.DataFrame:
+    """Episode return per fund (rows: scenarios, columns: tickers) and a proxied flag frame. Stand-in peers come from
+    ``peer_returns`` (the funds' own histories) when given, so a fund whose episode months are a splice or a back-fill
+    does not count as a peer that existed (the rule above; the browser engine's precomputed peer medians do the same)."""
     meta = universe.set_index("yahoo")
+    peer_returns = returns_full if peer_returns is None else peer_returns
     out, proxied = {}, {}
     for sc in SCENARIOS:
         s, e = pd.Timestamp(sc["start"]), pd.Timestamp(sc["end"])
@@ -92,26 +97,34 @@ def scenario_returns(returns_full: pd.DataFrame, universe: pd.DataFrame, tickers
             continue
         full = win.notna().all()
         ep = (1 + win.fillna(0)).prod() - 1
+        pwin = peer_returns.loc[(peer_returns.index > s) & (peer_returns.index <= e)]
+        pfull = pwin.notna().all() & (len(pwin) == len(win))
+        pep = (1 + pwin.fillna(0)).prod() - 1
         row, prow = {}, {}
         for t in tickers:
             if t in win.columns and bool(full.get(t, False)):
                 row[t], prow[t] = float(ep[t]), False
                 continue
-            peers, _ = standin_peers(meta, t, set(full.index[full]) - {t})
-            row[t] = float(np.median(ep[peers])) if peers else np.nan
+            peers, _ = standin_peers(meta, t, set(pfull.index[pfull]) - {t})
+            row[t] = float(np.median(pep[peers])) if peers else np.nan
             prow[t] = True
         out[sc["key"]], proxied[sc["key"]] = row, prow
     return pd.DataFrame(out).T, pd.DataFrame(proxied).T
 
 
 def stress_test(
-    weights: pd.Series, returns_full: pd.DataFrame, universe: pd.DataFrame, amount: float = 10_000.0, first_month: dict | None = None
+    weights: pd.Series,
+    returns_full: pd.DataFrame,
+    universe: pd.DataFrame,
+    amount: float = 10_000.0,
+    first_month: dict | None = None,
+    peer_returns: pd.DataFrame | None = None,
 ) -> list[dict]:
     """One row per episode: the mix's return and its dollar change on ``amount``. ``estimated`` lists funds
     that did not exist yet, whose episode return comes from their disclosed splice or back-fill; ``stand_ins``
     lists funds with no extended history, replaced by the median peer."""
     w = weights[weights > 0]
-    R, P = scenario_returns(returns_full, universe, list(w.index))
+    R, P = scenario_returns(returns_full, universe, list(w.index), peer_returns)
     first_month = first_month or {}
     res = []
     for sc in SCENARIOS:

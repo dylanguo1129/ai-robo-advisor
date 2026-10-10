@@ -20,7 +20,7 @@ import pandas as pd
 
 from . import __version__, glossary
 from . import profile as prof
-from .engine import Request, _load, build_portfolio, ladder, snapshot_id
+from .engine import Request, _load, build_portfolio, ladder, market_code, snapshot_id
 from .errors import InfeasibleConstraints, RoboKitInputError, SolverNotConverged
 from .shelf import PRIOR, candidates, sleeves_for
 from .signals import market_flags, news_digest, trend_state
@@ -121,8 +121,19 @@ def score_profile(answers: dict) -> dict:
     return _clean(prof.score(answers).to_dict())
 
 
+def _amount(amount) -> float:
+    """An amount of money as build_portfolio accepts it: a finite number above 0, up to AMOUNT_MAX."""
+    from .engine import AMOUNT_MAX, _finite
+
+    a = _finite(amount, "amount")
+    if not 0.0 < a <= AMOUNT_MAX:
+        raise RoboKitInputError("amount must be above 0.", {"field": "amount"})
+    return a
+
+
 def scenario_cards(market: str = "CA", amount: float = 10_000.0) -> dict:
     """Dollar outcomes for the tolerance questions: one-year and ten-year ranges at levels 1-5, and the sharp-drop amount."""
+    market, amount = market_code(market), _amount(amount)
     rows = ladder(market, amount=10_000.0)
     k = amount / 10_000.0
     cards = []
@@ -138,18 +149,21 @@ def scenario_cards(market: str = "CA", amount: float = 10_000.0) -> dict:
                 "ten_year_high": round(ty["p90"] * k, 0),
             }
         )
-    return {
-        "market": market,
-        "amount": amount,
-        "cards": cards,
-        "drop_scenario": {"amount": amount, "after": round(amount * 0.8, 0)},
-        "note": "Ranges are the 10th to 90th percentiles of hypothetical outcomes for the reference mix at each level.",
-        "as_of": _as_of(),
-    }
+    return _clean(
+        {
+            "market": market,
+            "amount": amount,
+            "cards": cards,
+            "drop_scenario": {"amount": amount, "after": round(amount * 0.8, 0)},
+            "note": "Ranges are the 10th to 90th percentiles of hypothetical outcomes for the reference mix at each level.",
+            "as_of": _as_of(),
+        }
+    )
 
 
 def risk_ladder(market: str = "CA", amount: float = 10_000.0) -> dict:
     """Asset-class mixes of the reference portfolio at every level, side by side (the default, impersonal view)."""
+    market = market_code(market)
     rows = ladder(market, amount=10_000.0)
     return _clean(
         {
@@ -177,6 +191,12 @@ def search_etfs(
     limit: int = 25,
 ) -> dict:
     """Filter the fund list with neutral criteria. Sort by 'mer', 'aum', 'history' or 'name' (never by 'fit')."""
+    market = market_code(market)
+    keys = {"mer": ("mer", True), "aum": ("aum", False), "history": ("history_months", False), "name": ("name", True)}
+    if sort_by not in keys:
+        raise RoboKitInputError(f"sort_by must be one of {', '.join(keys)}; got {sort_by!r}.", {"field": "sort_by"})
+    if isinstance(limit, bool) or not isinstance(limit, (int, np.integer)) or limit < 1:
+        raise RoboKitInputError(f"limit must be a whole number of at least 1, not {limit!r}.", {"field": "limit"})
     U, _, _, _ = _load()
     u = U[U.market == market]
     if eligible_only:
@@ -205,9 +225,7 @@ def search_etfs(
         u = u[u.esg]
     if hedged is not None:
         u = u[u.hedged == hedged]
-    key = {"mer": ("mer", True), "aum": ("aum", False), "history": ("history_months", False), "name": ("name", True)}.get(
-        sort_by, ("mer", True)
-    )
+    key = keys[sort_by]
     u = u.sort_values(key[0], ascending=key[1], na_position="last")
     total = len(u)
     return _clean(
@@ -300,6 +318,9 @@ def compare_etfs(tickers: list[str]) -> dict:
 
 def reference_shelf(market: str = "CA", prefer_esg: bool = False, sort_by: str = "cost") -> dict:
     """For each asset class: the lowest-cost broad funds that fit its written rule, with the rule and runners-up."""
+    market = market_code(market)
+    if sort_by not in ("cost", "size", "history"):
+        raise RoboKitInputError(f"sort_by must be one of cost, size, history; got {sort_by!r}.", {"field": "sort_by"})
     U, _, _, _ = _load()
     out = []
     for s in sleeves_for(market):
@@ -332,7 +353,7 @@ def reference_shelf(market: str = "CA", prefer_esg: bool = False, sort_by: str =
 
 def build_portfolio_tool(
     market: str = "CA",
-    level: float = 3,
+    level: float | None = None,
     swaps: dict | None = None,
     satellites: list | None = None,
     exclude: list | None = None,
@@ -350,10 +371,12 @@ def build_portfolio_tool(
 ) -> dict:
     """What the model does with the chosen funds at the chosen level: weights, risk, fees, stress tests, projections, checks.
     ``fixed_weights`` ({ticker: share}) skips the optimizer and reports the person's own weights the same way.
-    A negative ``monthly_contribution`` is a withdrawal; the projection then says how often the money lasted."""
+    A negative ``monthly_contribution`` is a withdrawal; the projection then says how often the money lasted. With no
+    ``level`` the mix is built at level 3 and own weights are compared with that reference level, not a chosen one."""
     req = Request(
         market=market,
-        risk_level=level,
+        risk_level=3 if level is None else level,
+        level_chosen=level is not None,
         swaps=swaps or {},
         satellites=satellites or [],
         exclude=exclude or [],
@@ -369,7 +392,12 @@ def build_portfolio_tool(
         fixed_weights=fixed_weights or None,
         on_infeasible="relax" if relax_limits else "refuse",
     )
-    p = build_portfolio(req)
+    try:
+        p = build_portfolio(req)
+    except RoboKitInputError as e:  # this interface calls the field "level"
+        if e.details.get("field") == "risk_level":
+            raise RoboKitInputError(str(e).replace("risk_level", "level"), {**e.details, "field": "level"}) from None
+        raise
     p.pop("history", None)
     p["disclosure"] = DISCLOSURE
     p["label"] = "What the model does with the funds you chose. Hypothetical; not a recommendation."
@@ -403,7 +431,7 @@ def plan_contribution(holdings: list, new_money: float, current: dict | None = N
         {"ticker": h["ticker"], "symbol": h.get("symbol", h["ticker"]), "weight": float(h["weight"]), "price": h.get("price")}
         for h in holdings
     ]
-    if not hs or new_money is None or float(new_money) <= 0:
+    if not hs:
         return {"error": "need the mix holdings (from build_portfolio) and new_money above 0"}
     return _clean(
         {**plan(hs, float(new_money), current or {}), "label": "Hypothetical buy-only split; not an order.", "disclosure": DISCLOSURE}
@@ -430,6 +458,7 @@ def backtest_summary(market: str = "CA", level: int = 3) -> dict:
     """The pre-registered walk-forward back-test at one level, after costs. Hypothetical."""
     from .config import OUTPUT_DIR
 
+    market = market_code(market)
     p = OUTPUT_DIR / "backtest_v2_summary.json"
     if not p.exists():
         return {"available": False}

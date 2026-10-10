@@ -99,7 +99,7 @@ def compare_etfs(tickers: list[str]) -> dict:
 @mcp.tool()
 def build_portfolio(
     market: str = "CA",
-    level: float = 3,
+    level: float | None = None,
     swaps: dict | None = None,
     satellites: list[str] | None = None,
     exclude: list[str] | None = None,
@@ -113,12 +113,14 @@ def build_portfolio(
     years: int = 10,
     goal: float | None = None,
     fixed_weights: dict | None = None,
+    relax_limits: bool = False,
 ) -> dict:
-    """What the model does with the chosen funds at the chosen level (1-5): weights with bands, dollars and units per fund,
+    """What the model does with the chosen funds at the chosen level (1-5; level 3 when none is given): weights with bands, dollars and units per fund,
     volatility, planning return after fees, fees in dollars, risk shares, crisis replays in dollars, projections, checks and
     ready-made explanation sentences. swaps: {sleeve: ticker}. satellites: extra tickers. fixed_weights: {ticker: share}
     reports the person's own weights instead of optimising. A negative monthly_contribution is a withdrawal.
-    views: [{type:'relative', long, short, difference, confidence}] or [{type:'absolute', ticker, return, confidence}]."""
+    views: [{type:'relative', long, short, difference, confidence}] or [{type:'absolute', ticker, return, confidence}].
+    relax_limits: when limits cannot all hold, relax them in a fixed order and list each step, instead of refusing."""
     return tools.build_portfolio_tool(
         market,
         level,
@@ -135,6 +137,7 @@ def build_portfolio(
         years,
         goal,
         fixed_weights,
+        relax_limits,
     )
 
 
@@ -187,6 +190,19 @@ def robo_kit_guide() -> str:
 def agent_md() -> str:
     """AGENT.md: how the Robo-Kit guide talks and what it may do."""
     return AGENT_MD
+
+
+def _refuse_unknown_arguments() -> None:
+    """An argument a tool does not have is refused with its name, not dropped: a misspelt "level" would otherwise build
+    level 3 without a word. The advertised schemas say so too (additionalProperties: false)."""
+    for tool in mcp._tool_manager.list_tools():
+        model = tool.fn_metadata.arg_model
+        model.model_config["extra"] = "forbid"
+        model.model_rebuild(force=True)
+        tool.parameters = model.model_json_schema(by_alias=True)
+
+
+_refuse_unknown_arguments()
 
 
 def main() -> None:

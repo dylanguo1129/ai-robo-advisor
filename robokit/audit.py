@@ -200,10 +200,14 @@ def crisis_standin_holdout() -> list[dict]:
         if win.empty:
             continue
         full = win.notna().all()
-        ep = (1 + win.fillna(0)).prod() - 1
         avail = set(full.index[full])
+        # episode returns in each market's currency, as the replay converts every fund to the portfolio's currency
+        # (a fallback peer from the other market would otherwise mix CAD and USD returns in one median)
+        cols = sorted(avail)
+        ep_in = {m: (1 + returns_in(m, cols).loc[win.index].fillna(0)).prod() - 1 for m in ("CA", "US")}
         for t in [t for t in meta.index[meta.eligible] if t in avail]:
             peers, rule = standin_peers(meta, t, avail - {t})
+            ep = ep_in[meta.at[t, "market"]]
             rows.append(
                 {
                     "episode": sc["key"],

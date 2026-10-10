@@ -41,7 +41,7 @@ def _as_2d(x) -> np.ndarray:
 def sample_covariance(returns) -> np.ndarray:
     """Plain sample covariance with T-1 degrees of freedom."""
     x = _as_2d(returns)
-    return np.cov(x, rowvar=False, ddof=1)
+    return np.atleast_2d(np.cov(x, rowvar=False, ddof=1))  # one fund: a 1 x 1 matrix, as the other estimators give
 
 
 def ledoit_wolf_identity(returns) -> tuple[np.ndarray, float]:
@@ -142,6 +142,12 @@ def qis(returns, demean: bool = True) -> np.ndarray:
 
     h = (min(c**2, 1 / c**2) ** 0.35) / p**0.35  # smoothing parameter
     start = max(1, p - n + 1) - 1
+    if not lam.size or lam[-1] <= 0 or (lam[start:p] <= lam[-1] * RANK_TOL).any():
+        # the formulas divide by every eigenvalue past the p - n null ones; a duplicated fund, or a resampled history
+        # with fewer distinct months than funds, leaves another one at zero and the result would be NaN
+        raise np.linalg.LinAlgError(
+            "QIS needs a full-rank sample: the returns are collinear (a duplicated fund, or too few distinct months)"
+        )
     invlam = 1.0 / lam[start:p]  # inverse of the non-null eigenvalues
     m = invlam.size
     lj = np.tile(invlam.reshape(m, 1), (1, m))  # column j holds 1/lambda_j
@@ -165,6 +171,7 @@ def qis(returns, demean: bool = True) -> np.ndarray:
     return sigma
 
 
+RANK_TOL = 1e-12  # eigenvalue / largest eigenvalue at or below which the sample counts as rank-deficient
 QIS_SWITCH = 0.25  # N/T above which QIS replaces constant-correlation shrinkage (tested: RESEARCH_LOG section 10, E3)
 
 
@@ -193,7 +200,11 @@ def choose_covariance(returns, method: str = "auto") -> tuple[np.ndarray, dict]:
         sigma, s = ledoit_wolf_constant_correlation(x)
         info["shrinkage"] = s
     elif method == "qis":
-        sigma = qis(x)
+        try:
+            sigma = qis(x)
+        except np.linalg.LinAlgError as e:  # rank-deficient sample: constant-correlation shrinkage is still defined
+            sigma, s = ledoit_wolf_constant_correlation(x)
+            info.update(method="lw_cc", shrinkage=s, fallback=f"qis: {e}")
     else:
         raise ValueError(f"unknown covariance method {method!r}")
     info["condition_number"] = float(np.linalg.cond(sigma))
