@@ -250,6 +250,40 @@ THEME_RULES = [
 INDEX_FAMILY = r"\b(msci|ftse|s&p|russell|nasdaq|dow jones|crsp|bloomberg|solactive|morningstar|stoxx|tsx)\b"
 # Markers of a manager's own picks, beyond the word "active" (the strategy field)
 ACTIVE_MARKERS = r"\b(active\w*|focus\w*|conviction|concentrated|research enhanced|congress\w*|unconstrained)\b"
+# Currency hedging, read from the name: CAD-hedged units say "hedged", "hdg", "C$ Hedged Series" or "currency neutral"
+# (Fidelity's word for hedged to CAD); "unhedged", "non-hedged" and "non-currency" or "non-FX hedged" units are not
+# hedged. "Hedged Series" alone stays out: the US$ Hedged Series units trade in US dollars, not eligible in Canada.
+HEDGED = (
+    r"hedged(?! series)|\bhedge\b(?!d? fund)|cad-hedged|hedged to cad|\(cad hedged\)|usd hedged|cad-hd[dg]|\bhd[dg]\b"
+    r"|c\$ hedged series|cad hedged series|currency neutral"
+)
+NOT_HEDGED = r"unhedged|un-hedged|non[- ]hedged|non[- ](?:fx|currency)[- ]hedged"
+# Labels a fund's name cannot carry, from the issuer's own documents (3.0.2). A plain-named unit whose sibling says
+# "Unhedged" is usually the hedged one, but only the issuer settles it, so every entry names its source; the source is
+# shown in the fund's "why" note.
+LABEL_OVERRIDES: dict[str, tuple[dict, str]] = {
+    "VALT.TO": (
+        {"hedged": True},
+        "CI: VALT is the ETF C$ Hedged Series, VALT.B the C$ Unhedged Series (CI Gold Bullion ETF monthly profile, Aug 2026)",
+    ),
+    "HHL.TO": ({"hedged": True}, "Harvest: Class A (HHL) is CAD-Hedged, HHL.B CAD-Unhedged (harvestportfolios.com/etf/hhl)"),
+    "BASE.TO": ({"hedged": True}, "Evolve: BASE (CAD Hedged), BASE.B (CAD Unhedged) (BASE fund overview, Sep 2026)"),
+    "KILO.TO": (
+        {"hedged": True},
+        "Purpose: KILO is the ETF (FX Hedged) series, KILO.B the non-currency hedged units (purposeinvest.com fund page)",
+    ),
+    "HUG.TO": (
+        {"hedged": True, "derivatives": "futures"},
+        "Global X: HUG tracks a rolling gold futures index and hedges its US dollar value to CAD (HUG product sheet, Oct 2026)",
+    ),
+    "DGR.TO": ({"hedged": True}, "CI: DGR's currency is CAD Hedged, DGR.B's CAD (CI U.S. Quality Dividend Growth Index ETF profiles)"),
+    "TXF.TO": ({"hedged": True}, "CI: TXF's currency is CAD Hedged, TXF.B unhedged (CI Tech Giants Covered Call ETF profiles)"),
+    "CESG.NE": ({"hedged": True}, "CI: CESG's currency is CAD Hedged, CESG.B's CAD (CI MSCI World ESG Impact Index ETF profiles)"),
+    "IQD.TO": (
+        {"hedged": True},
+        "CI: IQD's currency is CAD Hedged, IQD.B non-hedged (CI International Quality Dividend Growth Index ETF profiles)",
+    ),
+}
 
 
 def _rx(p: str) -> re.Pattern:
@@ -512,10 +546,12 @@ def classify_row(r: pd.Series) -> dict:
     yh = str(r.get("yahoo") or "")
     trade_ccy = "USD" if (r.get("market") == "US" or re.search(r"-U\.(TO|NE)$", yh) or str(r.get("currency")) == "USD") else "CAD"
     out["currency"] = trade_ccy
-    hedged = bool(
-        re.search(r"hedged(?! series)|\bhedge\b(?!d? fund)|cad-hedged|hedged to cad|\(cad hedged\)|usd hedged|cad-hd[dg]|\bhd[dg]\b", low)
-    ) and not re.search(r"unhedged|non-hedged", low)
+    hedged = bool(re.search(HEDGED, low)) and not re.search(NOT_HEDGED, low)
     out["hedged"] = hedged
+    fix = LABEL_OVERRIDES.get(yh)
+    if fix:
+        out.update(fix[0])
+        why.append("label from the issuer: " + fix[1])
 
     out["crypto"] = ac == "Crypto"
     out["target_date"] = bool(re.search(r"target[- ]date|target 20\d\d|20\d\d\b.*(bond|maturity|target)|ibonds|bulletshares", low))

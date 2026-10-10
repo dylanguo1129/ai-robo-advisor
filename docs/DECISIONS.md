@@ -17,9 +17,9 @@ of them and the ones added since (rebalancer, regulator rating, suitability chec
 
 | # | Decision | Value | Evidence | Status |
 |---|---|---|---|---|
-| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e), done 9 Oct 2026: 15 of 17 comparable funds within 0.05 points a year; XIC and XRE 0.31 and 0.25 below their NAV returns; docs/research/e7e_issuer_check.md) | done |
+| D1 | Monthly total returns from dividend- and split-adjusted month-end closes; the current month is dropped; gaps stay gaps | | Tests: gaps are never filled, and the month in progress is dropped (tests/test_v3_fixtures.py); each reference fund's 5-year return against the issuer's published figure (E7(e), done 9 Oct 2026: 14 of 17 comparable funds within 0.05 points a year; XIC and XRE 0.31 and 0.25 below their NAV returns, VALT 1.20 below, mostly the gap between its market price and NAV; docs/research/e7e_issuer_check.md) | done |
 | D2 | Cash before an ETF existed earns last month's 3-month bill yield / 12; the risk-free rate is the latest yield | Bank of Canada V80691344; US ^IRX | Source: the official yield series | done |
-| D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result. Test of the gate: 23 months or a correlation of 0.7995 refused, 24 months at 0.8005 accepted (tests/test_v3_fixtures.py); each stand-in against its fund (E8(a)); the evaluation's look-ahead from it is removed in E2 (no stand-ins) | done; E8(a) |
+| D3 | A young core fund is extended with a written stand-in only if they overlap 24+ months with correlation 0.8+; currency hedging matched | | Policy (data quality), disclosed with every result. The hedging match depends on the fund's label: VALT was labelled unhedged in the registered run although it is CAD-hedged (corrected in 3.0.2; "After the run: currency-hedging labels" below). Test of the gate: 23 months or a correlation of 0.7995 refused, 24 months at 0.8005 accepted (tests/test_v3_fixtures.py); each stand-in against its fund (E8(a)); the evaluation's look-ahead from it is removed in E2 (no stand-ins) | done; E8(a) |
 | D4 | A young own pick is back-filled by ridge regression on the core funds plus resampled residuals | ridge 1e-4 tr(X'X)/k, 36+ months overlap | Policy; affects own picks only (not the reference mix or any evaluation). Test: 20 mature funds per market with their first 60 months hidden and back-filled, against the hidden truth and the home stock fund as the simple alternative (E8(b)) | E8(b) |
 | D5 | Estimation window: the latest 180 months every fund has | 180 | Test: 120 and all months against the 180 default (E5) | E5(w) |
 | D6 | At least 36 months of common history, or the build stops | 36 | Test of the gate: 35 shared months refused, 36 built (tests/test_v3_research.py). Sensitivity: known-truth simulation with 36 / 60 / 120 / 180 months | done; E3(i) |
@@ -526,6 +526,26 @@ two engines, and a money-market fund named "Premium" was tagged options-based. R
 | B51: The textbook optimizer aimed at a target measured on its own 60 months | true | The code uses the common target; the paper discloses the registered departure and its size |
 | B52: The register said non-inferiority is read from one interval; it is one-sided at 5% | true (documentation) | Corrected in the seventeenth-round row above and in the paper, which says the level-4 readings' Holm-adjusted p clears 5% but not 2.5% |
 | B53: The static mix rescaled silently when a list had no bond or stock fund | true (latent: the run never met one) | Fails closed |
+
+**After the run: currency-hedging labels (9 Oct 2026).** The team's optimizer report, built from the engine, was read
+blind by Cursor's Composer and by a fresh Claude reviewer (the Grok and GPT pools were out of usage). Of their ten
+distinct points, three concern the repository and were ruled true: VALT's hedging label (fixed in 3.0.2 with 36 other
+labels, docs/research/v302_hedging_labels.md, and checked by a re-run of E1 Canada, docs/RESEARCH_LOG.md section 13);
+the paper's 66% coverage figure, which comes from a 120-month simulation applied to a 200-month sample (qualified);
+and the deflated Sharpe ratio, shown without the results file's own caveat that it is if anything too favourable
+(added). The same reviews found the E5 cap sentence too broad (cap_scale scales the slot caps only; reworded). An
+audit of the documents against the code found the issuer-return count stated as 15 of 17 where its own table gives
+14 (corrected in the report, here, VERIFICATION and the paper) and stale counts and versions (corrected).
+
+| Finding | Ruling | Action |
+|---|---|---|
+| VALT.TO is CI's CAD-hedged unit but labelled unhedged, so its stand-ins were unhedged gold | true | Issuer-sourced override; E1 Canada and E8(a) re-run beside the registered results; the level-4 non-inferiority reading against the static mix does not hold with the label corrected |
+| The name rule reads "Non-Currency Hedged" and "Non-FX Hedged" as hedged, and misses "C$ Hedged Series" and "Currency Neutral" | true | Rule fixed (unit tests in tests/test_v302_labels.py) |
+| HUG holds a gold futures contract but was labelled physical | true | Override: futures-based, so a swap may not put it in the gold slot; the point-in-time shelf (E2) now applies the swap gate's rule, so E2 would leave gold out in 2012-2022 (the registered E2's level-3 mixes held HUG in 2012-2015; not re-run) |
+| "15 of 17 comparable funds within 0.05 points" | true: the table gives 14 | Corrected everywhere |
+| "Three such intervals on 120 months fall inside only 66% of the time" read as a property of the 200-month sample | true | Qualified in the paper |
+| The deflated Sharpe ratio is stated without its "if anything, too favourable" caveat | true | Added |
+| "The caps ... changed nothing" (E5) | partly true: the slot caps were halved and doubled, the cash cap was not varied | Reworded |
 
 ## Sources checked for this register
 

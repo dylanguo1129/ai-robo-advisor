@@ -1,11 +1,11 @@
 ticker,sleeve,asset_class,mer,prior_weight,expected_excess_return,expected_total_return,volatility
-XIC.TO,ca_equity,Equity,0.0006,0.18,0.01879,0.04229,0.12082
-VFV.TO,ca_us_equity,Equity,0.0009,0.27,0.019488,0.042988,0.119807
-FLUR.NE,ca_intl_equity,Equity,0.001,0.108,0.018524,0.042024,0.121065
-VEE.TO,ca_em_equity,Equity,0.0026,0.042,0.016653,0.040153,0.135488
-ZAG.TO,ca_agg_bond,Fixed income,0.0009,0.22,0.005582,0.029082,0.04892
-XSB.TO,ca_short_bond,Fixed income,0.001,0.06,0.001778,0.025278,0.018772
-VBU.NE,ca_global_bond,Fixed income,0.0023,0.07,0.004337,0.027837,0.046128
-XRE.TO,ca_reit,Real estate,0.006,0.03,0.018811,0.042311,0.150313
-VALT.TO,ca_gold,Commodity,0.0017,0.02,0.006731,0.030231,0.160454
-CASH.TO,ca_cash,Cash,0.0011,0.0,7.6e-05,0.023576,0.003915
+XIC.TO,ca_equity,Equity,0.0006,0.18,0.01886,0.04236,0.12082
+VFV.TO,ca_us_equity,Equity,0.0009,0.27,0.019444,0.042944,0.119807
+FLUR.NE,ca_intl_equity,Equity,0.001,0.108,0.018489,0.041989,0.121065
+VEE.TO,ca_em_equity,Equity,0.0026,0.042,0.016704,0.040204,0.135488
+ZAG.TO,ca_agg_bond,Fixed income,0.0009,0.22,0.005558,0.029058,0.04892
+XSB.TO,ca_short_bond,Fixed income,0.001,0.06,0.001767,0.025267,0.018772
+VBU.NE,ca_global_bond,Fixed income,0.0023,0.07,0.004345,0.027845,0.046128
+XRE.TO,ca_reit,Real estate,0.006,0.03,0.018833,0.042333,0.150313
+VALT.TO,ca_gold,Commodity,0.0017,0.02,0.008331,0.031831,0.162911
+CASH.TO,ca_cash,Cash,0.0011,0.0,8.1e-05,0.023581,0.003915

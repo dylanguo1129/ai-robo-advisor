@@ -157,6 +157,33 @@ def main():
         ),
         "e2_us_textbook_3_p": ver["E2"]["US"]["comparisons"]["textbook_60"]["3"]["p_two_sided"],
     }
+    # The gold fund's currency-hedging label, corrected after the paper's examination (3.0.2): E1 Canada and E8(a) re-run
+    # with only VALT.TO relabelled hedged, on the universe the registered run used (output/v3_valt_check,
+    # scripts/v3_valt_check.py --full; not a registered run). The textbook rows also carry the target fix, so they are
+    # compared with the verification re-run, the others with the registered run.
+    vc = json.loads((RESULTS.parent.parent / "v3_valt_check" / "results.json").read_text(encoding="utf-8"))
+    reg_ca, rd = res["E1"]["CA"], vc["risk_delivery"]
+    drops = [reg_ca["strategies"]["robokit"][L]["sharpe"] - vc["robokit"][L]["sharpe"] for L in ("2", "3", "4")]
+    changed = [
+        (b, L)
+        for b in ("static_mix", "textbook_60", "erc_cash", "minvar_cash")
+        for L in ("2", "3", "4")
+        if vc["E1"]["comparisons"][b][L]["reading"] != (ver if b == "textbook_60" else res)["E1"]["CA"]["comparisons"][b][L]["reading"]
+    ]
+    e8 = vc["E8a_VALT"][0]
+    d["valt"] = {
+        "ratio": {L: rd["primary"][L]["ratio"] for L in ("2", "3", "4")},
+        "reading": rd["primary"]["reading"],
+        "sharpe_drop_min": min(drops),
+        "sharpe_drop_max": max(drops),
+        "static_p": {L: vc["E1"]["comparisons"]["static_mix"][L]["p_noninferior_holm"] for L in ("3", "4")},
+        "static_reading": {L: vc["E1"]["comparisons"]["static_mix"][L]["reading"] for L in ("3", "4")},
+        "readings_changed": len(changed),
+        "readings_changed_which": [f"{b} level {L}" for b, L in changed],
+        "e8_standin": e8["standin"],
+        "e8_corr": e8["correlation"],
+        "e8_reg_corr": [r["correlation"] for r in res["E8"]["standin_holdout"]["CA"]["rows"] if r["fund"] == "VALT.TO"],
+    }
     d["provenance"] = {"short_commit": res["provenance"]["commit"][:7]}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({**res, "derived": d}, indent=1, default=str), encoding="utf-8")

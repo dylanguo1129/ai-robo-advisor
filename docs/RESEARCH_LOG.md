@@ -186,3 +186,35 @@ Sections 9 to 11 stay as frozen. A second bug hunt (docs/DECISIONS.md) found thr
 **Verification re-run (not a registered run).** The whole evaluation was re-run on the corrected code (commit c28ee80) in a clean worktree, with the universe the registered run used, and archived in output/v3_verify. `python scripts/v3_verify_rerun.py` compares it with output/v3 value by value: 609 values differ, all explained. The textbook optimizer's rows (353) move with its target, and through them the deflated Sharpe ratios' trial variance (80) and the Holm-adjusted non-inferiority p of risk parity in Canada (3; readings unchanged). The new symmetric interval adds 84 fields. E7(b)'s fallback stand-ins (25) are now in the portfolio currency. E3's sample-mean and Bayes-Stein variants (56) moved from the tenth significant digit, from the projection that replaced renormalising past a cap (B21). Provenance accounts for 8. Robo-Kit's own E1, E2 and E3 results, every other benchmark, E4, E5, E6 and E8 are identical to the last digit, and the locked defaults are the same. All six E1 textbook readings are unchanged at the common target.
 
 One setting differs from the registered run: E2 ran with the shipped universe. With the archived labels, the swap gate fixed after the run refuses the Canadian cash pick CMR.TO (the old label rule read "Premium" as options-based), the slot keeps CASH.TO, whose history starts in December 2021, and every Canadian E2 build fails. Neither the registered run (old gate, old labels) nor the product (new gate, new labels) combines the two.
+
+## 13. After the run: currency-hedging labels and a check of their effect (9 Oct 2026)
+
+Sections 9 to 12 stay as they are. A review of the team's optimizer report found that VALT.TO, the Canadian gold
+fund, is CI's CAD-hedged unit (VALT.B is the unhedged one) but the fund list labelled it unhedged, because the label
+is read from the name and VALT's name has no hedging word. A search for the same pattern, checked against the issuers'
+documents, corrected 37 labels in 3.0.2 (docs/research/v302_hedging_labels.md). Only VALT is on a reference shelf;
+no ranked candidate list and no eligibility changes. HUG, now labelled futures-based, leaves the gold slot's swap
+list, and the strict point-in-time shelf (E2) now takes only funds the swap gate admits (robokit/research.py; before
+this a refused pick would have stopped the E2 build). HUG was E2's only Canadian gold fund with 36 months of its own
+history from 2012 to 2022, so E2 would now leave gold out in those years. The registered E2's level-3 mixes held
+HUG in 2012 to 2015; E2 is not re-run.
+
+What the label does: robokit/history.py extends a young fund with foreign returns converted to CAD when it is
+unhedged and unconverted when it is hedged. With the wrong label, VALT was extended back to 2004 with CGL-C
+(non-hedged, from 2012) and GLD converted to CAD; with the right one, with GLD in US dollars. Over the 67 months VALT
+has existed, GLD unconverted tracks it with correlation 0.986, against 0.917 and 0.926 for the registered stand-ins.
+
+Which experiments it touches: E1 (fixed mode uses today's stand-ins, in the estimation windows and in the realised
+months before 2021) and E8(a) in Canada. E2 uses no stand-ins. E3's truth covariance contains VALT's stand-in up to
+2009-12; it was not re-run (about two hours), because its two decisions sat far from their thresholds (resampling's
+cost 0.003 basis points against the 2 that would drop it; QIS within 0.33% against a 1% margin).
+
+**Check (not a registered run).** `python -B scripts/v3_valt_check.py --full` re-ran the whole registered E1 Canada
+stage (697 builds, same dates, seeds and locked defaults) on the universe the registered run used, with only VALT.TO
+relabelled, and archived it in output/v3_valt_check. Realised over target volatility at levels 2-4: 1.037, 1.029,
+0.997 (registered 1.037, 1.029, 0.994), reading still "inconclusive". Robo-Kit's Sharpe ratios fall by 0.005 to 0.010.
+One of the twelve readings changes: against the static mix at level 4 the Holm-adjusted non-inferiority p becomes
+0.059 (registered 0.037), so the reading is "inconclusive"; at level 3 it stays "not worse by more than 0.10" (0.014;
+registered 0.007). The textbook rows also carry the target fix of section 12; compared with output/v3_verify their
+readings are unchanged. E8(a): VALT's stand-in is GLD, correlation 0.986. The paper reports the registered results
+as registered and this check beside them (Section 6.9).

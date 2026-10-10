@@ -245,15 +245,16 @@ def test_tools_relax_limits_on_request():
 
 # ------------------------------------------------------------------ the reference mix (local data); v3 safety left the point mix unchanged
 REFERENCE_L3 = {  # v3: shared draws (optimizer/rng.py) and lambda calibrated on the final pipeline
-    "VFV.TO": 0.2283,
-    "ZAG.TO": 0.1996,
-    "XIC.TO": 0.1607,
-    "CASH.TO": 0.0975,
-    "FLUR.NE": 0.0938,
-    "XSB.TO": 0.0915,
-    "VBU.NE": 0.0664,
-    "VEE.TO": 0.0395,
-    "XRE.TO": 0.0227,
+    # 3.0.2: VALT (dropped by the 2% rule) is CAD-hedged, so its stand-in before 2021 is GLD unconverted; this moves the mix
+    "VFV.TO": 0.2257,
+    "ZAG.TO": 0.1947,
+    "XIC.TO": 0.1649,
+    "CASH.TO": 0.1112,
+    "FLUR.NE": 0.0933,
+    "XSB.TO": 0.0750,
+    "VBU.NE": 0.0713,
+    "VEE.TO": 0.0408,
+    "XRE.TO": 0.0231,
 }
 
 

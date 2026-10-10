@@ -55,7 +55,7 @@ only with the team (never by public link). A public product would need licensed 
 |---|---|
 | Prices through | 2026-08-31 (month-end; the unfinished month is dropped) |
 | Listings and macro context fetched | 2026-09-28 |
-| Universe | 7,957 listings; 637 Canadian and 1,973 US ETFs pass the eligibility rules |
+| Universe | 7,957 listings; 636 Canadian and 1,997 US ETFs pass the eligibility rules |
 | Data snapshot id | `00a560f4a6d3` (hash of the return panel) |
 
 ## Known limitations
@@ -64,7 +64,7 @@ only with the team (never by public link). A public product would need licensed 
 - **Unofficial endpoints:** TMX GraphQL and Yahoo (`yfinance`) are unofficial and can change or rate-limit without
   notice. A per-ticker rate-limit error inside a successful chunk is not recorded, so a few funds can silently lose
   their history.
-- **MER coverage:** MER comes only from Yahoo; coverage is good for eligible funds (595/637 CA, 1,942/1,973 US) but
+- **MER coverage:** MER comes only from Yahoo; coverage is good for eligible funds (594/636 CA, 1,966/1,997 US) but
   Yahoo is not an authoritative Canadian MER source.
 - **News:** GDELT rate-limits aggressively; when a refresh gets nothing, the previous snapshot's headlines are kept
   and labelled with their fetch date.

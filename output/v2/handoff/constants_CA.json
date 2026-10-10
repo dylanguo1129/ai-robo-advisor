@@ -1,6 +1,6 @@
 {
  "market": "CA",
- "engine_version": "2.2.0",
+ "engine_version": "3.0.2",
  "data_snapshot": "00a560f4a6d3",
  "data_source": "local",
  "history_window": [
@@ -16,62 +16,62 @@
   "concentration_ratio": 0.05555555555555555,
   "n_assets": 10,
   "n_obs": 180,
-  "shrinkage": 0.15913838346292838,
-  "condition_number": 4126.947617908164
+  "shrinkage": 0.17413064249427623,
+  "condition_number": 4249.7547802110885
  },
  "objective": "maximize mu'w - (lambda/2) w'Sigma w, weights sum to 1, no shorting",
- "min_weight_rule": "funds under min_weight_per_fund are dropped and the problem is solved again at the same lambda (up to 3 rounds); the weights in risk_aversion are after this step",
- "weights_note": "the weights in risk_aversion are one estimate (resampling off); the product averages 200 resampled histories at the same lambda, so its weights differ by a few tenths of a point",
+ "min_weight_rule": "funds under min_weight_per_fund are dropped and the problem is solved again, round after round until none is left; lambda is calibrated on the mix after this step",
+ "weights_note": "the weights and lambda in risk_aversion are for one estimate (resampling off); the product calibrates lambda on the average of 200 resampled histories, so its lambda and weights differ slightly",
  "risk_aversion": {
   "low": {
    "level": 4.0,
    "label": "Growth",
    "target_volatility": 0.0856,
-   "lambda": 2.0784,
+   "lambda": 2.0811,
    "cash_cap": 0.15,
    "weights": {
-    "VFV.TO": 0.3245,
-    "ZAG.TO": 0.2046,
-    "XIC.TO": 0.2042,
+    "VFV.TO": 0.3243,
+    "ZAG.TO": 0.2084,
+    "XIC.TO": 0.2034,
     "FLUR.NE": 0.1311,
-    "XRE.TO": 0.0559,
-    "VEE.TO": 0.0483,
-    "VALT.TO": 0.0313
+    "XRE.TO": 0.055,
+    "VEE.TO": 0.0482,
+    "VALT.TO": 0.0295
    }
   },
   "mid": {
    "level": 3.0,
    "label": "Balanced",
    "target_volatility": 0.0642,
-   "lambda": 2.8831,
+   "lambda": 2.8824,
    "cash_cap": 0.15,
    "weights": {
-    "VFV.TO": 0.2281,
-    "ZAG.TO": 0.1988,
-    "XIC.TO": 0.1605,
-    "CASH.TO": 0.1011,
-    "FLUR.NE": 0.0937,
-    "XSB.TO": 0.0885,
-    "VBU.NE": 0.0668,
-    "VEE.TO": 0.0397,
-    "XRE.TO": 0.0226
+    "VFV.TO": 0.2259,
+    "ZAG.TO": 0.1943,
+    "XIC.TO": 0.1647,
+    "CASH.TO": 0.1133,
+    "FLUR.NE": 0.0934,
+    "XSB.TO": 0.0729,
+    "VBU.NE": 0.0712,
+    "VEE.TO": 0.0411,
+    "XRE.TO": 0.0231
    }
   },
   "high": {
    "level": 2.0,
    "label": "Cautious",
    "target_volatility": 0.0428,
-   "lambda": 4.3727,
+   "lambda": 4.3703,
    "cash_cap": 0.3,
    "weights": {
     "CASH.TO": 0.3,
-    "XSB.TO": 0.183,
-    "VFV.TO": 0.1501,
-    "XIC.TO": 0.1157,
-    "ZAG.TO": 0.1103,
-    "FLUR.NE": 0.0623,
-    "VBU.NE": 0.0529,
-    "VEE.TO": 0.0258
+    "XSB.TO": 0.1823,
+    "VFV.TO": 0.1487,
+    "XIC.TO": 0.1186,
+    "ZAG.TO": 0.1063,
+    "FLUR.NE": 0.0621,
+    "VBU.NE": 0.0554,
+    "VEE.TO": 0.0267
    }
   }
  },

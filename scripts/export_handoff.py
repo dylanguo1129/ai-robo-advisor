@@ -11,7 +11,8 @@ Writes to output/v2/handoff/:
 
 The three lambda values are calibrated on the reference shelf: each one makes the shelf hit its
 level's target volatility. On a different shortlist the same lambda gives a different risk, which is
-why the engine re-solves lambda for every request (robokit/engine.py, _calibrate).
+why the engine re-solves lambda for every request (robokit/engine.py: _calibrate for the single solve,
+_calibrate_final for the mix the client receives).
 """
 
 from __future__ import annotations
@@ -107,10 +108,10 @@ def main() -> None:
         "delta": opt.delta,
         "covariance": opt.cov_info,
         "objective": "maximize mu'w - (lambda/2) w'Sigma w, weights sum to 1, no shorting",
-        "min_weight_rule": "funds under min_weight_per_fund are dropped and the problem is solved again at the same lambda "
-        "(up to 3 rounds); the weights in risk_aversion are after this step",
-        "weights_note": "the weights in risk_aversion are one estimate (resampling off); the product averages 200 resampled "
-        "histories at the same lambda, so its weights differ by a few tenths of a point",
+        "min_weight_rule": "funds under min_weight_per_fund are dropped and the problem is solved again, round after round "
+        "until none is left; lambda is calibrated on the mix after this step",
+        "weights_note": "the weights and lambda in risk_aversion are for one estimate (resampling off); the product "
+        "calibrates lambda on the average of 200 resampled histories, so its lambda and weights differ slightly",
         "risk_aversion": presets,
         "max_weight_per_fund": engine.Request().max_weight,
         "min_weight_per_fund": engine.Request().min_weight,
