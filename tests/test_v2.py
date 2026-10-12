@@ -460,7 +460,9 @@ def test_round2_own_weights_edge_cases():
 def test_round2_fee_rate_counts_known_funds_only():
     from robokit.engine import Request, build_portfolio
 
-    p = build_portfolio(Request(market="CA", fixed_weights={"XUU.TO": 0.5, "XIC.TO": 0.5}, amount=100000, resample=False))
+    # MNT.TO (bullion receipts) has no MER in either dataset; XUU.TO, used here before 3.0.3, now has one from the
+    # team data layer's bridge
+    p = build_portfolio(Request(market="CA", fixed_weights={"MNT.TO": 0.5, "XIC.TO": 0.5}, amount=100000, resample=False))
     xic = 0.0006
     assert abs(p["stats"]["fee_per_year"] - 0.5 * xic * 100000) < 1.0
     assert any(c["id"] == "fee_unknown" and "leave it out" in c["en"] for c in p["checks"])

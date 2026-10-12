@@ -128,7 +128,12 @@ ISSUERS = [
 
 # ---------------------------------------------------------------- name rules
 _LEV = [
-    (r"\b(-?\d(?:\.\d+)?)\s*x\b", None),  # "2X", "-3x", "1.25x"
+    # "2X", "-3x", "1.25x", "(-3X)", "2xLeveraged", "3×" (and "3?", the same sign garbled in a listing file):
+    # the sign belongs to the number even after a bracket
+    (
+        r"(?<![\w.])(-?\d(?:\.\d+)?)\s*(?:(?:x|×)(?=$|[^a-z0-9]|leveraged|monthly)|\?(?=\s+(?:long|short|bull|bear|leveraged|inverse)\b))",
+        None,
+    ),
     (r"\bultrapro\s+short\b", -3.0),
     (r"\bultrapro\b", 3.0),
     (r"\bultrashort\b", -2.0),
@@ -139,7 +144,13 @@ _LEV = [
     (r"\btriple\s+short\b", -3.0),
     (r"\btriple\s+long\b", 3.0),
 ]
-BEAR = r"\b(bear|inverse|(?<!ultra-)(?<!ultra )short\b(?!.?term|.?duration|.?maturity|er)|ultrashort|-1x|-2x|-3x)"
+BEAR = (
+    r"\b(bear|inverse|(?<!ultra-)(?<!ultra )short\b(?!.?term|.?duration|.?maturity|er)|ultrashort|megashort|savvyshort)"
+    r"|(?<![\w.])-\d(?:\.\d+)?\s*(?:(?:x|×)(?![a-z0-9])|\?(?=\s+(?:short|bear|inverse)\b))"
+)
+# words that make a name a geared or inverse daily product; a fund category alone does not ("Enhanced" funds borrow
+# up to 1.25x and are not daily-reset, and some crypto funds are filed under "Trading-Leveraged")
+GEARED_WORDS = r"\b(leverage|leveraged|bull|bear|inverse|ultra|ultrapro|ultrashort|megalong|megashort|savvylong|savvyshort)\b"
 SINGLE_STOCK_HINT = (
     r"\b(yield shares|highshares|enhanced high income shares|option income strategy|yieldboost|"
     r"savvylong|daily target 2x|2x long|2x short|autocallable|growth & income etf|"
@@ -185,9 +196,10 @@ REGION_RULES = [
         r"\beurope\b|\beuropean\b|\beuro\b|\beurozone\b|\bstoxx\b|\bgermany\b|\bfrance\b|\buk\b|\bunited kingdom\b|\bswitzerland\b|\bitaly\b|\bspain\b|\bnetherlands\b|\bsweden\b",
         "Europe",
     ),
-    (r"\basia\b|\bpacific\b|\baustralia\b|\bsingapore\b", "Asia-Pacific"),
+    (r"\basia\b|\bpacific\b|\baustralian?\b|\bsingapore\b", "Asia-Pacific"),
     (
-        r"\beafe\b|\binternational\b|\bdeveloped markets?\b|\bex[- ]?us\b|\bex[- ]?north america\b|\bintl\b|\bforeign\b|\bworld ex\b",
+        # "ex U.S.", "ex-US", "ex USA", "ex North Amer(ica)", "ex Nrth Amer": the name excludes the US
+        r"\beafe\b|\binternational\b|\bdeveloped markets?\b|\bex[- ]?u\.?s\.?a?\b|\bex[- ]?n(?:o)?rth amer|\bintl\b|\bforeign\b|\bworld ex\b",
         "International developed",
     ),
     (r"\bglobal\b|\bworld\b|\ball[- ]world\b|\bacwi\b|\ball country\b", "Global"),
@@ -294,6 +306,7 @@ _RX = {
     k: _rx(v)
     for k, v in dict(
         bear=BEAR,
+        geared=GEARED_WORDS,
         single=SINGLE_STOCK_HINT,
         company=COMPANY_SUFFIX,
         fundwords=FUND_WORDS,
@@ -362,9 +375,13 @@ def classify_row(r: pd.Series) -> dict:
     # ---- leverage / inverse
     lev, lev_why = leverage_of(name)
     if "Leverage" in style or "Trading-Leveraged" in style or "Trading--Leveraged" in ycat or "Leveraged" in ycat:
-        if abs(lev) == 1.0:
-            lev = 2.0 if "Inverse" not in style + ycat else -2.0
-            lev_why = f"category '{style or ycat}'"
+        cat = f"category '{style or ycat}'"
+        if abs(lev) == 1.0 and not _RX["geared"].search(name):
+            why.append(f"{cat} says leveraged, but the name does not; kept at 1x")
+        elif lev == 1.0:
+            lev, lev_why = (2.0 if "Inverse" not in style + ycat else -2.0), cat
+        elif lev == -1.0 and re.search(r"\bleveraged\b", name, re.I):
+            lev, lev_why = -2.0, f"{cat} and an inverse fund named 'leveraged'"
     if "Inverse" in style or "Inverse" in ycat:
         lev = -abs(lev) if abs(lev) > 1 else -1.0
         lev_why = lev_why or f"category '{style or ycat}'"
@@ -464,8 +481,9 @@ def classify_row(r: pd.Series) -> dict:
 
     # ---- region
     region = None
+    region_name = re.sub(r"^\s*global x\b", "", name, flags=re.I)  # "Global X" is an issuer's brand, not a region
     for rx, reg in _REGION:
-        if rx.search(name):
+        if rx.search(region_name):
             region = reg
             break
     if region is None:
@@ -473,6 +491,10 @@ def classify_row(r: pd.Series) -> dict:
         if reg_w and reg_w[1] >= 80:
             region = {"United States": "US", "Canada": "Canada"}.get(reg_w[0], "Global")
             why.append(f"region from holdings: {reg_w[0]} {reg_w[1]:.0f}%")
+    if region is None and region_name != name:
+        # a Global X theme fund (uranium, lithium, robotics) whose name and holdings name no region: global, as
+        # before; the listing-market fallback below would wrongly call every US-listed one a US fund
+        region = "Global"
     if region is None:
         if "Foreign" in ycat or "International" in ycat:
             region = "International developed"

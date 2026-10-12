@@ -547,6 +547,27 @@ audit of the documents against the code found the issuer-return count stated as 
 | The deflated Sharpe ratio is stated without its "if anything, too favourable" caveat | true | Added |
 | "The caps ... changed nothing" (E5) | partly true: the slot caps were halved and doubled, the cash cap was not varied | Reworded |
 
+**After the run: the data layer's cross-check (11 Oct 2026).** The team's separately built Canadian ETF data layer
+(Anna; github.com/shreyajane23/robokit-data) compared its labels with `web/data/ca.json` fund by fund and suggested
+corrections where a fund's own name contradicts our label: 147 rows, 59 of them high confidence, 9 on eligible funds.
+Each was checked against the name and the classification code before ruling; the four rules behind them were fixed
+rather than overridden fund by fund (docs/research/v303_crosscheck.md). Re-running the same comparison on 3.0.3
+leaves 79 rows, none high confidence.
+
+| Finding | Ruling | Action |
+|---|---|---|
+| Seven Global X US funds on eligible lists (HXS, HXQ, USCC, USCL, QQCC, HTB, DLR) labelled Global | true: "Global X" is a brand | Region rules read the name without the brand; a Global X theme fund naming no region stays Global |
+| VDU and VEF ("Developed All Cap ex U.S.") labelled US | true: the dots in "U.S." defeated the "ex US" rule | Rule reads "ex U.S.", "ex-U.S.", "ex USA", "ex North Amer"; VIU, VI and VBG also become International developed |
+| MegaShort (-3X) funds labelled +3x; "Inverse Leveraged Daily Bear" funds +2x | true | The multiplier keeps its sign; an inverse fund keeps its sign under a leverage category |
+| (found here) "Daily Inverse" funds CNDI and SPXI labelled +2x | true: a leverage category overwrote the name's -1x | Same fix |
+| Check: Purpose Solana and CMCL labelled 2x | true: a category alone made them leveraged | A category applies only to a name with a geared word; the same rule moves HDIF, JNJY, two Evolve UltraYield and several US single-stock income funds to 1x |
+| Check: Royal Canadian Mint reserves (MNT, MNS) labelled Global | kept | Bullion is a global commodity; Canada would take MNT out of the gold slot |
+| Check: XGD and XBM (S&P/TSX Global indices) labelled Canada | kept | Miners listed in Canada; Global would put them in the international slot |
+| Check: TCON labelled Canada | kept | A multi-asset fund no slot reads by region |
+| 42 eligible funds without an MER | partly used | The bridge's MER fills 27 (one, SPFD at 0.03%, is a likely unit error and is not used) |
+| Zero AUM for some BMO funds in the bridge | not used | A zero is a missing value in the source; it would fail three eligible funds on size |
+| 61 Canadian funds not in this universe | not added now | Needs a price refresh that changes every number; at most 13 have 36 months of history |
+
 ## Sources checked for this register
 
 Each was opened and the quoted text checked; DOIs resolved through doi.org (8 Oct 2026).

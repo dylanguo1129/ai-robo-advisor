@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.0.3 (October 2026)
+
+Labels and fund facts from the team's Canadian ETF data layer (github.com/shreyajane23/robokit-data), which
+cross-checked this universe fund by fund (docs/research/v303_crosscheck.md, docs/DECISIONS.md, docs/RESEARCH_LOG.md
+section 14; tests in tests/test_v303_crosscheck.py).
+
+- Region: "Global X" is read as the issuer's brand, not a region, so its S&P 500, Nasdaq-100, Russell 2000, Dow and
+  US Treasury funds are US funds (HXS, HXQ, USCC, USCL, QQCC, HTB and DLR among the eligible ones); a Global X theme
+  fund that names no region stays Global. "ex U.S." and "ex North Amer" read as International developed (VDU, VEF,
+  VIU, VI, VBG); "Australian" reads as Asia-Pacific.
+- Leverage: "(-3X)" keeps its minus sign (the four MegaShort funds were +3x); garbled multipliers and "2xLeveraged"
+  are read; a TMX or Yahoo leverage category no longer makes a fund leveraged unless its name says so, so "Daily
+  Inverse" funds are -1x (were +2x), "Inverse Leveraged" funds -2x, and "Enhanced", crypto and income funds 1x.
+- 136 listings change a label; HDIF.TO and XUSP become eligible (637 Canadian and 1,998 US funds). No slot's
+  reference fund changes; HXS.TO and VDU.TO join two slots' candidates. The default mixes and every reported number
+  are unchanged.
+- `robokit/universe.py:add_team_data` merges the data layer's bridge file when it is in `data/v2/`: inception date,
+  fund age, a calculated (CSA-method) risk rating, distribution frequency and yield, secondary theme, and MER for
+  blanks (eligible Canadian funds with an MER: 594 of 636 -> 622 of 637). MERs outside 0.05%-3% and zero AUMs are
+  not used.
+- Under these labels the strict point-in-time shelf (E2) gains HXS.TO in Canada's US-stock slot for December 2014,
+  a year it had no fund old enough; E2 is not re-run.
+
 ## 3.0.2 (October 2026)
 
 Currency-hedging labels, found while the team's optimizer report was reviewed (docs/research/v302_hedging_labels.md,
