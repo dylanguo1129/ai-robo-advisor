@@ -484,7 +484,7 @@ facts and fills MER blanks. Regression tests in tests/test_v303_crosscheck.py.
 | USD/CAD against the Bank of Canada (2017-2026) | mean absolute difference 0.21%, maximum 0.73% |
 | Issuer MERs, two independent lookups (data/issuer_mer.csv) | 33 funds; the lookups agree on 32 (PFLS: the older document); ours equal the issuer for 26, 0.01-0.02 points off for 7 |
 | Report numbers re-run on 3.0.4 against 3.0.3 | five change: the level-3 and level-2 fees and fee rates, and level 2's bad year (-4.1% -> -4.0%); the Data Note's counts are unchanged |
-| `python -m pytest -q` | 638 passed (in CI, without the local data: 551 passed, 87 skipped) |
+| `python -m pytest -q` | 639 passed (in CI, without the local data: 552 passed, 87 skipped) |
 | `python -m pytest -m ui -q tests/ui` | 70 passed |
 | The five `node web/test_*.mjs` suites (bundle rebuilt at 3.0.4) | all pass |
 | `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |

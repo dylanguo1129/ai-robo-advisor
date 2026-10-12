@@ -295,6 +295,8 @@ web/                     the published page (files listed in web/publish.json): 
                          assistant.js, robokit.js (engine port), engine.js, parse.js, validate.js, icons.js,
                          worker2.js, data/ (snapshot)
                          dev only: dev_mock.js, test_*.mjs, test_profiles.json
+                         yasmin.html, yasmin.js: the Yasmin edition, a guided-chat prototype of the same engine
+                         for team feedback, published as its own artifact (not in publish.json)
 tests/                   pytest suite; tests/ui: browser regression tests (opt-in: -m ui)
 scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page, publish check
 data/                    README.md (data catalogue) + v1 inputs; the local cache data/v2/ is git-ignored
@@ -324,7 +326,7 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 638 passed with the local data cache; on a fresh clone and in CI 551 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
+| Python tests | `python -m pytest -q` | 639 passed with the local data cache; on a fresh clone and in CI 552 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
 | Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |

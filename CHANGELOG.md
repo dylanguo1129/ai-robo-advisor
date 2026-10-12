@@ -15,6 +15,9 @@ scripts/dataverify/, tests in tests/test_v304_dataverify.py).
 - The team data layer's inception date (Yahoo's profile date, years late for about 100 funds) yields to TMX's
   listing date, and fund age is measured to the last price month. A bridge file without MER or AUM columns no
   longer fails the build.
+- web/yasmin.html: the Yasmin edition, Yasmin's six wireframes (home, chat questions, assessment, mix, learn more,
+  adjustments) on the same engine and data, published as a separate artifact for team feedback. The main page is
+  unchanged; scripts/check_publish.py now counts only the main page's own scripts when it checks capabilities.
 
 ## 3.0.3 (October 2026)
 
