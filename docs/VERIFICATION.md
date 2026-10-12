@@ -473,3 +473,18 @@ facts and fills MER blanks. Regression tests in tests/test_v303_crosscheck.py.
 | The strict point-in-time shelf, every December 2000-2025, both markets, 3.0.2 labels against 3.0.3 | one change: Canada 2014, US-stock slot, none -> HXS.TO |
 | `tests/test_v3_safety.py::test_reference_balanced_mix_is_unchanged` | passes: the default level-3 mix is unchanged |
 | `python scripts/export_handoff.py` | hand-off files at 3.0.3; unchanged apart from the version |
+
+### 8.9 The data checked against independent sources (12 Oct 2026, v3.0.4)
+
+| Check | Result |
+|---|---|
+| `python -B scripts/dataverify/price_check.py download` then `compare` | 707 series, 88,535 months; 704 within 0.5% in every month; ZLH.TO (Yahoo daily step), CJP.NE (2013 monthly bar) and CAD=X (timing) explained |
+| `python -B scripts/dataverify/verify_stats.py` | statistics of 7,792 funds identical; Bank of Canada series identical to August 2026; eligibility re-implemented: 2,635, the same funds |
+| `python -B scripts/dataverify/anna_compare.py <dataset.xlsx>` | MER 1,238 of 1,250 within 0.02 points; 3-year return correlation 0.993; differences ruled in docs/research/v304_data_verification.md |
+| USD/CAD against the Bank of Canada (2017-2026) | mean absolute difference 0.21%, maximum 0.73% |
+| Issuer MERs, two independent lookups (data/issuer_mer.csv) | 33 funds; the lookups agree on 32 (PFLS: the older document); ours equal the issuer for 26, 0.01-0.02 points off for 7 |
+| Report numbers re-run on 3.0.4 against 3.0.3 | five change: the level-3 and level-2 fees and fee rates, and level 2's bad year (-4.1% -> -4.0%); the Data Note's counts are unchanged |
+| `python -m pytest -q` | 638 passed (in CI, without the local data: 551 passed, 87 skipped) |
+| `python -m pytest -m ui -q tests/ui` | 70 passed |
+| The five `node web/test_*.mjs` suites (bundle rebuilt at 3.0.4) | all pass |
+| `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |

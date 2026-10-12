@@ -66,8 +66,11 @@ only with the team (never by public link). A public product would need licensed 
   notice. A per-ticker rate-limit error inside a successful chunk is not recorded, so a few funds can silently lose
   their history.
 - **MER coverage:** MER comes from Yahoo, through our screener and, for blanks, the team data layer's bridge file;
-  coverage is good for eligible funds (622/637 CA, 1,967/1,998 US) but Yahoo is not an authoritative Canadian MER
-  source.
+  the reference funds' MERs come from the issuers' own pages (`data/issuer_mer.csv`, with URL, quote and as-of date).
+  Coverage is good for eligible funds (622/637 CA, 1,967/1,998 US) but Yahoo is not an authoritative Canadian MER
+  source, and it can lag an issuer's new fiscal year by a few basis points.
+- **Checks:** `scripts/dataverify/` re-derives the monthly returns from daily prices, recomputes every derived value
+  and the screen, and compares the Canadian funds with the team data layer (docs/research/v304_data_verification.md).
 - **News:** GDELT rate-limits aggressively; when a refresh gets nothing, the previous snapshot's headlines are kept
   and labelled with their fetch date.
 - **Rebuild only on a machine with the local cache:** running `bundle` without `data/v2/` (snapshot mode) re-reads
