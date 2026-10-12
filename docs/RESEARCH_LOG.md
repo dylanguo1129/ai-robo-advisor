@@ -218,3 +218,29 @@ One of the twelve readings changes: against the static mix at level 4 the Holm-a
 registered 0.007). The textbook rows also carry the target fix of section 12; compared with output/v3_verify their
 readings are unchanged. E8(a): VALT's stand-in is GLD, correlation 0.986. The paper reports the registered results
 as registered and this check beside them (Section 6.9).
+
+## 14. After the run: the team data layer's cross-check (11 Oct 2026)
+
+The team's Canadian ETF data layer (github.com/shreyajane23/robokit-data) is built from its own listings, Yahoo
+fund profiles and classification rules. Its optimizer bridge compares it with `web/data/ca.json` and lists the
+labels a fund's name contradicts. Its files were not attached to the hand-off, so the comparison was re-run here
+with its code (the corrections need only its name rules and our `ca.json`) and its October 10 dataset export; the
+counts match its note (9 high-confidence corrections on eligible funds, 28 MERs for the 42 eligible funds without
+one, 61 funds not listed here).
+
+The errors came from four rules, which were fixed in 3.0.3 (docs/research/v303_crosscheck.md): the "Global X" brand
+read as a global region, "ex U.S." read as the US, a "(-3X)" multiplier losing its sign, and a TMX or Yahoo leverage
+category making a fund leveraged when its name did not say so. 136 listings change a label and two become eligible;
+no slot's reference fund changes, with or without the ESG preference, and the default mixes are unchanged (the
+reference level-3 mix test holds to 1e-4). Under the new labels the strict point-in-time shelf (E2) changes in one
+market-year: Canada's US-stock slot holds HXS.TO in December 2014, where it had no fund with 36 months of history;
+E2 is not re-run. The bridge's fund facts are merged when its file is present; its MER fills 27 eligible blanks.
+
+Why the earlier checks missed these. The label audit after the run (docs/research/e7e_taxonomy.md) drew a random
+sample of 140 funds and scored satellite status and asset class against the issuers' pages; none of the funds above
+was in it. It did see the "Global X" brand read as a region, in two US-listed single-country funds (ARGT, GREK), and
+listed it as a known error without changing region labels, because the evaluated shelf reads them; that left the
+seven eligible Canadian Global X US funds unexamined. The hedging sweep of 3.0.2 read hedging words only. The
+leverage errors sit on funds the screen excludes in any case, so no result or test depended on them. Checks of the
+reference shelves, the slot rules and samples cannot see an error in a fund none of them touches; a second, complete
+dataset labelled by different rules compared every fund, which is what exposed these.

@@ -455,3 +455,21 @@ registered evaluation is not re-run; the check below is labelled as not register
 | `python scripts/e7e_universe_diff.py data/v2/universe_v3_evaluated.pkl data/v2/universe.pkl` | 38 hedging labels differ from the evaluated list (VI.TO from 3.0.1, the 37 above from 3.0.2); eligibility and the slot candidate lists are as in 8.6, so 3.0.2 changes no eligible fund, candidate list or reference fund |
 | `python -B scripts/v3_valt_check.py --full` (E1 Canada and E8(a) with only VALT relabelled; output/v3_valt_check) | VALT's stand-in becomes GLD unconverted (correlation 0.986 over 67 months); realised over target volatility 1.04, 1.03, 1.00 at levels 2 to 4, still "inconclusive"; Robo-Kit's Sharpe ratios fall by 0.005 to 0.010; static-mix non-inferiority holds at level 3 (Holm p = 0.014) but becomes "inconclusive" at level 4 (p = 0.059) |
 | `python scripts/export_handoff.py` | hand-off files at 3.0.2; Canadian λ 2.0811, 2.8824, 4.3703 |
+
+### 8.8 The data layer's cross-check (11 Oct 2026, v3.0.3)
+
+The team's Canadian ETF data layer suggested label corrections where a fund's name contradicts our label; the four
+rules behind them were fixed (docs/research/v303_crosscheck.md, docs/DECISIONS.md), and its bridge file adds fund
+facts and fills MER blanks. Regression tests in tests/test_v303_crosscheck.py.
+
+| Check | Result |
+|---|---|
+| `python -m pytest -q` | 632 passed (in CI, without the local data: 547 passed, 85 skipped) |
+| `python -m pytest -m ui -q tests/ui` | 70 passed |
+| The five `node web/test_*.mjs` suites (bundle rebuilt at 3.0.3) | all pass |
+| `ruff check`, `ruff format --check` | clean |
+| The data layer's comparison (`optimizer_bridge.build_bridge`) on `ca.json` at 3.0.2 and at 3.0.3 | 147 rows (59 high confidence, 9 on eligible funds) -> 79 rows (none high confidence) |
+| `python scripts/e7e_universe_diff.py data/v2/universe_3.0.2.pkl data/v2/universe.pkl` | 136 listings change a label (region 109, leverage 27); MER 128 filled, AUM 3; eligible +2 (HDIF.TO, XUSP); HXS.TO joins the US-stock slot's candidates and VDU.TO the international slot's, and three ESG-preference lists are reordered below their reference fund (filled MERs); no reference fund changes, with or without the ESG preference |
+| The strict point-in-time shelf, every December 2000-2025, both markets, 3.0.2 labels against 3.0.3 | one change: Canada 2014, US-stock slot, none -> HXS.TO |
+| `tests/test_v3_safety.py::test_reference_balanced_mix_is_unchanged` | passes: the default level-3 mix is unchanged |
+| `python scripts/export_handoff.py` | hand-off files at 3.0.3; unchanged apart from the version |

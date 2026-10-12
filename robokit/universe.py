@@ -148,13 +148,37 @@ def satellite_only(U: pd.DataFrame) -> pd.Series:
     )
 
 
+TEAM_BRIDGE = "robokit_bridge_ca.csv"
+MER_RANGE = (0.0005, 0.03)  # an MER outside 0.05%-3% is most likely in the wrong unit
+
+
+def add_team_data(U: pd.DataFrame) -> pd.DataFrame:
+    """Fields from the team's Canadian ETF data layer (github.com/shreyajane23/robokit-data, optimizer_bridge), when
+    its bridge file is in DATA_DIR: inception date, fund age, a risk rating calculated with the CSA method,
+    distribution frequency and yield, and a secondary theme (columns rk_*, keyed on yahoo). Its MER and AUM fill only
+    our blanks (an MER outside MER_RANGE and an AUM of zero are left out); each filled value says so in the
+    fund's note. Without the file the universe is unchanged."""
+    p = DATA_DIR / TEAM_BRIDGE
+    if not p.exists():
+        return U
+    B = pd.read_csv(p)
+    U = U.merge(B[[c for c in B.columns if c == "yahoo" or c.startswith("rk_")]], on="yahoo", how="left")
+    mer = U["mer"].isna() & U["rk_mer"].between(*MER_RANGE)
+    U.loc[mer, "mer"] = U.loc[mer, "rk_mer"]
+    U.loc[mer, "why"] = U.loc[mer, "why"].fillna("") + " | MER from the team's data layer (Yahoo fund profile)"
+    aum = U["aum"].isna() & (U["rk_aum"] > 0)  # a zero is a missing value in the source, not an empty fund
+    U.loc[aum, "aum"] = U.loc[aum, "rk_aum"]
+    U.loc[aum, "why"] = U.loc[aum, "why"].fillna("") + " | assets from the team's data layer (Yahoo fund profile)"
+    return U
+
+
 def build_universe(save: bool = True) -> pd.DataFrame:
     L = dedupe_canada(load_listings())
     C = classify(L)
     close = pd.read_pickle(DATA_DIR / "close_monthly.pkl")
     volume = pd.read_pickle(DATA_DIR / "volume_monthly.pkl")
     S = price_stats(close, volume)
-    U = C.merge(S, left_on="yahoo", right_index=True, how="left")
+    U = add_team_data(C.merge(S, left_on="yahoo", right_index=True, how="left"))
     U["history_months"] = U["history_months"].fillna(0).astype(int)
     U["has_prices"] = U["yahoo"].isin(close.columns)
 

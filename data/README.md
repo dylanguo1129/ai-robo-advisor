@@ -28,6 +28,7 @@ All v2 sources are fetched by `robokit/data/` (`listings.py`, `prices.py`, `cont
 | Bank of Canada Valet | Policy rate, 3-month T-bill (Canadian risk-free rate), 2y/10y yields, CPI | `context.boc_monthly` | Open |
 | Yahoo indices `^IRX ^FVX ^TNX ^VIX` | US T-bill (US risk-free rate), 5y/10y yields, VIX | `context.yahoo_monthly` | Personal use |
 | FRED `BAMLH0A0HYM2` | US high-yield credit spread | `context.fred_monthly` | Copyrighted series; context only |
+| Team data layer bridge, `data/v2/robokit_bridge_ca.csv` (optional; github.com/shreyajane23/robokit-data, `optimizer_bridge`) | Canadian funds' inception date, fund age, calculated risk rating, distribution frequency and yield, secondary theme; MER and AUM for our blanks | `universe.add_team_data` | As its Yahoo sources |
 | Caldara & Iacoviello GPR | Geopolitical risk indices (world, Canada, US) | `context.gpr_monthly` | CC BY |
 | Baker, Bloom & Davis EPU | Economic policy uncertainty (US, Canada) | `context.epu_monthly` | CC BY 4.0 |
 | GDELT DOC 2.0 | News tone, volume and a few headlines per topic | `context.build_news` | Open (rate limited) |
@@ -55,7 +56,7 @@ only with the team (never by public link). A public product would need licensed 
 |---|---|
 | Prices through | 2026-08-31 (month-end; the unfinished month is dropped) |
 | Listings and macro context fetched | 2026-09-28 |
-| Universe | 7,957 listings; 636 Canadian and 1,997 US ETFs pass the eligibility rules |
+| Universe | 7,957 listings; 637 Canadian and 1,998 US ETFs pass the eligibility rules |
 | Data snapshot id | `00a560f4a6d3` (hash of the return panel) |
 
 ## Known limitations
@@ -64,8 +65,9 @@ only with the team (never by public link). A public product would need licensed 
 - **Unofficial endpoints:** TMX GraphQL and Yahoo (`yfinance`) are unofficial and can change or rate-limit without
   notice. A per-ticker rate-limit error inside a successful chunk is not recorded, so a few funds can silently lose
   their history.
-- **MER coverage:** MER comes only from Yahoo; coverage is good for eligible funds (594/636 CA, 1,966/1,997 US) but
-  Yahoo is not an authoritative Canadian MER source.
+- **MER coverage:** MER comes from Yahoo, through our screener and, for blanks, the team data layer's bridge file;
+  coverage is good for eligible funds (622/637 CA, 1,967/1,998 US) but Yahoo is not an authoritative Canadian MER
+  source.
 - **News:** GDELT rate-limits aggressively; when a refresh gets nothing, the previous snapshot's headlines are kept
   and labelled with their fetch date.
 - **Rebuild only on a machine with the local cache:** running `bundle` without `data/v2/` (snapshot mode) re-reads

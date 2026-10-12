@@ -15,9 +15,9 @@ reply from Claude that contains a number or a ticker no tool produced.
 > Educational tool, not a registered advisor or dealer. Results are hypothetical. It never tells anyone what to buy.
 
 - **Universe:** every ETF you can buy in Canadian dollars in Canada (TSX, Cboe Canada) and every US-listed ETF:
-  7,957 listings, of which 636 Canadian and 1,997 US pass the eligibility rules.
+  7,957 listings, of which 637 Canadian and 1,998 US pass the eligibility rules.
 - **Data snapshot:** prices through 31 Aug 2026, listings and market context fetched 28 Sep 2026 (`web/data/`).
-- **Engine:** v3.0.2. English only.
+- **Engine:** v3.0.3. English only.
 
 ---
 
@@ -324,7 +324,7 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 599 passed with the local data cache; on a fresh clone and in CI 515 pass and the 84 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
+| Python tests | `python -m pytest -q` | 632 passed with the local data cache; on a fresh clone and in CI 547 pass and the 85 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
 | Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |
@@ -373,10 +373,11 @@ From the v3 evaluation (docs/paper, output/v3/results.json) and the audits, as o
    admits can still be swapped in. The labels that let a fund into the wrong slot were corrected after the run (the
    second bug hunt in docs/DECISIONS.md), and so were 37 currency-hedging labels in 3.0.2, among them the gold fund
    VALT, which the registered evaluation extended with unhedged gold although it is CAD-hedged
-   (docs/research/v302_hedging_labels.md; its effect on the evaluation is in docs/RESEARCH_LOG.md section 13). Other
-   region and asset-class labels are still wrong (single-country funds labelled "US", a bitcoin-miner fund labelled
-   Crypto) and are listed in docs/research/e7e_taxonomy.md; hedging is read from the name, so a hedged unit with a
-   plain name needs an issuer-sourced override.
+   (docs/research/v302_hedging_labels.md; its effect on the evaluation is in docs/RESEARCH_LOG.md section 13). In
+   3.0.3 the team's separately built data layer (github.com/shreyajane23/robokit-data) cross-checked every Canadian
+   label, and the region and leverage rules it showed wrong were fixed (docs/research/v303_crosscheck.md). Labels are
+   still read from names by rules, so some remain wrong (docs/research/e7e_taxonomy.md lists known ones); hedging is
+   read from the name, so a hedged unit with a plain name needs an issuer-sourced override.
 7. **Large accounts.** On a 1,000,000 account, the largest orders in several Canadian funds exceed 1% of their average
    daily traded value; the rebalancer flags them.
 8. **Level 5** is held by the fund limits a little below its volatility target (within half a point; the calibration

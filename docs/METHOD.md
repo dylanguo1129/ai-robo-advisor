@@ -186,7 +186,7 @@ Sections 1-7 describe the v1 optimizer on the 20-ETF prototype and still hold fo
 
 | Topic | v1 | v2 | Why |
 | --- | --- | --- | --- |
-| Universe | 20 hand-picked Canadian ETFs | 7,957 listings (Canada in CAD, US), 2,633 eligible, every exclusion explained | Scope: all CAD-buyable Canadian ETFs and all US ETFs |
+| Universe | 20 hand-picked Canadian ETFs | 7,957 listings (Canada in CAD, US), 2,635 eligible, every exclusion explained | Scope: all CAD-buyable Canadian ETFs and all US ETFs |
 | Fund selection | Fixed list | Reference shelf: one broad, low-cost fund per asset class chosen by a written rule and a published score; user swaps and additions | Path A: the person builds the shortlist (docs/research/regulation.md) |
 | Prior | AUM weights of the shortlist | Written policy anchor per asset class (60/35/3/2, 30% home bias for Canada) | AUM weights made the prior depend on which funds happen to be large |
 | Young funds | Common window only | Correlation-checked proxy splices for core funds, matched to the fund's currency hedging (a CAD-hedged S&P 500 fund is extended with SPY's own US-dollar return, not SPY converted to CAD); regression back-fill for satellites; all disclosed | Five-year windows let one unusual period decide everything; correlation alone cannot tell hedged from unhedged (0.87) |
