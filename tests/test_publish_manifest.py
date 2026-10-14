@@ -36,6 +36,12 @@ def test_capabilities_follow_the_code():
     assert any("capabilities declared" in p for p in check.problems(m))
 
 
+def test_another_page_in_web_does_not_change_the_capabilities():
+    # web/yasmin.html (the Yasmin edition, published as its own artifact) also asks for comments
+    assert check.used_capabilities("index.html") == {"sample"}
+    assert check.used_capabilities("yasmin.html") == {"sample", "comments"}
+
+
 def test_settings_point_at_the_repository_files():
     s = check.settings()
     assert s["file_path"] == "web/index.html"

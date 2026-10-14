@@ -17,7 +17,7 @@ reply from Claude that contains a number or a ticker no tool produced.
 - **Universe:** every ETF you can buy in Canadian dollars in Canada (TSX, Cboe Canada) and every US-listed ETF:
   7,957 listings, of which 637 Canadian and 1,998 US pass the eligibility rules.
 - **Data snapshot:** prices through 31 Aug 2026, listings and market context fetched 28 Sep 2026 (`web/data/`).
-- **Engine:** v3.0.3. English only.
+- **Engine:** v3.0.4. English only.
 
 ---
 
@@ -295,6 +295,8 @@ web/                     the published page (files listed in web/publish.json): 
                          assistant.js, robokit.js (engine port), engine.js, parse.js, validate.js, icons.js,
                          worker2.js, data/ (snapshot)
                          dev only: dev_mock.js, test_*.mjs, test_profiles.json
+                         yasmin.html, yasmin.js: the Yasmin edition, a guided-chat prototype of the same engine
+                         for team feedback, published as its own artifact (not in publish.json)
 tests/                   pytest suite; tests/ui: browser regression tests (opt-in: -m ui)
 scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page, publish check
 data/                    README.md (data catalogue) + v1 inputs; the local cache data/v2/ is git-ignored
@@ -324,7 +326,7 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 632 passed with the local data cache; on a fresh clone and in CI 547 pass and the 85 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
+| Python tests | `python -m pytest -q` | 639 passed with the local data cache; on a fresh clone and in CI 552 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
 | Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |

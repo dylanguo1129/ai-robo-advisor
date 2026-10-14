@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.0.4 (October 2026)
+
+The stored data checked against sources that do not share its code (docs/research/v304_data_verification.md,
+scripts/dataverify/, tests in tests/test_v304_dataverify.py).
+
+- Monthly returns of 707 series (every eligible Canadian fund, every stand-in, the US slots' first candidates and
+  CAD=X) re-derived from daily prices: 704 agree within 0.5% in every month; the three exceptions are explained.
+  The Bank of Canada series, the derived statistics of 7,792 funds and the eligibility screen are reproduced
+  exactly; USD/CAD is within 0.21% of the Bank of Canada on average.
+- The reference funds' MERs come from the issuers' own pages (data/issuer_mer.csv, each with URL, quote and as-of
+  date). Seven were 0.01-0.02 points off on Yahoo (VFV 0.09% -> 0.08%, VEE 0.26% -> 0.24%, VBU 0.23% -> 0.21%,
+  VALT 0.17% -> 0.18%). The default mixes do not change; the level-3 fee falls from $12 to $11 per $10,000.
+- The team data layer's inception date (Yahoo's profile date, years late for about 100 funds) yields to TMX's
+  listing date, and fund age is measured to the last price month. A bridge file without MER or AUM columns no
+  longer fails the build.
+- web/yasmin.html: the Yasmin edition, Yasmin's six wireframes (home, chat questions, assessment, mix, learn more,
+  adjustments) on the same engine and data, published as a separate artifact for team feedback. The main page is
+  unchanged; scripts/check_publish.py now counts only the main page's own scripts when it checks capabilities.
+
 ## 3.0.3 (October 2026)
 
 Labels and fund facts from the team's Canadian ETF data layer (github.com/shreyajane23/robokit-data), which

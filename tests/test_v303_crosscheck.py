@@ -129,3 +129,16 @@ def test_the_cross_check_corrections_reach_the_fund_list():
     # and the Mint's bullion receipts (commodities are global; Canada would take MNT out of the gold slot)
     assert U.at["XGD.TO", "region"] == "Canada" and U.at["XBM.TO", "region"] == "Canada"
     assert U.at["MNT.TO", "region"] == "Global" and U.at["MNS.TO", "region"] == "Global"
+
+
+def test_the_bridge_inception_yields_to_the_tmx_listing_date(tmp_path, monkeypatch):
+    """3.0.4: Yahoo's profile gives some funds a rebrand date as their inception (ZLB.TO: 2026-08-31, though it has
+    traded since 2012); TMX's listing date matches the price history, so it wins wherever it exists."""
+    monkeypatch.setattr(universe, "DATA_DIR", tmp_path)
+    pd.DataFrame({"yahoo": ["A.TO", "B.TO"], "rk_inception": ["2026-08-31", "2019-03-04"], "rk_fund_age_years": [0.0, 7.5]}).to_csv(
+        tmp_path / universe.TEAM_BRIDGE, index=False
+    )
+    U = _universe().assign(inception=["2012-01-24 14:30:00", None, None, None, None])
+    out = universe.add_team_data(U, as_of=pd.Timestamp("2026-08-31")).set_index("yahoo")
+    assert out.at["A.TO", "rk_inception"] == "2012-01-24" and out.at["A.TO", "rk_fund_age_years"] == 14.6
+    assert out.at["B.TO", "rk_inception"] == "2019-03-04" and out.at["B.TO", "rk_fund_age_years"] == 7.5

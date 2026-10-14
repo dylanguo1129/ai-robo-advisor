@@ -11,6 +11,7 @@ suitable for a buy-and-hold portfolio").
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -152,23 +153,56 @@ TEAM_BRIDGE = "robokit_bridge_ca.csv"
 MER_RANGE = (0.0005, 0.03)  # an MER outside 0.05%-3% is most likely in the wrong unit
 
 
-def add_team_data(U: pd.DataFrame) -> pd.DataFrame:
+def add_team_data(U: pd.DataFrame, as_of: pd.Timestamp | None = None) -> pd.DataFrame:
     """Fields from the team's Canadian ETF data layer (github.com/shreyajane23/robokit-data, optimizer_bridge), when
     its bridge file is in DATA_DIR: inception date, fund age, a risk rating calculated with the CSA method,
     distribution frequency and yield, and a secondary theme (columns rk_*, keyed on yahoo). Its MER and AUM fill only
     our blanks (an MER outside MER_RANGE and an AUM of zero are left out); each filled value says so in the
-    fund's note. Without the file the universe is unchanged."""
+    fund's note. Without the file the universe is unchanged.
+
+    Its inception date comes from Yahoo fund profiles, which for about 100 Canadian funds give a rebrand or series
+    date years after the fund began trading (ZLB.TO: 2026-08-31). TMX's listing date matches the price history, so
+    rk_inception is ours wherever TMX has one, and rk_fund_age_years is measured from it to ``as_of`` (the last
+    price month)."""
     p = DATA_DIR / TEAM_BRIDGE
     if not p.exists():
         return U
     B = pd.read_csv(p)
     U = U.merge(B[[c for c in B.columns if c == "yahoo" or c.startswith("rk_")]], on="yahoo", how="left")
-    mer = U["mer"].isna() & U["rk_mer"].between(*MER_RANGE)
-    U.loc[mer, "mer"] = U.loc[mer, "rk_mer"]
-    U.loc[mer, "why"] = U.loc[mer, "why"].fillna("") + " | MER from the team's data layer (Yahoo fund profile)"
-    aum = U["aum"].isna() & (U["rk_aum"] > 0)  # a zero is a missing value in the source, not an empty fund
-    U.loc[aum, "aum"] = U.loc[aum, "rk_aum"]
-    U.loc[aum, "why"] = U.loc[aum, "why"].fillna("") + " | assets from the team's data layer (Yahoo fund profile)"
+    if "inception" in U and "rk_inception" in U:
+        ours = pd.to_datetime(U["inception"], errors="coerce", utc=True).dt.tz_localize(None).dt.normalize()
+        theirs = pd.to_datetime(U["rk_inception"], errors="coerce")
+        start = ours.fillna(theirs)
+        U["rk_inception"] = start.dt.strftime("%Y-%m-%d").where(start.notna())
+        if as_of is not None:
+            U["rk_fund_age_years"] = ((pd.Timestamp(as_of) - start).dt.days / 365.25).round(1).where(start.notna())
+    if "rk_mer" in U:
+        mer = U["mer"].isna() & U["rk_mer"].between(*MER_RANGE)
+        U.loc[mer, "mer"] = U.loc[mer, "rk_mer"]
+        U.loc[mer, "why"] = U.loc[mer, "why"].fillna("") + " | MER from the team's data layer (Yahoo fund profile)"
+    if "rk_aum" in U:
+        aum = U["aum"].isna() & (U["rk_aum"] > 0)  # a zero is a missing value in the source, not an empty fund
+        U.loc[aum, "aum"] = U.loc[aum, "rk_aum"]
+        U.loc[aum, "why"] = U.loc[aum, "why"].fillna("") + " | assets from the team's data layer (Yahoo fund profile)"
+    return U
+
+
+ISSUER_MER = Path(__file__).resolve().parents[1] / "data" / "issuer_mer.csv"
+
+
+def apply_issuer_mer(U: pd.DataFrame, path: Path = ISSUER_MER) -> pd.DataFrame:
+    """MERs read from the issuers' own pages (data/issuer_mer.csv: the reference funds of every slot and a few checked
+    by hand, each with its URL, quote and as-of date). They replace the screener's figure, which can lag an issuer's
+    new fiscal year by a few basis points (VFV.TO: 0.09% on Yahoo, 0.08% on Vanguard's page)."""
+    if not path.exists():
+        return U
+    M = pd.read_csv(path).set_index("yahoo")
+    hit = U["yahoo"].isin(M.index)
+    t = U.loc[hit, "yahoo"]
+    U.loc[hit, "mer"] = t.map(M["mer"]).values
+    U.loc[hit, "why"] = (
+        U.loc[hit, "why"].fillna("") + (" | MER from the issuer (" + t.map(M["label"]) + ", " + t.map(M["as_of"]).astype(str) + ")").values
+    )
     return U
 
 
@@ -178,7 +212,7 @@ def build_universe(save: bool = True) -> pd.DataFrame:
     close = pd.read_pickle(DATA_DIR / "close_monthly.pkl")
     volume = pd.read_pickle(DATA_DIR / "volume_monthly.pkl")
     S = price_stats(close, volume)
-    U = add_team_data(C.merge(S, left_on="yahoo", right_index=True, how="left"))
+    U = apply_issuer_mer(add_team_data(C.merge(S, left_on="yahoo", right_index=True, how="left"), as_of=close.index.max()))
     U["history_months"] = U["history_months"].fillna(0).astype(int)
     U["has_prices"] = U["yahoo"].isin(close.columns)
 

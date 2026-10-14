@@ -244,3 +244,15 @@ seven eligible Canadian Global X US funds unexamined. The hedging sweep of 3.0.2
 leverage errors sit on funds the screen excludes in any case, so no result or test depended on them. Checks of the
 reference shelves, the slot rules and samples cannot see an error in a fund none of them touches; a second, complete
 dataset labelled by different rules compared every fund, which is what exposed these.
+
+## 15. The data checked against independent sources (12 Oct 2026)
+
+The labels had been cross-checked; the values had not. Each stored series was checked against a source that does
+not share its code, and each derived value against a second implementation (docs/research/v304_data_verification.md).
+Monthly returns re-derived from daily prices agree within 0.5% in every month for 704 of 707 series; the three
+exceptions are a Yahoo daily glitch (ZLH.TO), a 2013 monthly bar (CJP.NE) and exchange-rate timing. The Bank of
+Canada series, the statistics and the screen are reproduced exactly. The team data layer's dataset agrees on MER for
+1,238 of 1,250 funds and on 3-year returns at a correlation of 0.993; most other differences are its own (unit slips,
+Yahoo inception dates), which were reported to it. The reference funds' MERs were read from the issuers' pages by two
+independent lookups; seven differed by 0.01-0.02 points, and the issuers' figures are used from 3.0.4. The default
+mixes are unchanged; three fee figures and one bad-year figure in the reports move by one unit.

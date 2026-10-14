@@ -60,10 +60,14 @@ def loaded_files(page):
     return seen
 
 
-def used_capabilities():
+def used_capabilities(page=None):
+    """The capabilities the page's own code asks for (the page and every script it loads; other pages in web/ do not count)."""
+    page = page or manifest()["page"]
     names = set()
-    for path in WEB.glob("*.js"):
-        names |= set(re.findall(r"""claude\.use\(\s*['"]([a-z]+)['"]""", path.read_text(encoding="utf-8")))
+    for name in [page, *loaded_files(page)]:
+        path = WEB / name
+        if path.suffix in (".html", ".js", ".mjs") and path.is_file():
+            names |= set(re.findall(r"""claude\.use\(\s*['"]([a-z]+)['"]""", path.read_text(encoding="utf-8")))
     return names
 
 
@@ -92,7 +96,7 @@ def problems(m=None):
         out.append(f"the files total {sum(sizes.values()) / MB:.1f} MB, over the 64 MB limit")
     if len(files) > COUNT_LIMIT:
         out.append(f"{len(files)} files, over the limit of {COUNT_LIMIT}")
-    declared, used = set(m["capabilities"]), used_capabilities()
+    declared, used = set(m["capabilities"]), used_capabilities(m["page"])
     if declared != used:
         out.append(f"capabilities declared {sorted(declared)} but the code uses {sorted(used)}")
     for f in files:
