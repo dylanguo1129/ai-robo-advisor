@@ -37,16 +37,24 @@ def test_capabilities_follow_the_code():
 
 
 def test_another_page_in_web_does_not_change_the_capabilities():
-    # web/yasmin.html (the Yasmin edition, published as its own artifact) also asks for comments
-    assert check.used_capabilities("index.html") == {"sample"}
-    assert check.used_capabilities("yasmin.html") == {"sample", "comments"}
+    # web/classic.html (the earlier page, kept for reference) asks only for sample; the guided page also for
+    # comments (feedback on a screen) and downloads (the summary)
+    assert check.used_capabilities("index.html") == {"sample", "comments", "downloads"}
+    assert check.used_capabilities("classic.html") == {"sample"}
+
+
+def test_only_the_offered_markets_data_is_published():
+    m = check.manifest()
+    assert m["markets"] == ["CA"] and "data/us.json" not in m["files"]
+    m["files"] = [*m["files"], "data/us.json"]
+    assert any("us.json is listed, but the page never loads it" in p for p in check.problems(m))
 
 
 def test_settings_point_at_the_repository_files():
     s = check.settings()
     assert s["file_path"] == "web/index.html"
     assert all(src == f"web/{dst}" and (ROOT / src).is_file() for dst, src in s["files"].items())
-    assert s["capabilities"] == {"sample": {}}
+    assert s["capabilities"] == {"sample": {}, "comments": {"composer_only": True}, "downloads": True}
 
 
 def test_data_values_must_be_plain_text():

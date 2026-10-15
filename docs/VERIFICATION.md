@@ -488,3 +488,21 @@ facts and fills MER blanks. Regression tests in tests/test_v303_crosscheck.py.
 | `python -m pytest -m ui -q tests/ui` | 70 passed |
 | The five `node web/test_*.mjs` suites (bundle rebuilt at 3.0.4) | all pass |
 | `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |
+
+### 8.10 The guided page (14 Oct 2026, v3.1.0)
+
+The web page is the guided conversation (docs/research/requirements_coverage_v31.md maps each requirement of the team's
+Requirements Plan, conversation script and prototype review to the code and its test). The engine gains the optional
+self-rating C0 and the flag F_self_vs_drop; answers without C0 score as before.
+
+| Check | Result |
+|---|---|
+| `node web/test_robokit.mjs` (core.json rebundled at 3.1.0, C0 in the random profiles) | profile scorer: 400 random answer sets identical in Python and JavaScript |
+| `node web/test_converse.mjs` | 178 checks pass: advice phrasings, answers typed in words (amounts with commas, facts by clause), commands, tickers, answers without AI, fixed wording, the second chance |
+| `python -m pytest -q tests/test_v31_guided.py` | 13 passed |
+| `python -m pytest -m ui -q tests/ui/test_guided.py` | 29 passed: beginner flow, assessment, typed answers, question then back, advice redirect, second chance, tickers, zero match, higher level, adjust, Learn more, changing an answer, export, Claude connected (stand-in), phone width, and the nine cases found by driving the page |
+| Issuer holdings of the ten default funds (data/fund_holdings.json) | two independent lookups of the issuers' pages; the same five holdings and weights for 8 funds; XRE and CASH on different dates, same holdings |
+| Independent review (three blind lanes: requirement coverage, driving the page, wording; and a cross-family reading by Gemini) | 45 findings, each checked against the page before fixing: wording 14, requirement coverage 11, driving the page 18, Gemini 2 (an advice phrasing; the summary download outside claude.ai); all fixed, the behavioural ones with a test |
+| `python -m pytest -q` | 653 passed locally (with the local data archive; CI runs the same suite without it and skips the data-dependent tests) |
+| `python -m pytest -m ui -q tests/ui` | 99 passed (29 on the guided page, 70 on web/classic.html) |
+| `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |

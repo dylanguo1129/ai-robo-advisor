@@ -9,8 +9,12 @@ Design (docs/research/ux-conversation.md section 6, methods-signals.md 1.2-1.6):
 * Gates come first: money needed within two years all at once ends the
   investing flow; no emergency savings or a lot of high-interest debt caps
   what is built at level 2.
-* Tolerance items show outcomes in the user's own dollars (scenario cards),
-  never self-ratings or percentages. The dollar ranges come from the engine.
+* Tolerance items show outcomes in the user's own dollars (scenario cards).
+  The dollar ranges come from the engine. One self-rating (C0, low / medium /
+  high = levels 2 / 3 / 4, the brief's three settings) is asked as well, because
+  the team's conversation script pairs it with the drop scenario (C2): when the
+  two disagree, the page asks which fits better (flag F_self_vs_drop) and sets
+  the other aside.
 * Inconsistent answers lower tolerance by one step and raise a flag that the
   chat must ask about (Wealthfront: less consistent, less risk-tolerant).
 * Knowledge and preferences are never scored for risk. Knowledge only sets
@@ -142,6 +146,18 @@ ITEMS = [
             {"value": "varies", "text": "It varies a lot", "pts": 1},
             {"value": "pension", "text": "Retired, with a pension or other guaranteed income", "pts": 2},
             {"value": "none", "text": "No regular income right now", "pts": 0},
+        ],
+    },
+    {
+        "id": "C0",
+        "block": "C",
+        "kind": "tolerance",
+        "optional": True,
+        "text": "How would you describe your comfort with risk?",
+        "options": [
+            {"value": "low", "text": "Low: I'd rather keep it steady, even if it grows slowly", "level": 2},
+            {"value": "medium", "text": "Medium: some ups and downs are fine", "level": 3},
+            {"value": "high", "text": "High: I can live with big swings for more growth", "level": 4},
         ],
     },
     {
@@ -340,7 +356,7 @@ def score(answers: dict) -> ProfileResult:
             why_en.append("Keeping the next 1 to 2 years of withdrawals in cash-like savings is a common approach.")
 
     # ---- tolerance (1-5)
-    tol_levels = {i: int(_opt(i, a[i])["level"]) for i in ("C1", "C2", "C3", "C4") if i in a}
+    tol_levels = {i: int(_opt(i, a[i])["level"]) for i in ("C0", "C1", "C2", "C3", "C4") if i in a}
     tolerance = None
     if tol_levels:
         vals = list(tol_levels.values())
@@ -360,6 +376,17 @@ def score(answers: dict) -> ProfileResult:
                     "id": "F_drop_vs_range",
                     "en": "You chose the widest one-year range but would sell everything after a sharp fall. Selling at the bottom locks in the loss; which answer fits you better?",
                     "items": ["C1", "C2"],
+                }
+            )
+        # the conversation script's second chance: the self-rating and the reaction to a drop point different ways
+        drop_feel = {"sell_all": "lower", "sell_some": "lower", "wait": "medium", "buy": "higher"}.get(a.get("C2"))
+        self_feel = {"low": "lower", "medium": "medium", "high": "higher"}.get(a.get("C0"))
+        if drop_feel and self_feel and drop_feel != self_feel:
+            flags.append(
+                {
+                    "id": "F_self_vs_drop",
+                    "en": f'You rated your comfort with risk as {a["C0"]}, but chose "{_opt("C2", a["C2"])["text"]}" after a sharp fall, which usually signals {drop_feel} risk tolerance. This gap between how people rate themselves and how they actually react is common. Which feels more accurate: your self-rating or your reaction to the drop?',
+                    "items": ["C0", "C2"],
                 }
             )
         why_en.append(f"Your answers about ups and downs point to level {tolerance}.")

@@ -1,5 +1,46 @@
 # Changelog
 
+## 3.1.0 (October 2026)
+
+The guided page becomes the web page: Yasmin's six wireframes with the team's conversation script and Requirements
+Plan (Phase 0), and the fixes from the team's prototype review. `web/yasmin.html` becomes `web/index.html`; the earlier
+page stays as `web/classic.html`.
+
+- **Conversation script.** Calibration ("How much do you already know about ETFs?"), goal and horizon, the basics
+  (emergency savings, high-interest debt), money, income, a risk self-rating with the drop scenario and a second
+  chance when the two disagree, the one-year range cards, optional fine-tuning, optional preferences, optional tickers,
+  then the shortlist ("add or remove anything before I calculate"). Core questions are required; a "don't know" gets
+  an explanation and "even a rough guess is fine"; optional steps skip cleanly. About ten taps instead of fourteen.
+- **Explanation depth** follows the calibration for the whole session: beginners see why each question is asked,
+  suggested questions and a definition the first time a term comes up; every term in the text explains itself on a tap.
+- **Ask anything, then go back.** Typed text is read first as an answer (words, numbers, "within 2 years", "$20k and
+  300 a month", several facts at once), then as a change ("actually change my risk to high"), a ticker ("add XEQT") or a
+  question. Questions get an answer and "Back to building your portfolio?". Without Claude the page answers from its
+  glossary, FAQ, fund facts and the issuers' top holdings of the ten default funds (data/fund_holdings.json, two
+  independent lookups); with Claude connected ("Connect Claude for reasoning", on the viewer's own plan) answers come
+  in Claude's words, with page tools and every number checked by validate.js.
+- **Advice boundary.** "What should I buy?" and the like get the script's redirect and the disclosure every time,
+  before any AI is asked.
+- **Engine.** New optional tolerance item C0 (low / medium / high = levels 2 / 3 / 4, the brief's three settings) and
+  flag F_self_vs_drop when it disagrees with the drop scenario (robokit/profile.py and web/robokit.js; 400 random
+  profiles identical in both). Answers without C0 score as before.
+- **Preferences and shortlist.** Theme focus adds the cheapest eligible index fund for it as an own pick; "avoid"
+  leaves a default fund out; lowest-cost swaps each slot to the cheapest fund of its kind; hedging and ESG use the
+  engine's switches. A zero match says which filter to drop and asks first. Own picks get at least a small share (5%,
+  within the level's own-pick limit) so they stay in the mix. The page offers Canadian-listed ETFs only.
+- **Results.** The assessment explains what the level means in dollars and names no label for the person; a level
+  above the suggestion needs one look and a tick, and the mix then says it was not calculated from the answers; the
+  same for adjusted weights, which now show the expected return before and after. One line of reasons per fund,
+  market context with a question back, a closing recap, a session log, and a summary to copy or download after the
+  person confirms the decisions are their own. "Past performance is not reflective of future performance." on every
+  result.
+- **Found by driving the page** (docs/research/requirements_coverage_v31.md lists all eighteen): amounts with
+  thousands separators, facts read clause by clause, everyday words no longer taken for tickers, a typed question shown
+  at once while Claude thinks, a chosen level kept when an answer changes (never above the emergency-fund cap), Adjust
+  opening on the measured level of the built mix, and the summary carrying the "not calculated for you" sentence.
+- Tests: tests/ui/test_guided.py (29 browser tests), web/test_converse.mjs (178 checks); the classic page's 70 browser
+  tests now run against web/classic.html.
+
 ## 3.0.4 (October 2026)
 
 The stored data checked against sources that do not share its code (docs/research/v304_data_verification.md,

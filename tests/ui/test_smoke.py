@@ -6,7 +6,7 @@ pytestmark = pytest.mark.ui
 
 
 def test_page_loads_without_ai(page_factory):
-    p = page_factory("index.html")
+    p = page_factory("classic.html")
     assert p.js("window.robokit.ai.available") is False
     assert p.js("document.querySelectorAll('#tray-funds li').length") > 0
     assert p.errors == []

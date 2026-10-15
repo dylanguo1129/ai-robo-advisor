@@ -69,6 +69,9 @@ only with the team (never by public link). A public product would need licensed 
   the reference funds' MERs come from the issuers' own pages (`data/issuer_mer.csv`, with URL, quote and as-of date).
   Coverage is good for eligible funds (622/637 CA, 1,967/1,998 US) but Yahoo is not an authoritative Canadian MER
   source, and it can lag an issuer's new fiscal year by a few basis points.
+- **Fund holdings:** `data/fund_holdings.json` holds the top holdings of the ten default Canadian funds from the
+  issuers' own pages (URL, as-of date, each row quoted; two independent lookups, 14 Oct 2026). The guided page uses
+  them to answer "what does it hold"; holdings change, so the page shows the as-of date with them.
 - **Checks:** `scripts/dataverify/` re-derives the monthly returns from daily prices, recomputes every derived value
   and the screen, and compares the Canadian funds with the team data layer (docs/research/v304_data_verification.md).
 - **News:** GDELT rate-limits aggressively; when a refresh gets nothing, the previous snapshot's headlines are kept

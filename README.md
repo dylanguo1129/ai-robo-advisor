@@ -3,7 +3,11 @@
 [![CI](https://github.com/dylanguo1129/ai-robo-advisor/actions/workflows/ci.yml/badge.svg)](https://github.com/dylanguo1129/ai-robo-advisor/actions/workflows/ci.yml)
 
 Robo-Kit is a do-it-yourself ETF portfolio lab built for the MMAI 823 (AI in Finance, Smith School of Business)
-"AI Robo-Advisor Kit" team project. You tell it what you want in one sentence ("retirement, about 50k",
+"AI Robo-Advisor Kit" team project. The web page (3.1.0) is a guided conversation from the team's wireframes and
+conversation script: it asks a short self-check, explains each step at the depth you choose, answers questions at
+any point (with Claude if you connect it, else from its own notes), lets you name tickers and preferences, and builds
+a mix of Canadian-listed ETFs with the reasons for each fund. The other surfaces (plugin, MCP server, terminal agent)
+work as before: you tell it what you want in one sentence ("retirement, about 50k",
 "qqq schd bito, 5k + 300/mo"), take a two-minute fixed self-check, pick a risk level and fill each asset class
 with funds, and a transparent engine shows you what that mix does: dollars and whole units per fund, the one-year
 range and the bad year, seven crisis replays in your own dollars, fees in dollars, goal and withdrawal odds, and the
@@ -17,7 +21,7 @@ reply from Claude that contains a number or a ticker no tool produced.
 - **Universe:** every ETF you can buy in Canadian dollars in Canada (TSX, Cboe Canada) and every US-listed ETF:
   7,957 listings, of which 637 Canadian and 1,998 US pass the eligibility rules.
 - **Data snapshot:** prices through 31 Aug 2026, listings and market context fetched 28 Sep 2026 (`web/data/`).
-- **Engine:** v3.0.4. English only.
+- **Engine:** v3.1.0. English only. The web page offers Canadian-listed ETFs; the other surfaces both markets.
 
 ---
 
@@ -57,7 +61,7 @@ packages, so a plain `pip install .` wheel is not supported.
 To try the web page locally:
 
 ```bash
-python scripts/serve_dev.py           # http://127.0.0.1:8765/index.html: the full page without the AI assistant
+python scripts/serve_dev.py           # http://127.0.0.1:8765/index.html: the guided page without Claude (classic.html: the earlier page)
 python scripts/make_mock_page.py      # optional: web/mock.html, a test harness where you play Claude from the
                                       # devtools console (window.__mock.view(), .call(name, args), .finish(text))
 ```
@@ -171,11 +175,13 @@ shared page (needs a Claude account; no assistant).
 
 ## Sharing the web page: who gets the AI assistant
 
-The page is published as a claude.ai Artifact from the files listed in `web/publish.json`. Everything except the chat runs inside the
-page itself: search, the self-check, the level ladder, the mix report, stress tests and projections. The chat uses
-the Artifact `sample` capability, which **runs Claude on the viewer's own account and usage**, never the owner's.
-There is no API key and no setup: the first time a viewer sends a message, Claude asks them once to allow it, and the
-viewer picks Quick / Standard / Deep under **Assistant** (a viewer whose plan lacks that tier gets the nearest one).
+The page is published as a claude.ai Artifact from the files listed in `web/publish.json`. Everything except Claude's
+answers runs inside the page itself: the conversation, typed answers, the page's own answers (glossary, FAQ, fund
+facts, issuer holdings), the assessment, the mix, stress tests, projections, adjustments and the summary. Claude's
+answers use the Artifact `sample` capability, which **runs Claude on the viewer's own account and usage**, never the
+owner's. There is no API key and no setup: a viewer for whom Claude is available sees **Connect Claude for
+reasoning** at the start of the conversation; the first connection asks them once to allow it. Viewers without it
+get the page's own answers, and the advice redirect never depends on Claude.
 
 Anthropic's sharing rules for artifacts that use Claude (help centre, "Share artifacts", checked 1 Oct 2026):
 
@@ -291,12 +297,11 @@ robokit/                 v2 engine (Python reference implementation)
   tools.py               the tool contract shared by every surface
   mcp_server.py agent.py bundle.py refresh.py backtest.py __main__.py (CLI)
 optimizer/               v1 numerical core still used by v2: shrinkage estimators, equilibrium returns, solvers
-web/                     the published page (files listed in web/publish.json): index.html, app.js, strings.js,
-                         assistant.js, robokit.js (engine port), engine.js, parse.js, validate.js, icons.js,
-                         worker2.js, data/ (snapshot)
+web/                     the published page (files listed in web/publish.json): index.html, guide.js (screens and
+                         flow), converse.js (typed text, answers without AI), kb.js (fixed wording), robokit.js
+                         (engine port), engine.js, parse.js, validate.js, worker2.js, data/ (snapshot)
+                         classic.html, app.js, strings.js, assistant.js, icons.js: the earlier page, kept for reference
                          dev only: dev_mock.js, test_*.mjs, test_profiles.json
-                         yasmin.html, yasmin.js: the Yasmin edition, a guided-chat prototype of the same engine
-                         for team feedback, published as its own artifact (not in publish.json)
 tests/                   pytest suite; tests/ui: browser regression tests (opt-in: -m ui)
 scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page, publish check
 data/                    README.md (data catalogue) + v1 inputs; the local cache data/v2/ is git-ignored
@@ -326,14 +331,15 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 639 passed with the local data cache; on a fresh clone and in CI 552 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
-| Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 70 tests in headless Chromium: the page with and without the assistant, the self-check, the mix, layout and accessibility. Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
+| Python tests | `python -m pytest -q` | 653 passed with the local data cache; on a fresh clone and in CI 566 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
+| Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 99 tests in headless Chromium: 29 on the guided page (the conversation script, typed answers, the advice redirect, Claude connected through a stand-in, the edge cases of the Requirements Plan) and 70 on `web/classic.html` (with and without the assistant, the self-check, the mix, layout and accessibility). Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
+| Guided conversation | `node web/test_converse.mjs` | 178 checks: advice phrasings, answers typed in words, commands, tickers, answers without AI, the fixed wording, the second chance |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |
 | Chat layer | `node web/test_assistant.mjs` | 7 cases, with a scripted model: each card appears once per turn, including across the rewrite pass |
 | v1 browser engine | `node web/test_engine.mjs` | 9 checks |
 | Swap and request safety | `node web/test_safety.mjs` | 44 checks: refused swaps, slot rules and request validation in the browser engine |
-| Published files | `python scripts/check_publish.py` | the 12 files in `web/publish.json` (plus the page) are exactly what the page loads, within the Artifact size limits; also run by pytest |
+| Published files | `python scripts/check_publish.py` | the 10 files in `web/publish.json` (plus the page) are exactly what the page loads, within the Artifact size limits; also run by pytest |
 | Lint / format | `ruff check .`, `ruff format --check .` | clean |
 
 Engineering conventions:

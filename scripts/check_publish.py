@@ -84,7 +84,8 @@ def problems(m=None):
             out.append(f"web/{f} is a test or dev file and must not be published")
     if len(set(files)) != len(files):
         out.append("a file is listed twice")
-    data = {p.relative_to(WEB).as_posix() for p in (WEB / "data").glob("*.json")}  # fetched as data/<market>.json
+    # fetched as data/<market>.json: core.json and one file per market the page offers (publish.json "markets")
+    data = {"data/core.json", *(f"data/{c.lower()}.json" for c in m.get("markets", ["CA", "US"]))}
     needed = loaded_files(m["page"]) | data
     for f in sorted(needed - set(files)):
         out.append(f"the page loads web/{f}, which is not listed")

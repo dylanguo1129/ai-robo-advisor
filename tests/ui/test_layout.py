@@ -425,6 +425,7 @@ def test_the_phone_tray_bar_in_landscape_covers_only_itself(page_factory):
 
 
 def test_page_text_does_not_depend_on_the_servers_character_set(web_dir):
-    """web/index.html is plain ASCII or names UTF-8, so its text reads the same whatever character set a server declares."""
-    raw = (web_dir / "index.html").read_bytes()
-    assert raw.isascii() or b'charset="utf-8"' in raw.lower() or b"charset=utf-8" in raw.lower()
+    """Both pages are plain ASCII or name UTF-8, so their text reads the same whatever character set a server declares."""
+    for page in ("index.html", "classic.html"):
+        raw = (web_dir / page).read_bytes()
+        assert raw.isascii() or b'charset="utf-8"' in raw.lower() or b"charset=utf-8" in raw.lower(), page

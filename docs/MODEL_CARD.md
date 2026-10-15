@@ -64,6 +64,7 @@ no proven edge over a static mix; crisis replays start in 2008; for BNDX holders
 
 ## Versions
 
+v3.1.0 (October 2026): the web page becomes the guided conversation (team wireframes and conversation script); a risk self-rating (C0, levels 2 / 3 / 4) joins the tolerance answers with a second chance when it disagrees with the drop scenario; answers without it score as before; the default mixes are unchanged.
 v3.0.4 (October 2026): the stored data checked against independent sources (docs/research/v304_data_verification.md); the reference funds' MERs come from the issuers' pages; the default mixes are unchanged.
 v3.0.3 (October 2026): region and leverage labels corrected after the team data layer's cross-check (docs/research/v303_crosscheck.md) and its fund facts merged; no reference fund, default mix or reported number changes.
 v3.0.2 (October 2026): currency-hedging labels corrected (VALT and 36 others; HUG is also futures-based, so the strict point-in-time test would now leave gold out in 2012-2022); a re-run of the Canadian walk-forward with VALT's label corrected leaves the risk readings unchanged and turns the level-4 non-inferiority reading against the static mix to inconclusive (docs/RESEARCH_LOG.md section 13).

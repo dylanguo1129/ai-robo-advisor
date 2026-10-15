@@ -1,21 +1,20 @@
 {
   "page": "index.html",
   "files": [
-    "app.js",
-    "assistant.js",
-    "engine.js",
-    "icons.js",
+    "guide.js",
+    "converse.js",
+    "kb.js",
     "parse.js",
-    "robokit.js",
-    "strings.js",
     "validate.js",
+    "robokit.js",
+    "engine.js",
     "worker2.js",
     "data/core.json",
-    "data/ca.json",
-    "data/us.json"
+    "data/ca.json"
   ],
-  "capabilities": {"sample": {}},
+  "markets": ["CA"],
+  "capabilities": {"sample": {}, "comments": {"composer_only": true}, "downloads": true},
   "title": "Robo-Kit",
   "icon": "chart",
-  "description": "Do-it-yourself ETF portfolio lab for Canadian and US-listed ETFs, with an optional assistant on the viewer's own Claude plan."
+  "description": "A guided conversation that builds an ETF portfolio from Canadian-listed ETFs, explains every step, and answers questions on the viewer's own Claude plan."
 }

@@ -1,0 +1,332 @@
+{
+ "XIC.TO": {
+  "as_of": "Oct 13, 2026",
+  "source_url": "https://www.blackrock.com/ca/investors/en/products/239837/ishares-sptsx-capped-composite-index-etf/1464253357814.ajax?fileType=csv&fileName=XIC_holdings&dataType=fund",
+  "source_kind": "issuer holdings CSV",
+  "what_it_holds": "According to BlackRock's holdings file, XIC holds 217 Canadian equities listed on the Toronto Stock Exchange, plus small positions in cash, cash collateral and margins, and one futures line.",
+  "holdings": [
+   {
+    "name": "Royal Bank of Canada (RY)",
+    "weight_pct": 7.49,
+    "quote": "\"RY\",\"ROYAL BANK OF CANADA\",\"Financials\",\"Equity\",\"2,733,244,172.50\",\"7.49\",\"2,733,244,172.50\",\"9,858,410.00\",\"277.25\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Shopify Subordinate Voting Class A (SHOP)",
+    "weight_pct": 5.91,
+    "quote": "\"SHOP\",\"SHOPIFY SUBORDINATE VOTING CLASS A\",\"Information Technology\",\"Equity\",\"2,157,320,775.36\",\"5.91\",\"2,157,320,775.36\",\"8,593,534.00\",\"251.04\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Toronto-Dominion Bank (TD)",
+    "weight_pct": 5.38,
+    "quote": "\"TD\",\"TORONTO DOMINION\",\"Financials\",\"Equity\",\"1,962,635,068.55\",\"5.38\",\"1,962,635,068.55\",\"11,694,185.00\",\"167.83\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Bank of Montreal (BMO)",
+    "weight_pct": 3.21,
+    "quote": "\"BMO\",\"BANK OF MONTREAL\",\"Financials\",\"Equity\",\"1,171,135,253.20\",\"3.21\",\"1,171,135,253.20\",\"4,979,740.00\",\"235.18\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Bank of Nova Scotia (BNS)",
+    "weight_pct": 3.05,
+    "quote": "\"BNS\",\"BANK OF NOVA SCOTIA\",\"Financials\",\"Equity\",\"1,112,120,259.48\",\"3.05\",\"1,112,120,259.48\",\"8,665,422.00\",\"128.34\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "VFV.TO": {
+  "as_of": "Aug 31 2026",
+  "source_url": "https://www.vanguard.ca/en/product/etf/equity/9563/vanguard-sp-500-index-etf",
+  "source_kind": "issuer page (vanguard.ca VFV product page, Top 10 Holdings table); cross-checked against issuer fact sheet PDF https://fund-docs.vanguard.com/VFV_SandP_500_Index_ETF_9563_FS_EN_CA.pdf",
+  "what_it_holds": "VFV is a fund of funds: it invests primarily in the U.S.-domiciled Vanguard S&P 500 ETF, so the holdings shown are look-through U.S. large-cap stocks of the S&P 500. The fact sheet gives 505 stocks for the fund and 503 for the benchmark.",
+  "holdings": [
+   {
+    "name": "NVIDIA Corp",
+    "weight_pct": 8.07481,
+    "quote": "NVIDIA Corp|8.07481% |Information Technology |US |$2,842,751,057.96 |9,287,998.287"
+   },
+   {
+    "name": "Apple Inc",
+    "weight_pct": 7.02766,
+    "quote": "Apple Inc|7.02766% |Information Technology |US |$2,474,099,756.43 |5,632,569.004"
+   },
+   {
+    "name": "Microsoft Corp",
+    "weight_pct": 5.69071,
+    "quote": "Microsoft Corp|5.69071% |Information Technology |US |$2,003,422,709.47 |2,848,782.658"
+   },
+   {
+    "name": "Amazon.com Inc",
+    "weight_pct": 3.84014,
+    "quote": "Amazon.com Inc|3.84014% |Consumer Discretionary |US |$1,351,929,129.40 |3,754,118.327"
+   },
+   {
+    "name": "Alphabet Inc (one share class; a second Alphabet Inc row is 2.39397%)",
+    "weight_pct": 3.00487,
+    "quote": "Alphabet Inc|3.00487% |Communication Services |US |$1,057,867,948.60 |2,248,674.688"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "FLUR.NE": {
+  "as_of": "September 30, 2026",
+  "source_url": "https://www.franklintempleton.ca/download/en-ca/factsheet/7efeb244-bbce-4d09-a26b-c5e8eacb2b7f/Factsheet-FranklinInternationalEquityIndexETF-27748-FF-CA-en-CA.PDF",
+  "source_kind": "issuer fact sheet PDF",
+  "what_it_holds": "According to the fact sheet, it holds equities only: 853 holdings in large- and mid-cap companies in developed markets outside North America, tracking the Solactive GBS Developed Markets ex North America Large & Mid Cap CAD Index-NR, with 0.58% in cash.",
+  "holdings": [
+   {
+    "name": "ASML Holding NV",
+    "weight_pct": 3.07,
+    "quote": "ASML HOLDING NV 3.07"
+   },
+   {
+    "name": "HSBC Holdings PLC",
+    "weight_pct": 1.52,
+    "quote": "HSBC HOLDINGS PLC 1.52"
+   },
+   {
+    "name": "Roche Holding AG",
+    "weight_pct": 1.36,
+    "quote": "ROCHE HOLDING AG 1.36"
+   },
+   {
+    "name": "Mitsubishi UFJ Financial Group Inc",
+    "weight_pct": 1.19,
+    "quote": "MITSUBISHI UFJ FINANCIAL GROUP INC 1.19"
+   },
+   {
+    "name": "Shell PLC",
+    "weight_pct": 1.17,
+    "quote": "SHELL PLC 1.17"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "VEE.TO": {
+  "as_of": "Aug 31 2026",
+  "source_url": "https://www.vanguard.ca/en/product/etf/equity/9556/vanguard-ftse-emerging-markets-all-cap-index-etf",
+  "source_kind": "issuer page",
+  "what_it_holds": "An equity fund that tracks the FTSE Emerging Markets All Cap China A Inclusion Index, mainly by holding the U.S.-listed Vanguard FTSE Emerging Markets ETF; the page lists 6,348 stocks as at Aug 31 2026, with Taiwan (32.68%), China (26.54%) and India (16.53%) the largest country weights.",
+  "holdings": [
+   {
+    "name": "Taiwan Semiconductor Manufacturing Co Ltd",
+    "weight_pct": 14.6686,
+    "quote": "Taiwan Semiconductor Manufacturing Co Ltd | 14.66860%"
+   },
+   {
+    "name": "Tencent Holdings Ltd",
+    "weight_pct": 2.88665,
+    "quote": "Tencent Holdings Ltd | 2.88665%"
+   },
+   {
+    "name": "Alibaba Group Holding Ltd",
+    "weight_pct": 2.17979,
+    "quote": "Alibaba Group Holding Ltd | 2.17979%"
+   },
+   {
+    "name": "MediaTek Inc",
+    "weight_pct": 1.46113,
+    "quote": "MediaTek Inc | 1.46113%"
+   },
+   {
+    "name": "Delta Electronics Inc",
+    "weight_pct": 0.89874,
+    "quote": "Delta Electronics Inc | 0.89874%"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "ZAG.TO": {
+  "as_of": "Sep 30, 2026",
+  "source_url": "https://df.bmogam.com/assets/static/etf-profiles-pdfs/BMO%20Aggregate%20Bond%20Index%20ETF_Factsheet_EN_ZAG.pdf",
+  "source_kind": "issuer fact sheet PDF (BMO Global Asset Management, hosted on df.bmogam.com)",
+  "what_it_holds": "The fund holds 1,919 Canadian-dollar investment-grade bonds and tracks the FTSE Canada Universe Bond Index. As of Sep 30, 2026, the mix was 43.82% federal government, 29.51% provincial, 24.90% corporate and 1.73% municipal bonds, and all ten of its largest holdings were Government of Canada bonds.",
+  "holdings": [
+   {
+    "name": "Canadian Government Bond 2.75% 03/01/2031",
+    "weight_pct": 1.52,
+    "quote": "Canadian Government Bond 2.75% 03/01/2031 1.52%"
+   },
+   {
+    "name": "Canadian Government Bond 2.75% 09/01/2030",
+    "weight_pct": 1.52,
+    "quote": "Canadian Government Bond 2.75% 09/01/2030 1.52%"
+   },
+   {
+    "name": "Canadian Government Bond 3.25% 12/01/2035",
+    "weight_pct": 1.49,
+    "quote": "Canadian Government Bond 3.25% 12/01/2035 1.49%"
+   },
+   {
+    "name": "Canadian Government Bond 3.25% 06/01/2036",
+    "weight_pct": 1.45,
+    "quote": "Canadian Government Bond 3.25% 06/01/2036 1.45%"
+   },
+   {
+    "name": "Gov. of Canada 3.00% 09/01/2031",
+    "weight_pct": 1.41,
+    "quote": "Gov. of Canada 3.00% 09/01/2031 1.41%"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "XSB.TO": {
+  "as_of": "Oct 13, 2026",
+  "source_url": "https://www.blackrock.com/ca/investors/en/products/239491/ishares-canadian-short-term-bond-index-etf/1464253357814.ajax?fileType=csv&fileName=XSB_holdings&dataType=fund",
+  "source_kind": "issuer holdings CSV (BlackRock iShares Canada, blackrock.com/ca)",
+  "what_it_holds": "XSB holds several hundred Canadian investment-grade bonds plus one small negative CAD cash line. Its five largest positions are all Government of Canada bonds (Federal sector, Fixed Income, CAD) maturing between 2029 and 2031.",
+  "holdings": [
+   {
+    "name": "Canada (Government of) 2.75% due Sep 1, 2030",
+    "weight_pct": 3.38,
+    "quote": "\"CAN\",\"CANADA (GOVERNMENT OF)\",\"Federal\",\"Fixed Income\",\"154,622,061.22\",\"3.38\",\"154,622,061.22\",\"158,385,000.00\",\"158,385,000.00\",\"97.31 ... \"Canada\",\"-\",\"CAD\",\"3.64\",\"1.00\",\"Sep 1, 2030\",\"2.75\",\"CAD\",\"Apr 11, 2025\""
+   },
+   {
+    "name": "Canada (Government of) 2.75% due Mar 1, 2031",
+    "weight_pct": 3.38,
+    "quote": "\"CAN\",\"CANADA (GOVERNMENT OF)\",\"Federal\",\"Fixed Income\",\"154,494,914.04\",\"3.38\",\"154,494,914.04\",\"158,980,000.00\",\"158,980,000.00\",\"96.86 ... \"Canada\",\"-\",\"CAD\",\"4.07\",\"1.00\",\"Mar 1, 2031\",\"2.75\",\"CAD\",\"Oct 2, 2025\""
+   },
+   {
+    "name": "Canada (Government of) 3.00% due Sep 1, 2031",
+    "weight_pct": 3.05,
+    "quote": "\"CAN\",\"CANADA (GOVERNMENT OF)\",\"Federal\",\"Fixed Income\",\"139,506,456.21\",\"3.05\",\"139,506,456.21\",\"142,549,000.00\",\"142,549,000.00\",\"97.52 ... \"Canada\",\"-\",\"CAD\",\"4.48\",\"1.00\",\"Sep 1, 2031\",\"3.00\",\"CAD\",\"Apr 9, 2026\""
+   },
+   {
+    "name": "Canada (Government of) 2.75% due Mar 1, 2030",
+    "weight_pct": 2.71,
+    "quote": "\"CAN\",\"CANADA (GOVERNMENT OF)\",\"Federal\",\"Fixed Income\",\"123,761,406.16\",\"2.71\",\"123,761,406.16\",\"126,145,000.00\",\"126,145,000.00\",\"97.79 ... \"Canada\",\"-\",\"CAD\",\"3.18\",\"1.00\",\"Mar 1, 2030\",\"2.75\",\"CAD\",\"Oct 3, 2024\""
+   },
+   {
+    "name": "Canada (Government of) 3.50% due Sep 1, 2029",
+    "weight_pct": 2.54,
+    "quote": "\"CAN\",\"CANADA (GOVERNMENT OF)\",\"Federal\",\"Fixed Income\",\"116,254,901.33\",\"2.54\",\"116,254,901.33\",\"115,469,000.00\",\"115,469,000.00\",\"100.2 ... \"Canada\",\"-\",\"CAD\",\"2.72\",\"1.00\",\"Sep 1, 2029\",\"3.50\",\"CAD\",\"Apr 8, 2024\""
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "VBU.NE": {
+  "as_of": "Aug 31 2026",
+  "source_url": "https://www.vanguard.ca/en/product/etf/fixed-income/9567/vanguard-us-aggregate-bond-index-etf-cad-hedged",
+  "source_kind": "issuer page (Vanguard Canada product page for VBU, \"Top 10 Holdings\" section)",
+  "what_it_holds": "VBU holds U.S. investment-grade bonds mainly through one other fund. The issuer page says it \"Invests primarily in the U.S.-domiciled Vanguard Total Bond Market ETF\" and lists 11,421 bonds, against 14,227 in the benchmark, as at Aug 31 2026. Its 10 largest holdings are all U.S. Treasury notes and bonds.",
+  "holdings": [
+   {
+    "name": "United States Treasury Note/Bond 3.50% Jan 31 2028",
+    "weight_pct": 0.46936,
+    "quote": "United States Treasury Note/Bond | 0.46936% | $8,984,222.84 | 6,552,132.244 | 3.50% | Jan 31 2028"
+   },
+   {
+    "name": "United States Treasury Note/Bond 4.25% Nov 15 2034",
+    "weight_pct": 0.40861,
+    "quote": "United States Treasury Note/Bond | 0.40861% | $7,821,339.76 | 5,811,928.63 | 4.25% | Nov 15 2034"
+   },
+   {
+    "name": "United States Treasury Note/Bond 4.38% May 15 2034",
+    "weight_pct": 0.40809,
+    "quote": "United States Treasury Note/Bond | 0.40809% | $7,811,488.16 | 5,737,652.253 | 4.38% | May 15 2034"
+   },
+   {
+    "name": "United States Treasury Note/Bond 3.38% Nov 30 2027",
+    "weight_pct": 0.40325,
+    "quote": "United States Treasury Note/Bond | 0.40325% | $7,718,723.99 | 5,629,434.901 | 3.38% | Nov 30 2027"
+   },
+   {
+    "name": "United States Treasury Note/Bond 4.63% Feb 15 2035",
+    "weight_pct": 0.40255,
+    "quote": "United States Treasury Note/Bond | 0.40255% | $7,705,287.77 | 5,584,128.29 | 4.63% | Feb 15 2035"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "XRE.TO": {
+  "as_of": "Oct 13, 2026",
+  "source_url": "https://www.blackrock.com/ca/investors/en/products/239843/ishares-sptsx-capped-reit-index-etf/1464253357814.ajax?fileType=csv&fileName=XRE_holdings&dataType=fund",
+  "source_kind": "issuer holdings CSV (BlackRock iShares Canada, blackrock.com/ca)",
+  "what_it_holds": "According to the issuer's holdings file, the fund holds 14 Canadian REIT equity positions, all listed on the Toronto Stock Exchange, plus small cash, cash-collateral and futures lines.",
+  "holdings": [
+   {
+    "name": "RioCan Real Estate Investment Trust (REI.UN)",
+    "weight_pct": 13.12,
+    "quote": "\"REI.UN\",\"RIOCAN REAL ESTATE INVESTMENT TRUS\",\"Real Estate\",\"Equity\",\"131,087,614.53\",\"13.12\",\"131,087,614.53\",\"6,366,567.00\",\"20.59\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Granite Real Estate Investment Trust stapled units (GRT.UN)",
+    "weight_pct": 11.4,
+    "quote": "\"GRT.UN\",\"GRANITE REAL ESTATE INVESTMENT STA\",\"Real Estate\",\"Equity\",\"113,866,065.04\",\"11.40\",\"113,866,065.04\",\"1,360,082.00\",\"83.72\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "First Capital Real Estate Investment Trust (FCR.UN)",
+    "weight_pct": 10.76,
+    "quote": "\"FCR.UN\",\"FIRST CAPITAL REALTY REAL ESTATE I\",\"Real Estate\",\"Equity\",\"107,517,615.22\",\"10.76\",\"107,517,615.22\",\"4,656,458.00\",\"23.09\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Canadian Apartment Properties REIT (CAR.UN)",
+    "weight_pct": 10.41,
+    "quote": "\"CAR.UN\",\"CANADIAN APARTMENT PROPERTIES REAL\",\"Real Estate\",\"Equity\",\"103,948,766.79\",\"10.41\",\"103,948,766.79\",\"3,339,183.00\",\"31.13\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   },
+   {
+    "name": "Choice Properties Real Estate Investment Trust (CHP.UN)",
+    "weight_pct": 8.83,
+    "quote": "\"CHP.UN\",\"CHOICE PROPERTIES REAL ESTATE INVE\",\"Real Estate\",\"Equity\",\"88,154,053.70\",\"8.83\",\"88,154,053.70\",\"5,964,415.00\",\"14.78\",\"Canada\",\"Toronto Stock Exchange\",\"CAD\",\"1.00\",\"CAD\""
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "other date (31-Aug-2026): same holdings, weights within half a point"
+ },
+ "VALT.TO": {
+  "as_of": "September 30, 2026",
+  "source_url": "https://funds.cifinancial.com/en/documents/static/Fund_Profiles/Monthly_Profile/52496/Monthly_Profile.pdf",
+  "source_kind": "issuer fact sheet PDF (CI Global Asset Management monthly profile, hosted on funds.cifinancial.com)",
+  "what_it_holds": "A single holding: physical gold bullion (99.99% in the issuer's top-holdings table). The fund \"seeks to buy and hold substantially all of its assets in gold bullion\", with no listed stocks or bonds.",
+  "holdings": [
+   {
+    "name": "Gold Bullion",
+    "weight_pct": 99.99,
+    "quote": "TOP HOLDINGS4 ... Sector (%) ... 1. Gold Bullion Other 99.99%"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "same five holdings and weights"
+ },
+ "CASH.TO": {
+  "as_of": "September 30, 2026",
+  "source_url": "https://www.globalx.ca/product/cash",
+  "source_kind": "issuer page",
+  "what_it_holds": "CASH holds cash deposits, not securities. The issuer's page says \"CASH primarily invests in bank deposit accounts\", and its top holdings are cash accounts at National Bank, Scotiabank, CIBC and CIBC Mellon, with a 0.00% line for cash and cash equivalents.",
+  "holdings": [
+   {
+    "name": "National Bank cash account",
+    "weight_pct": 49.53,
+    "quote": "NATIONAL BANK CASH ACCT 49.53%"
+   },
+   {
+    "name": "Scotiabank cash account",
+    "weight_pct": 28.07,
+    "quote": "SCOTIABANK CASH ACCOUNT 28.07%"
+   },
+   {
+    "name": "CIBC cash account",
+    "weight_pct": 14.79,
+    "quote": "CIBC CASH ACCOUNT 14.79%"
+   },
+   {
+    "name": "Scotiabank cash account 2",
+    "weight_pct": 4.48,
+    "quote": "SCOTIABANK CASH ACCT 2 4.48%"
+   },
+   {
+    "name": "CIBC Mellon cash account",
+    "weight_pct": 3.14,
+    "quote": "CIBC MELLON CASH ACCOUNT 3.14%"
+   }
+  ],
+  "checked": "2026-10-14, two independent lookups",
+  "second_lookup": "other date (June 30, 2026): the same banks, with the weights shifted between the two dates"
+ }
+}
