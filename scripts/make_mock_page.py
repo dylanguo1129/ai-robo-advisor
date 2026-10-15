@@ -1,7 +1,7 @@
-"""Write web/mock.html: web/index.html with the dev-only `sample` stand-in (web/dev_mock.js) loaded first.
+"""Write web/mock.html: web/classic.html (the earlier page) with the dev-only `sample` stand-in (web/dev_mock.js) loaded first.
 
 Used to test the chat path locally, where a test agent plays Claude. The generated page is not
-committed or published; re-run this after editing web/index.html.
+committed or published; re-run this after editing web/classic.html.
 """
 
 from pathlib import Path
@@ -9,7 +9,7 @@ from pathlib import Path
 WEB = Path(__file__).resolve().parent.parent / "web"
 
 if __name__ == "__main__":
-    html = (WEB / "index.html").read_text(encoding="utf-8")
+    html = (WEB / "classic.html").read_text(encoding="utf-8")
     marker = '<script type="module">'
     i = html.rindex(marker)
     html = html[:i] + '<script type="module" src="dev_mock.js"></script>\n' + html[i:]

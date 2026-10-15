@@ -1439,7 +1439,7 @@ export function scoreProfile(items, answers) {
     if (a.B1 === 'lt2' && !g1) { whyEn.push('Keeping the next 1 to 2 years of withdrawals in cash-like savings is a common approach.'); }
   }
 
-  const tol = {}; for (const k of ['C1', 'C2', 'C3', 'C4']) if (has(k)) tol[k] = Number(opt(k, a[k]).level);
+  const tol = {}; for (const k of ['C0', 'C1', 'C2', 'C3', 'C4']) if (has(k)) tol[k] = Number(opt(k, a[k]).level);
   let tolerance = null; const vals = Object.values(tol);
   if (vals.length) {
     tolerance = Math.max(1, Math.floor(vals.reduce((s, v) => s + v, 0) / vals.length));
@@ -1448,6 +1448,9 @@ export function scoreProfile(items, answers) {
       flags.push({ id: 'F_inconsistent', en: 'Two of your answers point different ways: one says you are fine with big swings, another that you would pull back after a drop. Which is closer to you?', items: Object.keys(tol).filter(k => tol[k] === Math.max(...vals) || tol[k] === Math.min(...vals)) });
     }
     if (a.C2 === 'sell_all' && (tol.C1 || 0) >= 5) flags.push({ id: 'F_drop_vs_range', en: 'You chose the widest one-year range but would sell everything after a sharp fall. Selling at the bottom locks in the loss; which answer fits you better?', items: ['C1', 'C2'] });
+    // the conversation script's second chance: the self-rating and the reaction to a drop point different ways
+    const dropFeel = { sell_all: 'lower', sell_some: 'lower', wait: 'medium', buy: 'higher' }[a.C2], selfFeel = { low: 'lower', medium: 'medium', high: 'higher' }[a.C0];
+    if (dropFeel && selfFeel && dropFeel !== selfFeel) flags.push({ id: 'F_self_vs_drop', en: `You rated your comfort with risk as ${a.C0}, but chose "${opt('C2', a.C2).text}" after a sharp fall, which usually signals ${dropFeel} risk tolerance. This gap between how people rate themselves and how they actually react is common. Which feels more accurate: your self-rating or your reaction to the drop?`, items: ['C0', 'C2'] });
     whyEn.push(`Your answers about ups and downs point to level ${tolerance}.`);
   }
   const low = vals.length ? Math.min(...vals) : null;

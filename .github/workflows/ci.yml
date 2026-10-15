@@ -66,6 +66,7 @@ jobs:
       - run: node web/test_engine.mjs
       - run: node web/test_robokit.mjs
       - run: node web/test_safety.mjs
+      - run: node web/test_converse.mjs
 
   ui:
     name: Browser regression tests (Playwright)

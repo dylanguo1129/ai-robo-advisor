@@ -1,7 +1,9 @@
 """Fixtures for the browser regression tests (marked `ui`; run with `python -m pytest -m ui tests/ui`).
 
-The page is served from web/ on a free local port, with caching off. `/mock.html` is the page with the dev stand-in for
-the AI (web/dev_mock.js), built in memory the same way scripts/make_mock_page.py builds it, so nothing is written to disk.
+The pages are served from web/ on a free local port, with caching off. The guided page is web/index.html (its tests are
+tests/ui/test_guided.py); the earlier page is web/classic.html, which the other test files cover. `/mock.html` is the
+classic page with the dev stand-in for the AI (web/dev_mock.js), built in memory the same way scripts/make_mock_page.py
+builds it, so nothing is written to disk.
 Tests drive a headless Chromium through Playwright: the system Edge or Chrome when present, else Playwright's own
 Chromium (`python -m playwright install chromium`). Without Playwright or a browser the tests are skipped.
 """
@@ -21,7 +23,7 @@ WEB = Path(os.environ.get("ROBOKIT_UI_WEB") or Path(__file__).resolve().parents[
 
 
 def mock_page() -> bytes:
-    html = (WEB / "index.html").read_text(encoding="utf-8")
+    html = (WEB / "classic.html").read_text(encoding="utf-8")
     marker = '<script type="module">'
     i = html.rindex(marker)
     html = html[:i] + '<script type="module" src="dev_mock.js"></script>\n' + html[i:]
@@ -35,9 +37,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
-        if self.path.split("?")[0] in ("/mock.html", "/index.html"):
-            body = mock_page() if self.path.startswith("/mock.html") else (WEB / "index.html").read_bytes()
-            if self.path.startswith("/index.html"):  # what the artifact wrapper adds at publish time
+        page = self.path.split("?")[0]
+        if page in ("/mock.html", "/index.html", "/classic.html"):
+            body = mock_page() if page == "/mock.html" else (WEB / page.lstrip("/")).read_bytes()
+            if page != "/mock.html":  # what the artifact wrapper adds at publish time
                 body = (
                     b'<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
                     + body
@@ -120,7 +123,7 @@ FOCUS = """() => { const a = document.activeElement;
 class Page:
     """One fresh browser context (fresh localStorage) on the page, with helpers for waiting and for playing the AI."""
 
-    def __init__(self, browser, base_url, path="index.html", init=None, market=None, slow=None, **ctx):
+    def __init__(self, browser, base_url, path="classic.html", init=None, market=None, slow=None, **ctx):
         self.path = path
         self.ctx = browser.new_context(**({"viewport": {"width": 1280, "height": 900}} | ctx))
         for script in [*_before_page(market, slow), *([init] if init else [])]:
@@ -264,7 +267,7 @@ class Page:
 def page_factory(browser, base_url):
     pages = []
 
-    def make(path="index.html", init=None, *, market=None, slow=None, **ctx):
+    def make(path="classic.html", init=None, *, market=None, slow=None, **ctx):
         """A page on `path`. `market` ('US') is stored as the saved market before every load (reloads included); `slow`
         maps a data file to a download delay in ms. Other keywords are Playwright context options (viewport, color_scheme...)."""
         p = Page(browser, base_url, path, init, market, slow, **ctx)

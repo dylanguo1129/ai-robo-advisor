@@ -129,6 +129,19 @@ steps more or fewer and stop at different brackets, each checked to straddle the
 rebalancer on 51 accounts, QIS on
 generated inputs): web/test_robokit.mjs, web/test_engine.mjs, web/test_safety.mjs.
 
+## 14. The guided page (3.1.0)
+
+| # | Decision | Value | Evidence | Status |
+|---|---|---|---|---|
+| W1 | A risk self-rating joins the tolerance answers, paired with the drop scenario; when they disagree the person picks which fits and the other is set aside | C0 low / medium / high = levels 2 / 3 / 4 | Policy: the team's conversation script (risk check with a second chance) and the brief's three settings; parity test of the two engines (400 random profiles, web/test_robokit.mjs); answers without C0 score as before (tests/test_v2.py); the second chance is a browser test (tests/ui/test_guided.py) | policy |
+| W2 | The core self-check is short (about ten taps); the ten-year range, loss versus missing out and the share of savings are an optional fine-tune | | Policy, from the team's review (14 questions too long; the share of savings and the range cards hard for beginners). Without the fine-tune no cushion for "most of your savings" applies; the emergency-fund and debt checks stay in the core | policy |
+| W3 | Explanation depth follows the calibration answer for the whole session and never changes the questions, the math or the disclosures | | Requirements Plan (literacy calibration; same flow for everyone); browser test that a beginner sees reasons and definitions | done |
+| W4 | Advice requests get one fixed redirect and the disclosure, decided by fixed patterns before any AI is asked | the script's wording | Requirements Plan (a human-reviewed boundary, not a judgement left to the AI); 10 phrasings in web/test_converse.mjs and a browser test with and without Claude | done |
+| W5 | Without Claude the page answers from its glossary, FAQ, fund facts and the issuers' top holdings of the ten default funds | data/fund_holdings.json (as of Aug-Oct 2026) | Two independent lookups of each issuer's page agreed (data/fund_holdings.json records each source row); web/test_converse.mjs | done |
+| W6 | Own picks get a minimum share so they stay in the mix | 5% each, within the level's own-pick limit | Policy: a pick at 0% looked like a lost input; the limit itself is the engine's satellite cap (section 2) | policy |
+| W7 | The page offers Canadian-listed ETFs only | CA | Requirements Plan (out of scope: anything outside Canadian ETFs and the Canadian context); the engine and the other surfaces keep both markets | policy |
+| W8 | A zero-match preference names the filter to drop and asks first | fees, size, index-only, in that order | Conversation script (never loosen silently); browser test | done |
+
 ## Examination record
 
 Two outside examiners from different model families (cross-family, so neither shares the author's blind spots) were
