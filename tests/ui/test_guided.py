@@ -16,7 +16,7 @@ ADVICE = "I can't tell you whether to buy at any specific time"
 # A stand-in for the claude.ai runtime: `sample` answers in a fixed sentence, other capabilities are absent.
 FAKE_CLAUDE = """
 window.__asked = [];
-const sample = async (input, opts) => { window.__asked.push(input); return { text: 'Your answers so far point to a careful mix, and you can change any of them.', truncated: false, modelTierApplied: 'default' }; };
+const sample = async (input, opts) => { window.__asked.push(input); return { text: 'Here is a short explanation from the numbers on this page, and you can change any answer.', truncated: false, modelTierApplied: 'default' }; };
 sample.limits = async () => ({ maxPromptBytes: 65536 });
 window.claude = { use: async (name) => (name === 'sample' ? sample : null) };
 """
@@ -53,9 +53,9 @@ class Guide:
     def pending_step(self):
         return self.js("[...document.querySelectorAll('#thread .step-card')].at(-1)?.dataset.step")
 
-    def through_core(self, *, comfort="medium", drop="wait"):
+    def through_core(self, *, comfort="medium", drop="wait", depth="novice"):
         self.pg.click('[data-prompt="1"]')
-        self.tap("EXP", "novice")
+        self.tap("EXP", depth)
         self.tap("B1", "20plus")
         self.tap("B2", "10plus")
         self.tap("A2", "yes")
@@ -251,8 +251,8 @@ def test_changing_an_earlier_answer_rebuilds_the_portfolio(guide):
     g.pg.wait_for_selector("#assess .means", timeout=30000)
     g.pg.check("#ack")
     g.pg.click('[data-act="assess-ok"]')
-    g.pg.locator('[data-act="rebuild"]').last.click()
-    g.pg.wait_for_selector(".fund", timeout=30000)
+    g.pg.wait_for_selector(".changed .cmp", timeout=30000)  # rebuilt at once (O3), with before and after side by side (X3)
+    assert "Volatility a year" in g.js("document.querySelector('.changed').innerText")
     after = g.js(
         "({level: window.robokitGuide.st.level, c2: window.robokitGuide.st.answers.C2, log: window.robokitGuide.st.events.join(' | ')})"
     )
@@ -290,7 +290,7 @@ def test_claude_can_be_connected_and_answers_then_offers_the_way_back(guide):
     g.tap("EXP", "some")
     g.say("Can you sum up my situation so far?")
     msgs = g.last(2)
-    assert "careful mix" in msgs[0] and "Back to building your portfolio?" in msgs[1]
+    assert "short explanation" in msgs[0] and "Back to building your portfolio?" in msgs[1]
     g.say("Should I buy VFV?")
     assert any(ADVICE in m for m in g.last(4))  # the redirect never goes to Claude
 
@@ -347,9 +347,9 @@ def test_the_emergency_fund_check_caps_the_level(guide):
 def test_required_steps_ask_again_and_requests_get_answers(guide):
     g = guide()
     g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")  # the experience question itself may be skipped (F1); the horizon may not
     g.say("skip")
     assert "I do need this one" in " ".join(g.last(3))
-    g.tap("EXP", "some")
     g.say("I want to know about fees")
     msgs = " ".join(g.last(3))
     assert "MER" in msgs and "Back to building your portfolio?" in msgs
@@ -360,9 +360,7 @@ def test_preferences_can_be_changed_after_the_mix(guide):
     g.to_mix()
     g.pg.fill("#chat-in", "avoid emerging markets")
     g.pg.press("#chat-in", "Enter")
-    g.pg.wait_for_selector('[data-act="rebuild"]', timeout=15000)
-    g.pg.locator('[data-act="rebuild"]').last.click()
-    g.pg.wait_for_selector(".fund", timeout=30000)
+    g.pg.wait_for_selector(".changed .cmp", timeout=30000)  # the optimizer re-runs at once (O3)
     assert "VEE" not in g.js("[...document.querySelectorAll('.fund b')].map(b => b.textContent).join(' ')")
     assert "VEE.TO" in g.js("[...window.robokitGuide.st.exclude].join(',')")
 
@@ -372,9 +370,12 @@ def test_a_hand_set_mix_does_not_claim_the_optimizer_cap(guide):
     g.to_mix()
     g.pg.click('[data-act="adjust"]')
     first = g.js("document.querySelector('.adj-row[data-t]').dataset.t")
-    for _ in range(40):
+    for _ in range(60):
+        if g.js(f'document.querySelector(\'.adj-row[data-t="{first}"] [data-f="+"]\').disabled'):
+            break  # the 50% cap (X4)
         g.pg.click(f'.adj-row[data-t="{first}"] [data-f="+"]')
     g.pg.wait_for_timeout(1200)
+    assert g.js("Math.max(...Object.values(window.robokitGuide.st.draft))") <= 0.5 + 1e-9
     if g.js("!!document.querySelector('#adj-ack')"):
         g.pg.check("#adj-ack")
     g.pg.wait_for_function("!document.querySelector('[data-act=adj-save]').disabled", timeout=15000)
@@ -424,12 +425,12 @@ def test_the_shortlist_accepts_no_and_an_unchanged_shortlist_asks_no_rebuild(gui
     g.pg.press("#chat-in", "Enter")
     g.pg.wait_for_selector(".fund", timeout=30000)
     held = g.js("window.robokitGuide.st.base.holdings[0].symbol")
-    rebuilds = g.js("document.querySelectorAll('[data-act=\"rebuild\"]').length")
+    events = g.js("window.robokitGuide.st.events.length")
     g.pg.fill("#chat-in", f"add {held}")
     g.pg.press("#chat-in", "Enter")
     g.pg.wait_for_timeout(500)
-    assert g.js("document.querySelectorAll('[data-act=\"rebuild\"]').length") == rebuilds
     assert not g.js("window.robokitGuide.st.changed")
+    assert not any("Rebuilt" in e for e in g.js("window.robokitGuide.st.events")[events:])
 
 
 def test_a_chosen_level_survives_a_changed_answer_and_the_summary_says_so(guide):
@@ -447,9 +448,9 @@ def test_a_chosen_level_survives_a_changed_answer_and_the_summary_says_so(guide)
     g.pg.wait_for_selector("#assess .means", timeout=30000)
     g.pg.check("#ack")
     g.pg.click('[data-act="assess-ok"]')
-    assert "the level you chose" in " ".join(g.last(3))
-    g.pg.locator('[data-act="rebuild"]').last.click()
-    g.pg.wait_for_selector(".fund", timeout=30000)
+    g.pg.wait_for_selector(".changed .cmp", timeout=30000)
+    assert any("the level you chose" in m.get("text", "") for m in g.js("window.robokitGuide.st.log") if m.get("who") == "bot")
+    assert f"you chose level {higher}" in g.js("document.querySelector('[data-screen=mix]').innerText")
     assert g.js("window.robokitGuide.st.level") == higher
     summary = g.js("window.robokitGuide.summary()")
     assert "was not calculated for you based on your responses" in summary
@@ -506,3 +507,299 @@ def test_learn_more_defines_a_term_asked_about(guide):
     g.pg.press("#lm-in", "Enter")
     g.pg.wait_for_function("document.querySelectorAll('#lm-qa-list .msg.bot').length > 0", timeout=10000)
     assert g.js("document.querySelector('#lm-qa-list .msg.bot:last-child').innerText").startswith("Volatility")
+
+
+# ------------------------------------------------------------------ v3.2: open conversation and explanation depth
+LABEL_WORDS = r"\b(?:novice|beginners?|experts?|experienced investor|intermediate|newbie)\b"
+
+
+def bot_texts(g):
+    return g.js("window.robokitGuide.st.log.filter(m => m.who === 'bot' && m.text).map(m => m.text).join(' | ')")
+
+
+def type_home(g, text):
+    g.pg.fill("#ask", text)
+    g.pg.press("#ask", "Enter")
+    g.pg.wait_for_function(
+        "window.robokitGuide.st.screen === 'chat' && document.querySelectorAll('#thread .step-card').length > 0", timeout=15000
+    )
+
+
+def test_a_story_opener_only_asks_whats_missing(guide):
+    g = guide()
+    type_home(g, "I'm 30, saving for a condo in about 5 years, I have $15k and no debt")
+    a = g.js("window.robokitGuide.st.answers")
+    assert a.get("A1") == "home" and a.get("B1") == "5to9" and a.get("A3") == "no" and g.js("window.robokitGuide.st.amount") == 15000
+    text = " ".join(g.last(4))
+    assert "Here's what I have so far" in text and "the condo" in text
+    assert g.js("document.querySelectorAll('.noted-chip').length") >= 4
+    g.tap("EXP", "some")
+    assert g.pending_step() == "B2"  # goal, horizon, amount and debt are not asked again
+
+
+def test_answers_given_out_of_order_are_kept(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')  # retirement
+    g.say("no debt")
+    g.say("all at once")
+    a = g.js("window.robokitGuide.st.answers")
+    assert a.get("A3") == "no" and a.get("A2") is None and a.get("B2") == "once", a
+    assert g.js("window.robokitGuide.st.depthSrc") == "skipped"
+
+
+def test_depth_changes_words_not_options(guide):
+    novice, expert = guide(), guide()
+    for g, d in ((novice, "novice"), (expert, "expert")):
+        g.pg.click('[data-prompt="1"]')
+        g.tap("EXP", d)
+    values = "[...document.querySelectorAll('.step-card')].at(-1).querySelectorAll('[data-q=B1]').length && [...[...document.querySelectorAll('.step-card')].at(-1).querySelectorAll('[data-q=B1]')].map(b => b.dataset.v)"
+    assert novice.js(values) == expert.js(values)
+    assert novice.js("[...[...document.querySelectorAll('.step-card')].at(-1).querySelectorAll('.opt')].every(o => o.querySelector('.ex'))")
+    assert novice.js("!![...document.querySelectorAll('.step-card')].at(-1).querySelector('.hint')")
+    card = expert.js("[...document.querySelectorAll('.step-card')].at(-1).innerText")
+    assert "20+ years" in card and "How this is scored" in card
+    assert "tickers" in expert.js("document.querySelector('#chat-in').placeholder")
+
+
+def test_same_answers_same_math_at_every_depth(guide):
+    out = []
+    for d in ("novice", "some", "expert"):
+        g = guide()
+        g.to_mix(depth=d)
+        out.append(
+            (
+                g.js("window.robokitGuide.st.profile.suggested_level"),
+                g.js("window.robokitGuide.st.base.holdings.map(h => [h.ticker, h.weight.toFixed(4)])"),
+            )
+        )
+    assert out[0] == out[1] == out[2]
+
+
+def test_a_vague_answer_gets_a_two_choice_follow_up(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    g.say("long term")
+    assert g.js("[...document.querySelectorAll('.k-clarify [data-q=B1]')].map(b => b.dataset.v)") == ["10to19", "20plus"]
+    assert g.js("window.robokitGuide.st.answers.B1") is None
+
+
+def test_experience_is_inferred_when_skipped_and_never_shown(guide):
+    import re
+
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.pg.locator('[data-act="skip-exp"]').last.click()
+    g.say("20+ years, my target is a 60/40 split with low tracking error")
+    g.tap("B2", "10plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    st = g.js("({d: window.robokitGuide.st.depth, s: window.robokitGuide.st.depthSrc})")
+    assert st == {"d": "expert", "s": "inferred"}, st
+    assert not re.search(LABEL_WORDS, bot_texts(g), re.I)
+    assert not re.search(LABEL_WORDS, " ".join(g.js("window.robokitGuide.st.events")), re.I)
+
+
+def test_just_learning_is_acknowledged(guide):
+    g = guide()
+    type_home(g, "hi")
+    g.say("I'm just learning")
+    assert g.js("window.robokitGuide.st.depth") == "novice"
+    assert "Great place to start" in " ".join(g.last(3))
+    assert g.js("!![...document.querySelectorAll('.step-card')].at(-1).querySelector('[data-q=A1][data-v=learning].is-pre')")
+    g.tap("A1", "learning")
+    assert "If this were real money" in g.js("[...document.querySelectorAll('.step-card')].at(-1).innerText")
+
+
+def test_a_side_question_answers_then_asks_to_go_back(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    g.say("what is volatility?")
+    msgs = g.last(2)
+    assert (
+        msgs[0].startswith("Volatility:")
+        and "Back to building your portfolio?" in msgs[1]
+        and "Next: When would you start using the money?" in msgs[1]
+    )
+    assert g.pending_step() == "B1"
+
+
+def test_an_unread_reply_is_rephrased_then_explained(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    g.tap("B1", "20plus")
+    g.say("hmm")
+    assert "Sorry, I didn't quite follow that." in " ".join(g.last(2))
+    g.say("hmm")
+    two = " ".join(g.last(2))
+    assert "fits a home down payment" in two and "Even a rough guess is fine" in two
+    assert "I didn't catch that" not in bot_texts(g)
+
+
+def test_one_line_answers_fill_several_steps(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "expert")
+    g.say("25 years, $50k, high risk, salaried")
+    a = g.js("window.robokitGuide.st.answers")
+    assert a.get("B1") == "20plus" and a.get("C0") == "high" and a.get("B5") == "very" and g.js("window.robokitGuide.st.amount") == 50000
+    assert g.pending_step() not in ("B1", "MONEY", "C0", "B5")
+
+
+def test_advice_inside_the_flow_never_reaches_any_model(guide):
+    g = guide(init=FAKE_CLAUDE)
+    g.pg.wait_for_selector('#home-connect [data-act="connect"]', timeout=10000)
+    g.pg.click('[data-prompt="1"]')
+    g.pg.locator('[data-act="connect"]').last.click()
+    g.pg.wait_for_function("window.robokitGuide.ai === 'on'", timeout=10000)
+    asked = g.js("window.__asked.length")
+    g.tap("EXP", "some")
+    for t in ("should I go to level 5?", "should I cut XSP to 25%?", "so which ETF should I buy?"):
+        g.say(t)
+        assert any(ADVICE in m for m in g.last(4)), t
+    assert g.js("window.__asked.length") == asked
+
+
+def test_noted_chips_can_be_changed(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    g.say("25 years and $40k")
+    g.pg.locator(".noted-chip").first.click()
+    assert g.pending_step() == "B1"
+
+
+def test_no_question_paragraph_repeats_back_to_back(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    for t in ("hmm", "what is a bond?", "long term", "20 years"):
+        g.say(t)
+    cards = g.js("[...document.querySelectorAll('#thread > .msg')].map(m => m.classList.contains('step-card') ? m.innerText : '|')")
+    assert all(not (a != "|" and a == b) for a, b in zip(cards, cards[1:]))
+
+
+def test_a_drop_answer_given_early_is_confirmed_with_numbers(guide):
+    g = guide()
+    type_home(g, "I'm saving for retirement in 25 years and I'd hold through a crash")
+    g.tap("EXP", "novice")
+    g.tap("B2", "10plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.tap("B5", "mostly")
+    g.tap("C0", "medium")
+    assert g.js("window.robokitGuide.st.answers.C2") is None
+    card = g.js("[...document.querySelectorAll('.step-card')].at(-1).innerText")
+    assert "$25,000" in card and "$20,000" in card and "would you still wait it out" in card
+    assert g.js("!![...document.querySelectorAll('.step-card')].at(-1).querySelector('[data-q=C2][data-v=wait].is-pre')")
+    g.tap("C2", "wait")
+    assert g.js("window.robokitGuide.st.answers.C2") == "wait"
+
+
+def test_the_checkpoint_summarizes_without_a_level(guide):
+    import re
+
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "novice")
+    g.tap("B1", "20plus")
+    g.tap("B2", "10plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.tap("B5", "mostly")
+    text = g.js("document.querySelector('.k-checkpoint').innerText")
+    assert text.startswith("Let me check I have this right") and not re.search(r"level \d", text)
+    assert g.pending_step() == "C0"
+
+
+def test_the_shortcuts_fill_the_box(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "expert")
+    g.pg.locator(".shortcuts [data-fill]").first.click()
+    assert g.js("document.querySelector('#chat-in').value").startswith("25 years")
+    assert g.pending_step() == "B1"  # nothing was sent
+
+
+def test_experienced_results_show_more(guide):
+    g = guide()
+    g.to_mix(depth="expert")
+    assert g.js("!!document.querySelector('details.hood[open]')")
+    assert g.js("document.querySelector('details.hood ul').querySelectorAll('li').length") == g.js(
+        "document.querySelectorAll('.fund').length"
+    )
+    text = g.js("document.querySelector('[data-screen=mix]').innerText")
+    assert "The full reasons are in the summary" not in text
+    assert all(t in text for t in ("Chance of a loss in year one", "Risk-rating scale", "Sharpe on equilibrium returns", "of the risk"))
+
+
+def test_beginner_results_are_plain(guide):
+    g = guide()
+    g.to_mix(depth="novice")
+    why = g.js("document.querySelector('.explain').innerText")
+    assert "stocks" in why and "fixed income" not in why.lower() and "equity" not in why.lower()
+    assert g.js("!!document.querySelector('details.hood:not([open])')")
+
+
+def test_local_answers_at_three_depths(guide):
+    got = {}
+    for d in ("novice", "some", "expert"):
+        g = guide()
+        g.to_mix(depth=d)
+        g.pg.fill("#chat-in", "what is volatility?")
+        g.pg.press("#chat-in", "Enter")
+        g.pg.wait_for_function("document.querySelectorAll('#qa-mix .msg.bot').length > 0", timeout=10000)
+        got[d] = g.js("document.querySelector('#qa-mix .msg.bot:last-child').innerText")
+    assert "bumpy" in got["novice"]
+    assert "bumpy" not in got["some"] and "standard deviation" not in got["some"]
+    assert "standard deviation" in got["expert"] and "Your mix:" in got["expert"]
+
+
+def test_claude_hears_the_depth_never_a_label_and_is_checked(guide):
+    bad = FAKE_CLAUDE.replace(
+        "Here is a short explanation from the numbers on this page, and you can change any answer.", "As a beginner, you should buy VFV."
+    )
+    g = guide(init=bad)
+    g.pg.wait_for_selector('#home-connect [data-act="connect"]', timeout=10000)
+    g.pg.click('[data-prompt="1"]')
+    g.pg.locator('[data-act="connect"]').last.click()
+    g.pg.wait_for_function("window.robokitGuide.ai === 'on'", timeout=10000)
+    g.tap("EXP", "expert")
+    g.say("Can you walk me through the trade-offs in my situation?")
+    asked = g.js("JSON.stringify(window.__asked.at(-1))")
+    assert "brief and technical" in asked and '"depth"' not in asked
+    assert "you should buy VFV" not in " ".join(g.last(3))
+
+
+def test_phone_width_under_the_hood(guide):
+    g = guide(viewport={"width": 390, "height": 844})
+    g.to_mix(depth="expert")
+    assert g.js("document.documentElement.scrollWidth <= window.innerWidth + 1")
+
+
+def test_a_drop_answer_typed_early_waits_for_its_card(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    g.say("actually in a drop I'd sell everything")
+    assert g.js("window.robokitGuide.st.answers.C2") is None
+    assert g.js("window.robokitGuide.st.preselect.C2") == "sell_all"
+    assert g.pending_step() == "B1"
+
+
+def test_none_is_an_answer_to_the_income_question(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "some")
+    g.tap("B1", "20plus")
+    g.tap("B2", "10plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.say("none")
+    assert g.js("window.robokitGuide.st.answers.B5") == "none"

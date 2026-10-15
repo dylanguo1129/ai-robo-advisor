@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import * as C from './converse.js';
 import * as KB from './kb.js';
-import { Market, scoreProfile } from './robokit.js';
+import { Market, scoreProfile, lockedCategoryProblem } from './robokit.js';
 
 const here = new URL('.', import.meta.url);
 const core = JSON.parse(readFileSync(new URL('data/core.json', here)));
@@ -87,7 +87,7 @@ ok('a bond fund holds no stocks (review item)', /holds no stocks/.test(zag?.text
 ok('faq: is this real', C.localAnswer('is any of this invested?', ctx)?.kind === 'faq');
 ok('why we ask', C.localAnswer('why do you ask?', { ...ctx, step: 'B5' })?.text === KB.WHY.B5);
 ok('learn more on the open step', C.localAnswer('I want to learn more', { ...ctx, step: 'C1' })?.text === KB.LEARN.C1);
-ok('nothing to say about weather', C.localAnswer('what is the weather like', ctx) === null);
+ok('weather gets the scope (E4)', C.localAnswer('what is the weather like', ctx)?.kind === 'scope');
 
 // every suggested question has an answer without AI (the review found ten that did not)
 for (const [step, qs] of Object.entries(KB.SUGGEST)) for (const q of qs) ok(`suggested question answered: ${step} ${q}`, C.localAnswer(q, { ...ctx, step }) !== null);
@@ -135,6 +135,161 @@ for (const t of ['What is your advice?', 'what do you suggest', 'what would you 
 const inZag = { ...ctx, fund: 'ZAG.TO' };
 ok('a term inside a fund answers the term', C.localAnswer('what is volatility?', inZag)?.kind === 'term');
 ok('a fund question inside a fund stays on the fund', C.localAnswer('what does it hold?', inZag)?.kind !== 'term');
+
+// v3.2, the team's PRD v3: scope and the ETF-only rule (E4)
+for (const t of ['what is the weather tomorrow?', 'write me a poem', 'who won the hockey game last night?']) eq(`scope: ${t}`, C.localAnswer(t, ctx)?.text, KB.SCOPE);
+for (const t of ['Can you sum up my situation so far?', 'how do I start?', 'what do you mean by steady?']) ok(`not out of scope: ${t}`, C.localAnswer(t, { ...ctx, step: 'B5' })?.kind !== 'scope');
+for (const [t, other] of [['is an ETF better than buying Apple stock?', 'individual stocks'], ['ETFs or bonds?', 'buying bonds directly'], ["what's the difference between an ETF and a mutual fund?", 'mutual funds'], ['ETFs vs GICs', 'GICs']])
+  ok(`ETF only: ${t}`, C.localAnswer(t, ctx)?.kind === 'etf_only' && C.localAnswer(t, ctx).text.startsWith(KB.ETF_ONLY(other)));
+for (const t of ['what is a GIC?', 'what is a mutual fund?', 'what is a stock?', 'what is an index?', 'what are distributions?']) ok(`defined: ${t}`, ['term', 'faq'].includes(C.localAnswer(t, ctx)?.kind));
+ok('a question about the question gets its learn more', C.localAnswer('what does this question mean?', { ...ctx, step: 'C2' })?.text === KB.LEARN.C2);
+ok('guarantee inside a fund gets the honest answer', /nothing here is guaranteed/.test(C.localAnswer('is it guaranteed?', { ...ctx, fund: 'ZAG.TO' })?.text || ''));
+ok('learn more for the second chance, fine-tune and adjust', KB.LEARN.RECON && KB.LEARN.FT && KB.LEARN.ADJUST);
+// tickers that are not in the data (F3)
+eq('closest to XEQ', C.closestTickers('XEQ', M.rows)[0], 'XEQT.TO');
+eq('closest to VFVV', C.closestTickers('VFVV', M.rows)[0], 'VFV.TO');
+eq('ticker-like words', C.tickerLike('SPY and QQQ', symbols), ['SPY', 'QQQ']);
+eq('everyday words are not tickers', C.tickerLike('more bonds please', symbols), []);
+eq('add an unknown ticker', C.parseCommand('add XEQ', { symbols }), { type: 'add', tickers: [], unknown: ['XEQ'] });
+for (const [t, list] of Object.entries(KB.US_LISTED)) for (const c of list.ca) ok(`US ${t}: ${c} is an eligible Canadian fund`, M.fund(symbols.get(c))?.eligible);
+// preferences read clause by clause (F2): a "no" applies to its own clause
+eq('no active funds', C.parsePrefs('no active funds')?.open, false);
+eq('active funds are fine', C.parsePrefs('active funds are fine')?.open, true);
+eq('no hedging', C.parsePrefs('no hedging please')?.hedge, false);
+eq('unhedged', C.parsePrefs('unhedged only')?.hedge, false);
+eq('fee cap', C.parsePrefs('fees under 0.15%')?.maxFee, 0.0015);
+eq('fee cap other order', C.parsePrefs('max fee 0.2%')?.maxFee, 0.002);
+eq('one region', C.parsePrefs('Canada only')?.only, 'canada');
+eq('CAD only', C.parsePrefs('CAD only')?.currency, 'CAD');
+eq('no factor', C.parsePrefs('no factor funds')?.noFactor, true);
+eq('income is not a dividend preference', C.parsePrefs('my income is steady'), null);
+eq('"us" the pronoun is not a region', C.parsePrefs('help us decide'), null);
+// leverage and derivatives the data leave blank (C3)
+const kind = (s) => C.derivativeKind(M.rows.find((r) => r.symbol === s));
+eq('Hamilton Enhanced borrows', kind('HCAL'), 'borrowing');
+eq('Harvest Leaders Income sells options', kind('HTA'), 'options');
+eq('an index fund uses none', kind('XIC'), null);
+eq('a bond fund named Enhanced is not leveraged', kind('FGO'), null);
+ok('every derivative fund gets a note', M.rows.filter((r) => r.eligible && C.derivativeKind(r)).every((r) => /regardless of your experience level/.test(C.leverageNote(r))));
+// experience: self-identified or inferred, never from a background read as a horizon (F1)
+eq('investing for 10 years is experience', C.parseDepth("I've been investing for 10 years"), 'expert');
+eq('and not a horizon', C.parseHorizon("I've been investing for 10 years"), null);
+eq('just learning is a beginner', C.parseDepth("I'm just learning"), 'novice');
+eq('jargon suggests experience', C.inferDepth('what is the sharpe ratio and tracking error?'), 'expert');
+eq('a hint, not an answer', C.extractFacts('I want XEQT and VFV, low MER', { symbols }).hints?.EXP, 'expert');
+eq('nervous suggests low comfort', C.extractFacts("I'm nervous about losing money").hints?.C0, 'low');
+// typed changes to any earlier answer (F4)
+eq('change income', C.parseCommand('actually my income varies a lot', { symbols })?.id, 'B5');
+eq('change debt', C.parseCommand('actually I have no debt', { symbols })?.value, 'no');
+eq('change the drop answer', C.parseCommand('actually I would buy more if it dropped', { symbols })?.value, 'buy');
+eq('an amount with a change word', C.parseCommand('actually I meant 40,000', { symbols })?.value, { B3: 40000 });
+eq('a salary is not an amount change', C.parseCommand('I make 80k a year', { symbols }), null);
+eq('self-identify mid-session', C.parseCommand("I'm a beginner", { symbols })?.value, 'novice');
+ok('ok, let us keep going', C.isContinue("ok let's keep going") && C.isContinue('thanks, back to it'));
+ok('polite skip', C.isSkip('can I skip this one?'));
+// the locked category lists (D2)
+eq('a category outside the list', lockedCategoryProblem({ asset_class: 'Equities (US)', region: 'US', strategy: 'Active' }), "category not in the locked list: asset_class 'Equities (US)'");
+ok('every fund in the data is inside the lists', M.rows.every((r) => !r.flagged));
+
+// ================================================================== v3.2: open conversation and depth (the spec's Node tests)
+// advice: levels and weights asked as a personal decision; flow questions are not advice
+for (const t of ['should I go to level 5?', 'should I cut XSP to 25%?', 'is level 5 too risky for me?', 'is 52% stocks a lot for me?', 'should I stay at level 3?']) ok(`advice: ${t}`, C.isAdvice(t));
+for (const t of ['should I go back?', 'should I change my answer?', 'is 20 years a lot?', 'I want to go to level 4', 'what does too risky mean', 'should I skip this one?']) ok(`not advice: ${t}`, !C.isAdvice(t));
+// the reader: every answer in a message, in any order, never into the wrong question
+const RT = (t, pending = null, answers = {}) => C.readTurn(t, { pending, answers, symbols, year: 2026 });
+eq('no debt at the basics: debt only', RT('no debt', 'BASICS').facts, { A3: 'no' });
+ok('"not sure" is never No', RT('not sure', 'BASICS').facts.A2 == null);
+ok('some savings is not a depth', RT('I have some savings but not much', 'EXP').facts.EXP == null);
+ok('held for 8 years is not a horizon', RT("I've held XEQT and VFV in my TFSA for 8 years").facts.B1 == null);
+ok('never invested is not a horizon', RT('never invested before').facts.B1 == null && C.parseHorizon('never invested before') == null);
+eq("don't really know anything", C.selfDepth("I don't really know anything about ETFs"), 'novice');
+eq('over 25 years while the period is open', RT('over 25 years', 'B2').facts, { B2: '10plus' });
+eq('2 years', RT('2 years', 'B1').facts.B1, '2to4');
+eq('long term is two candidates', RT('long term', 'B1').vague.B1?.candidates, ['10to19', '20plus']);
+eq('two goals is two candidates', RT('retirement and a house', 'A1').vague.A1?.candidates?.length, 2);
+eq('one line, four answers', RT('25 years, $50k, high risk, salaried', 'B1').facts, { B1: '20plus', C0: 'high', B5: 'very', MONEY: { B3: 50000 } });
+eq('a story told up front', RT("I'm 30, saving for a condo in about 5 years, I have $15k and no debt").facts, { A1: 'home', B1: '5to9', A3: 'no', MONEY: { B3: 15000 } });
+eq('their own words, whitelisted', RT('saving for a condo').words.goal, { np: 'the condo', goal: 'home' });
+ok('a correction cue is seen', RT('actually 20 years', 'C0', { B1: '5to9' }).changes[0]?.cue === true);
+ok('advice records nothing', Object.keys(RT('should I buy VFV with my 20k?').facts).length === 0);
+// the gate: risk answers only from their own card; only option values are recorded
+const AD = (id, v, open) => C.admit(id, v, { open, questions: core.questions });
+eq('C2 read elsewhere is highlighted', AD('C2', 'wait', 'B1'), 'preselect');
+eq('C2 on its own card records', AD('C2', 'wait', 'C2'), 'record');
+eq('an explicit self-rating records', AD('C0', 'high', 'B1'), 'record');
+eq('a value outside the options is rejected', AD('B1', '7years', 'B1'), 'reject');
+ok('every answer the reader can produce is an option value', ['25 years, $50k, high risk, salaried', 'retired with a pension', 'I would sell some', 'no debt, some emergency savings', 'all at once in 3 years'].every((t) => Object.entries(RT(t, 'B1').facts).every(([id, v]) => C.validValue(core.questions, id, v))));
+// depth: what people say wins; cues settle the rest; tickers alone never make it expert
+for (const [t, d] of [["I'm new to this", 'novice'], ['keep it brief', 'expert'], ["I've been investing for 10 years", 'expert'], ['I know the basics', 'some'], ["new to ETFs but I've traded stocks for years", 'some'], ['explain it more simply', 'novice'], ['I work in finance', 'expert']]) eq(`self: ${t}`, C.selfDepth(t), d);
+eq('tickers alone stay standard', C.classifyDepth(C.depthCues('XEQT VFV ZAG XIC', { symbols })), 'some');
+eq('jargon reaches expert', C.classifyDepth([...C.depthCues('my target is a 60/40 split with low tracking error and a Sharpe above 0.5'), ...C.depthCues('MER under 0.2% only')]), 'expert');
+eq('basic questions reach beginner', C.classifyDepth([...C.depthCues('what is an ETF?'), ...C.depthCues('what is a bond?')]), 'novice');
+eq('nothing is read from the risk questions', C.depthCues('I have no idea', { step: 'C2' }), []);
+// wording at three depths: values and order are the engine's; no unfilled slot; examples for beginners; the rule for experts
+const fullSlots = { goal: 'saving for a home', goal_np: 'the home', when: 'in 5 to 9 years', how: ', all at once', ef: 'x', debt: 'y', income: 'z', amount: '$25,000', after: '$20,000', monthly: '', c0: 'some ups and downs are fine', c2: 'sell everything', c0w: 'medium', years: 5 };
+for (const id of ['A1', 'B1', 'B2', 'A2', 'A3', 'B5', 'C0', 'C2', 'B4', 'C4']) {
+  const opts = core.questions.find((x) => x.id === id).options;
+  for (const d of ['novice', 'some', 'expert']) {
+    const w = C.stepWording(id, d, { base: 'BASE', options: opts, slots: fullSlots, goal: 'home', core });
+    eq(`${id} ${d}: values unchanged`, w.options.map((o) => o.value), opts.map((o) => o.value));
+    ok(`${id} ${d}: no unfilled slot`, !/\{\w+\}/.test(w.q));
+    if (d === 'some') eq(`${id} some: the approved text`, w.q, 'BASE');
+    if (d === 'novice') ok(`${id} novice: an example on every option`, w.options.every((o) => o.ex));
+    if (d === 'expert') ok(`${id} expert: the scoring rule`, !!w.whyDeep);
+  }
+  for (const [v, t] of Object.entries(KB.WORDING[id]?.expert?.opts || {})) eq(`${id}: "${t}" reads back as ${v}`, C.matchOption(opts.concat(Object.entries(KB.WORDING[id].expert.opts).map(([value, text]) => ({ value, text }))), t), v);
+}
+// the rule text matches the code: horizon points to capacity for all 25 pairs
+for (const b1 of core.questions.find((x) => x.id === 'B1').options) for (const b2 of core.questions.find((x) => x.id === 'B2').options) {
+  const pts = b1.pts + b2.pts, lvl = (KB.CAPACITY_BREAKS.find(([p]) => pts <= p) || [0, 5])[1];
+  const pr = scoreProfile(core.questions, { A1: 'home', A2: 'yes', A3: 'no', B1: b1.value, B2: b2.value, B5: 'very', B4: 'lt10', C0: 'high', C2: 'buy', C1: '5' });
+  if (!(b1.value === 'lt2' && b2.value === 'once')) eq(`capacity rule ${b1.value}+${b2.value}`, pr.capacity, lvl);
+}
+// the house rules for every new fixed text: no exclamation marks, no labels, Canadian spelling, no directives
+const shown = (x, key = '') => (typeof x === 'string' ? (key === 'value' ? [] : [x]) : Array.isArray(x) ? x.flatMap((y) => shown(y)) : x && typeof x === 'object' && !(x instanceof RegExp) ? Object.entries(x).flatMap(([k, y]) => shown(y, k)) : []);  // the words people see, not keys or option values
+const newText = shown([KB.WORDING, KB.DEPTH_ACK, KB.CALIBRATION, KB.CHECKPOINT, KB.EFFECT, KB.CLARIFY, KB.REPAIR, KB.CONFIRM, KB.CUES.nervous[1], KB.TERM_PLAIN, KB.TERM_DEEP, KB.READBACK, KB.SHORT_ASK, KB.PHRASE, KB.REQUIRED_SKIP, KB.SHORTCUTS]).join(' | ');
+ok('no exclamation marks', !/!/.test(newText));
+ok('no labels for the person', !/\b(?:novice|beginners?|experts?|experienced investor|intermediate|newbie)\b/i.test(newText));
+ok('Canadian spelling', !/\b(?:color|favor|behavior|center|per cent|adviser)\b/i.test(newText));
+ok('no directives', !/\byou should (?:buy|sell|invest)\b|\bI recommend\b/i.test(newText));
+ok('the approved opening is unchanged', KB.OPENING.startsWith("Hi, I'm Robo-Kit. I'll ask a few questions about your goals"));
+// the checkpoint says what the answers mean, never a level number
+for (const a of [{ A1: 'home', B1: '2to4', B2: 'once', A2: 'yes', A3: 'no', B5: 'very' }, { A1: 'wealth', B1: '20plus', B2: 'unsure', A2: 'partly', A3: 'no', B5: 'varies' }, { A1: 'home', B1: 'lt2', B2: 'once', A2: 'yes', A3: 'no', B5: 'very' }, { A1: 'retirement', B1: '10to19', B2: '10plus', A2: 'no', A3: 'lot', B5: 'none' }])
+  for (const d of ['novice', 'some', 'expert']) { const t = C.checkpointText({ answers: a, amount: 25000, amountSet: true, monthly: 0, depth: d, words: {} }, scoreProfile(core.questions, a)); ok(`checkpoint ${d} ${a.B1}`, t && !/\{/.test(t) && !/level [1-5]/i.test(t.replace(/level at 2 or below/, ''))); }
+// term answers at three depths
+eq('standard: the glossary sentence', C.termAnswer('volatility', 'some', core.glossary), `${core.glossary.volatility.en.term}: ${core.glossary.volatility.en.definition}`);
+ok('beginner: an everyday example', /bumpy/.test(C.termAnswer('volatility', 'novice', core.glossary)));
+ok('experienced: the rule', /standard deviation/.test(C.termAnswer('volatility', 'expert', core.glossary)));
+// provenance: every number in the experienced views is the engine's (validate.js)
+{
+  const { buildPortfolio } = await import('./robokit.js'), { checkReply } = await import('./validate.js');
+  const p = buildPortfolio(M, { risk_level: 3, amount: 25000, monthly: 0, years: 25, nBoot: 60 });
+  const h = C.hoodRows(p), all = [...h.risk, ...h.assumptions, ...h.constraints, ...h.method, ...h.stress, ...C.whyPlain(p, { amount: 25000 }), ...p.holdings.map(C.rationaleDeep)].join(' ');
+  const r = checkReply(all, p, null, [1, 0.5, 0.05, 0.95, 25000, 8, 10, 2008]);
+  ok(`under the hood: every number comes from the engine (${r.unsupported_numbers?.join(', ') || 'none unsupported'})`, r.ok);
+  ok('plain reasons use plain words', !/\b(?:equity|fixed income|commodity|volatility)\b/i.test(C.whyPlain(p, { amount: 25000 }).join(' ')));
+  const f = C.figures(p); ok('figures for the expert terms', f.vol && f.target && f.sharpe);
+}
+// Claude's replies: the same rules as the fixed words
+eq('a directive', C.outputIssues('Go with level 3.'), ['directive']);
+ok('a guarantee', C.outputIssues('Returns are not high, but growth is guaranteed.').includes('guarantee'));
+ok('a level preview before the assessment', C.outputIssues('Your answers so far point to a careful mix').includes('level_before_assessment'));
+ok('a label', C.outputIssues('As a beginner, you might like this.').includes('label'));
+eq('the same words after the assessment', C.outputIssues('Your answers so far point to a careful mix', { assessed: true }), []);
+eq('a fine sentence', C.outputIssues('Your level of comfort is your own call.'), []);
+ok('every fixed text passes', [KB.ADVICE_REDIRECT, KB.OPENING, ...Object.values(KB.LEARN), ...Object.values(KB.WHY), ...KB.FAQ.map((x) => x.a)].every((t) => C.outputIssues(t, { assessed: true }).filter((x) => x !== 'level_before_assessment').length === 0));
+eq("the person's own numbers", C.personNumbers(["I'm 29 with $300 a month for 20 years"]).sort((a, b) => a - b), [20, 29, 300]);
+// found by the cross-family review, each reproduced before the fix
+eq('a debt amount is not the amount to invest', RT('I owe $500 on my credit card', 'BASICS', { A2: 'yes' }).facts.MONEY, undefined);
+eq('emergency savings are not the amount to invest', RT('I have $5k in emergency savings', 'BASICS').facts, { A2: 'yes' });
+eq('an amount to invest next to a debt clause still counts', RT('I want to invest $10k and I have no debt').facts, { A3: 'no', MONEY: { B3: 10000 } });
+eq('sell nothing is holding on', C.parseDrop('sell nothing'), 'wait');
+eq("I wouldn't sell is holding on", C.parseDrop("I wouldn't sell"), 'wait');
+const B1o = { B1: core.questions.find((x) => x.id === 'B1').options };
+eq('a bare 3 asks: option 3 or 3 years', C.readTurn('3', { pending: 'B1', options: B1o }).vague.B1?.candidates, ['5to9', '2to4']);
+eq('a bare 8 is 8 years', C.readTurn('8', { pending: 'B1', options: B1o }).facts.B1, '5to9');
+eq('a bare 1 is the same either way', C.readTurn('1', { pending: 'B1', options: B1o }).facts.B1, 'lt2');
+eq('none is an income answer, not a skip', C.readAnswer('B5', 'none', core.questions.find((x) => x.id === 'B5').options), { value: 'none' });
 
 console.log(fails ? `${fails} of ${n} checks FAILED` : `all ${n} conversation checks pass`);
 if (fails) process.exit(1);

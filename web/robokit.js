@@ -136,6 +136,17 @@ function b64ToInt16(s) {
   return new Int16Array(buf);
 }
 
+// D2: the locked category lists (robokit/classify.py ASSET_CLASSES, REGIONS, STRATEGIES). A value outside them is flagged,
+// never used: the fund is treated as ineligible with the reason, here as in the Python screen.
+export const LOCKED = {
+  asset_class: ['Equity', 'Fixed income', 'Cash', 'Real estate', 'Commodity', 'Multi-asset', 'Alternative', 'Crypto', 'Single stock'],
+  region: ['Canada', 'US', 'North America', 'International developed', 'Emerging markets', 'Global', 'Europe', 'Asia-Pacific', 'Japan', 'China', 'Other single country'],
+  strategy: ['Index: market cap', 'Index: factor / smart beta', 'Active', 'Options-based', 'Leveraged / inverse (daily reset)'],
+};
+export function lockedCategoryProblem(r) {
+  for (const [field, allowed] of Object.entries(LOCKED)) { const v = r[field]; if (v != null && !allowed.includes(v)) return `category not in the locked list: ${field} '${v}'`; }
+  return '';
+}
 export class Market {
   /** core = web/data/core.json, m = web/data/ca.json or us.json */
   constructor(core, m) {
@@ -144,6 +155,7 @@ export class Market {
     this.monthIndex = new Map(this.months.map((d, i) => [d, i]));
     const cols = m.universe.columns;
     this.rows = m.universe.rows.map(r => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
+    for (const r of this.rows) { const bad = lockedCategoryProblem(r); if (bad) { r.eligible = false; r.excluded_because = r.excluded_because ? `${r.excluded_because}; ${bad}` : bad; r.flagged = bad; } }
     this.byTicker = new Map(this.rows.map(r => [r.yahoo, r]));
     this.series = new Map();
     for (const [t, s] of Object.entries(m.returns.series)) {
