@@ -1,5 +1,50 @@
 # Changelog
 
+## 3.2.0 (October 2026)
+
+The team's PRD v3 and Yasmin's cross-check. Her two main points were the open conversation flow and the explanation depth by experience. This release covers those plus the PRD's new data, filtering and output rules. docs/research/requirements_coverage_v32.md maps every requirement to its code and test.
+
+- **Open conversation.**
+  - Every answer in a message is read, in any order: a story typed up front fills the goal, timing, amount and debt.
+  - Each turn says what it understood, with "Noted · Change" chips.
+  - A vague reply gets a two-choice follow-up. A reply that isn't understood is put another way, then explained.
+  - An answer is never recorded for the wrong question. Risk answers given in passing are checked on their own card, with the person's own numbers.
+  - Questions still get an answer and "Back to building your portfolio?", which now names the next question.
+- **Depth by experience (F1, E1).**
+  - Depth is self-identified (the calibration, or words like "I'm new to this", "keep it brief", "I've been investing for 10 years"). Otherwise it is inferred from what the person types once the first questions are answered. It is never shown as a label.
+  - Beginners get plain wording, an example under each option, and the reason for each question shown.
+  - Experienced viewers get short questions, the scoring rule behind each one, and shortcuts. Their results show more: full reasons, per-fund risk, volatility against its target, the chance of a loss, the risk-rating scale, Sharpe, and an open "Under the hood" panel.
+  - Steps, options and the math are the same at every depth; a browser test checks that the weights are identical.
+- **Data (D2, D3).**
+  - Categories outside the locked lists are flagged and excluded, in both the Python screen and the browser engine.
+  - Missing fees show as "not in our data", and missing dates are blank.
+- **Filtering (F2, F3).**
+  - New preferences, read clause by clause: maximum fee, CAD-only, one stock region, active and factor style, hedged or unhedged.
+  - Unknown tickers get the closest matches.
+  - US-listed tickers are explained, with the Canadian-listed funds that follow the same index.
+- **Changes (F4, O3, X3, X4).**
+  - Back on every question, and typed changes for every answer.
+  - The optimizer re-runs at once and shows a before-and-after table: weights, expected return and volatility.
+  - Adjust keeps every fund except cash at 50% or less, and shows volatility.
+- **Conversation rules (C2, C3, C6, C7, E4).**
+  - A typed level waits for the questions and the assessment.
+  - Leverage and derivatives notices also cover funds the data leaves blank.
+  - More advice phrasings are caught, including levels and weights asked about as a personal decision.
+  - Out-of-scope questions get the tool's scope; comparisons with other products get "only covers ETFs at this time", with a definition.
+- **Output (X1, X2, X5, E3).**
+  - The disclosure appears next to every projection.
+  - The summary has three sections and includes the projection chart.
+  - Market context shows Canadian readings with their sources, and links to approved news sources.
+- **Claude.**
+  - Instructions follow the person's depth.
+  - No level is mentioned before the assessment.
+  - Replies with a directive, a label, a guarantee or an unsupported number are held back.
+- **Review.**
+  - Five audit lanes drove the page, and an independent check re-tested each lane.
+  - Three designs and a judge produced one specification.
+  - A cross-family reading by Gemini 3.8 Flash High found five defects. Each was reproduced, fixed and covered by a test.
+- **Tests.** web/test_converse.mjs: 511 checks. tests/ui/test_guided.py: 52 browser tests. tests/test_v32_prd.py: new.
+
 ## 3.1.0 (October 2026)
 
 The guided page becomes the web page: Yasmin's six wireframes with the team's conversation script and Requirements

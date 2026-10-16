@@ -106,7 +106,9 @@ def _universe_rows(U: pd.DataFrame, market: str) -> list:
         row = []
         for c in cols:
             v = r[c]
-            if isinstance(v, pd.Timestamp):
+            if v is pd.NaT:
+                row.append(None)  # D3: a missing date stays blank (it used to be written as the text "NaT")
+            elif isinstance(v, pd.Timestamp):
                 row.append(str(v.date()))
             elif isinstance(v, (bool, np.bool_)):
                 row.append(bool(v))

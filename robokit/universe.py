@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .classify import classify
+from .classify import classify, locked_category_problem
 from .config import DATA_DIR, MIN_AUM, MIN_DOLLAR_VOLUME, MIN_HISTORY_MONTHS, RAW_DIR
 from .data.prices import dollar_volume, monthly_returns
 
@@ -219,6 +219,9 @@ def build_universe(save: bool = True) -> pd.DataFrame:
     reasons = []
     for _, r in U.iterrows():
         why = []
+        locked = locked_category_problem(r)
+        if locked:
+            why.append(locked)
         if r.cdr:
             why.append("not an ETF: a depositary receipt on one company")
         if r.leverage != 1.0:

@@ -1,7 +1,7 @@
 {
   "name": "robo-kit",
   "displayName": "Robo-Kit ETF portfolio lab",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Do-it-yourself ETF portfolio lab for Canadian (CAD) and US-listed ETFs: a fixed risk self-check, neutral fund filters, an equilibrium mean-variance engine, stress tests and projections. Every number comes from deterministic tools; the guide explains and never recommends.",
   "author": {
     "name": "Robo-Kit team (MMAI 823, Smith School of Business)"

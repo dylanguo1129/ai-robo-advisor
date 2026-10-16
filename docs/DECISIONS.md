@@ -142,6 +142,17 @@ generated inputs): web/test_robokit.mjs, web/test_engine.mjs, web/test_safety.mj
 | W7 | The page offers Canadian-listed ETFs only | CA | Requirements Plan (out of scope: anything outside Canadian ETFs and the Canadian context); the engine and the other surfaces keep both markets | policy |
 | W8 | A zero-match preference names the filter to drop and asks first | fees, size, index-only, in that order | Conversation script (never loosen silently); browser test | done |
 
+## 15. PRD v3: open conversation and explanation depth (3.2.0)
+
+| # | Decision | Value | Evidence | Status |
+|---|---|---|---|---|
+| V1 | Depth is a session value from what the person says (any time) or, if the calibration is skipped, inferred once the first questions are answered; it is never shown as a label | novice / some / expert; cues capped, tickers alone never reach expert | PRD v3 F1; three-design panel; Node and browser tests | done |
+| V2 | Depth changes words, what is open first and how much is shown on the results; never a step, an option value or a number | three wordings per question; standard = the approved text | PRD v3 E1 and UX; a browser test checks identical weights at every depth | done |
+| V3 | Every typed answer goes through one gate: option values only; risk answers count only on their own card, so a drop answer said in passing is highlighted and checked with the person's numbers | `admit`, `OPEN_ONLY` | PRD v3 C1, C2; cross-family review findings 1, 2 | done |
+| V4 | "Back to building your portfolio?" stays after a side question (it now names the next question) | the user's requirement | The design panel proposed re-showing the question instead; the user asked for this prompt | done |
+| V5 | The Claude-led interview (Claude asks the questions, code records) is not built | phase 3 of the specification | It needs one live rehearsal on the owner's account; the page runs fully without it | open |
+| V6 | Market news is linked to approved sources, not copied | BNN Bloomberg, CNN Business, Nasdaq | PRD v3 E3, X5; the copied headlines came from sources outside that list | done; the team confirms the list |
+
 ## Examination record
 
 Two outside examiners from different model families (cross-family, so neither shares the author's blind spots) were

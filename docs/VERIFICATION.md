@@ -506,3 +506,19 @@ self-rating C0 and the flag F_self_vs_drop; answers without C0 score as before.
 | `python -m pytest -q` | 653 passed locally (with the local data archive; CI runs the same suite without it and skips the data-dependent tests) |
 | `python -m pytest -m ui -q tests/ui` | 99 passed (29 on the guided page, 70 on web/classic.html) |
 | `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |
+
+### 8.11 PRD v3: open conversation and explanation depth (15 Oct 2026, v3.2.0)
+
+docs/research/requirements_coverage_v32.md maps each requirement of the team's PRD v3 and each row of Yasmin's cross-check to the code and its test.
+
+| Check | Result |
+|---|---|
+| Audit of the page against PRD v3: five lanes driving the page headlessly, each re-tested by an independent checker | Gaps found and fixed, each with a test. Yasmin's cross-check was made on an older build; every row is now met. |
+| Design: three independent designs (Claude-led interview, local conversation, depth by experience) and a judge who checked each claim against the code | One specification. Phases 1 and 2 are built; phase 3 (the Claude-led interview) is not, because it needs a live rehearsal on the owner's account. |
+| Cross-family review: Gemini 3.8 Flash High (the Cursor pools were out of usage) read the three changed files and the PRD | 5 findings, all reproduced and fixed with tests: a drop answer typed early; a debt amount read as the amount to invest; "sell nothing"; a bare number at the timing question; "none" at income. |
+| `node web/test_converse.mjs` | 511 checks pass: the reader, the gate, depth, the wording at three depths, the scoring rule against `scoreProfile` for all 25 horizon pairs, number provenance through validate.js, and the reply checks. |
+| `python -m pytest -q tests/test_v32_prd.py` | Locked categories in Python and JavaScript; no "NaT" in the published data. |
+| `python -m pytest -m ui -q tests/ui/test_guided.py` | 52 passed. Includes: a story opener asks only what's missing; the same weights at every depth; inferred depth never shown; checkpoint without a level; advice never reaches a model; experienced results show more; a phone width under the hood. |
+| `python -m pytest -q` | 658 passed locally (with the local data archive; CI runs it without the archive and skips the data-dependent tests) |
+| `python -m pytest -m ui -q tests/ui` | 122 passed (52 on the guided page, 70 on web/classic.html) |
+| `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |

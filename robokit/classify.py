@@ -58,6 +58,27 @@ REGIONS = (
     "Other single country",
 )
 
+STRATEGIES = (
+    "Index: market cap",
+    "Index: factor / smart beta",
+    "Active",
+    "Options-based",
+    "Leveraged / inverse (daily reset)",
+)
+
+
+def locked_category_problem(row) -> str:
+    """D2: a category outside the locked lists is flagged, never used. Returns the reason, or "" when every category is
+    in its list. ``row`` is any mapping with asset_class, region and strategy."""
+    for field, allowed in (("asset_class", ASSET_CLASSES), ("region", REGIONS), ("strategy", STRATEGIES)):
+        v = row.get(field) if hasattr(row, "get") else getattr(row, field, None)
+        if v is None or (isinstance(v, float) and v != v):
+            continue  # D3: a missing value stays blank; the screen checks it where it is used
+        if v not in allowed:
+            return f"category not in the locked list: {field} '{v}'"
+    return ""
+
+
 ISSUERS = [
     (r"^ishares|\bishares\b|blackrock", "BlackRock iShares"),
     (r"^vanguard|\bvanguard\b", "Vanguard"),
