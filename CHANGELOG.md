@@ -1,5 +1,39 @@
 # Changelog
 
+## 3.3.0 (October 2026)
+
+The team's second round of feedback on the guided page, as Yasmin consolidated it (prototype review, "cleaned up feedback v2"), and her Penguru brand kit. Only the listed changes were made.
+
+- **The name and the brand.**
+  - The guided page is now **Penguru**: the title, the header, every fixed sentence, Claude's instructions and the summary file. The engine (robokit.js, core.json, the Python package) keeps its name, so the page renames the engine's words as they come in.
+  - The brand kit's colours: navy #12263F, ice blue #2F7FB0 for charts, gold #E8A33D for highlights, slate #4A5A6E for body text, and mist #F4F6F9 for the background. Dark mode has its own steps.
+  - The kit's typeface, Sora, at weights 400, 600 and 700.
+  - The kit's mark is redrawn as an SVG for the header, the greeting and the favicon. Below 32 px the chart line is dropped, as the kit says.
+- **Removed or simplified.**
+  - No shortlist preview: after the optional ticker question the mix is built at once. Funds can still be added or removed by typing on the mix.
+  - No word definitions printed under messages: investing words are buttons that show their definition.
+  - Question 3 ("Once you start, how long will you keep taking money out?") is no longer asked, since it repeated question 2. It still feeds the risk capacity, so the page fills it in from the goal:
+    - a home: all at once;
+    - education: 2 to 5 years;
+    - retirement: more than 10 years;
+    - anything else: the engine's middle setting;
+    - building wealth: not used, as before.
+
+    The filled-in answer is marked "assumed from your goal" in the checkpoint, the answers, the explanation of the level and the summary. Change asks the question; a typed answer replaces it. Money for a home needed within two years still gets no stock mix.
+  - No market note in the middle of the questions; the Market context section stays on the mix. This also fixes the ticker question that appeared twice.
+- **Fixed.**
+  - A term, a "Learn more" or a suggested question tapped again points to the explanation already on screen and highlights it, instead of adding it again.
+  - Words are linked to a term only in their investing sense:
+    - "the biggest factor in" is no longer a factor fund;
+    - a risk or price index is not a market index;
+    - a distribution of outcomes is not a fund distribution;
+    - "capacity" and "yields" on their own are not linked.
+  - Nothing said before the assessment mentions a risk level; the assessment is where it is introduced. The careful-side messages for no emergency fund or high-interest debt, the fine-tune offer and "How this is scored" were reworded. A typed term question no longer shows the person's level figures before the assessment.
+- **Engine.** `score()` in Python and `scoreProfile()` in the browser take an optional list of assumed answers. These score exactly as given answers and are worded as assumptions.
+- **Found by the cross-family review and fixed.**
+  - A ticker that adds nothing (such as the US-listed SPY) keeps the ticker question open, so the Canadian alternatives can be added.
+  - A term tapped again on the mix highlights the copy on the mix, not the one on the hidden chat screen.
+
 ## 3.2.0 (October 2026)
 
 The team's PRD v3 and Yasmin's cross-check. Her two main points were the open conversation flow and the explanation depth by experience. This release covers those plus the PRD's new data, filtering and output rules. docs/research/requirements_coverage_v32.md maps every requirement to its code and test.

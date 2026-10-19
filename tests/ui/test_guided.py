@@ -57,7 +57,6 @@ class Guide:
         self.pg.click('[data-prompt="1"]')
         self.tap("EXP", depth)
         self.tap("B1", "20plus")
-        self.tap("B2", "10plus")
         self.tap("A2", "yes")
         self.tap("A3", "no")
         self.pg.locator("[data-money='25000']").last.click()
@@ -79,7 +78,6 @@ class Guide:
         self.pg.click('[data-act="assess-ok"]')
         self.pg.locator('[data-skip="PREFS"]').last.click()
         self.pg.locator('[data-skip="TICKER"]').last.click()
-        self.pg.locator('[data-act="calculate"]').last.click()
         self.pg.wait_for_selector(".fund", timeout=30000)
 
     def close(self):
@@ -310,10 +308,7 @@ def test_optional_steps_accept_typed_replies(guide):
     g.pg.check("#ack")
     g.pg.click('[data-act="assess-ok"]')
     g.say("skip")  # preferences
-    g.say("no")  # tickers
-    assert g.pending_step() == "SHORTLIST"
-    g.pg.fill("#chat-in", "looks good, calculate")  # this one leaves the chat for the mix, so no new message to wait for
-    g.pg.press("#chat-in", "Enter")
+    g.say("no")  # tickers: then the mix is built, with no shortlist preview (v3.3)
     g.pg.wait_for_selector(".fund", timeout=30000)
     assert g.js("window.robokitGuide.st.prefsDone && window.robokitGuide.st.tickerDone")
 
@@ -323,7 +318,6 @@ def test_the_emergency_fund_check_caps_the_level(guide):
     g.pg.click('[data-prompt="1"]')
     g.tap("EXP", "some")
     g.tap("B1", "20plus")
-    g.tap("B2", "10plus")
     g.tap("A2", "no")
     g.tap("A3", "no")
     g.pg.locator("[data-money='25000']").last.click()
@@ -338,7 +332,6 @@ def test_the_emergency_fund_check_caps_the_level(guide):
     g.pg.click('[data-act="assess-ok"]')
     g.pg.locator('[data-skip="PREFS"]').last.click()
     g.pg.locator('[data-skip="TICKER"]').last.click()
-    g.pg.locator('[data-act="calculate"]').last.click()
     g.pg.wait_for_selector(".fund", timeout=30000)
     assert g.js("window.robokitGuide.st.level") <= 2
     assert g.js("[3, 4, 5].every(L => document.querySelector(`.levels [data-level='${L}']`).disabled)")
@@ -393,7 +386,6 @@ def test_amounts_with_commas_and_both_basics_in_one_line(guide):
     g.pg.click('[data-prompt="1"]')
     g.tap("EXP", "novice")
     g.tap("B1", "20plus")
-    g.tap("B2", "10plus")
     g.say("yes, no debt")
     a = g.js("window.robokitGuide.st.answers")
     assert a.get("A2") == "yes" and a.get("A3") == "no", a
@@ -414,16 +406,9 @@ def test_bare_tickers_are_added_at_any_step_and_no_builds_from_the_shortlist(gui
     assert g.js("window.robokitGuide.st.picks") == ["XEQT.TO"]
 
 
-def test_the_shortlist_accepts_no_and_an_unchanged_shortlist_asks_no_rebuild(guide):
+def test_an_unchanged_shortlist_asks_no_rebuild(guide):
     g = guide()
-    g.to_assessment()
-    g.pg.check("#ack")
-    g.pg.click('[data-act="assess-ok"]')
-    g.pg.locator('[data-skip="PREFS"]').last.click()
-    g.pg.locator('[data-skip="TICKER"]').last.click()
-    g.pg.fill("#chat-in", "no, that's fine")
-    g.pg.press("#chat-in", "Enter")
-    g.pg.wait_for_selector(".fund", timeout=30000)
+    g.to_mix()
     held = g.js("window.robokitGuide.st.base.holdings[0].symbol")
     events = g.js("window.robokitGuide.st.events.length")
     g.pg.fill("#chat-in", f"add {held}")
@@ -534,7 +519,8 @@ def test_a_story_opener_only_asks_whats_missing(guide):
     assert "Here's what I have so far" in text and "the condo" in text
     assert g.js("document.querySelectorAll('.noted-chip').length") >= 4
     g.tap("EXP", "some")
-    assert g.pending_step() == "B2"  # goal, horizon, amount and debt are not asked again
+    assert g.pending_step() == "BASICS"  # goal, horizon, amount and debt are not asked again; how it comes out follows the goal
+    assert g.js("window.robokitGuide.st.answers.B2") == "once" and g.js("window.robokitGuide.st.auto.has('B2')")
 
 
 def test_answers_given_out_of_order_are_kept(guide):
@@ -543,7 +529,8 @@ def test_answers_given_out_of_order_are_kept(guide):
     g.say("no debt")
     g.say("all at once")
     a = g.js("window.robokitGuide.st.answers")
-    assert a.get("A3") == "no" and a.get("A2") is None and a.get("B2") == "once", a
+    assert a.get("A3") == "no" and a.get("A2") is None and a.get("B2") == "once", a  # said, so it replaces the goal's assumption
+    assert not g.js("window.robokitGuide.st.auto.has('B2')")
     assert g.js("window.robokitGuide.st.depthSrc") == "skipped"
 
 
@@ -591,7 +578,6 @@ def test_experience_is_inferred_when_skipped_and_never_shown(guide):
     g.pg.click('[data-prompt="1"]')
     g.pg.locator('[data-act="skip-exp"]').last.click()
     g.say("20+ years, my target is a 60/40 split with low tracking error")
-    g.tap("B2", "10plus")
     g.tap("A2", "yes")
     g.tap("A3", "no")
     g.pg.locator("[data-money='25000']").last.click()
@@ -635,7 +621,8 @@ def test_an_unread_reply_is_rephrased_then_explained(guide):
     assert "Sorry, I didn't quite follow that." in " ".join(g.last(2))
     g.say("hmm")
     two = " ".join(g.last(2))
-    assert "fits a home down payment" in two and "Even a rough guess is fine" in two
+    # v3.3: no withdrawal question, so the basics come next
+    assert "An emergency fund is money you can reach quickly" in two and "Even a rough guess is fine" in two
     assert "I didn't catch that" not in bot_texts(g)
 
 
@@ -686,7 +673,6 @@ def test_a_drop_answer_given_early_is_confirmed_with_numbers(guide):
     g = guide()
     type_home(g, "I'm saving for retirement in 25 years and I'd hold through a crash")
     g.tap("EXP", "novice")
-    g.tap("B2", "10plus")
     g.tap("A2", "yes")
     g.tap("A3", "no")
     g.pg.locator("[data-money='25000']").last.click()
@@ -707,7 +693,6 @@ def test_the_checkpoint_summarizes_without_a_level(guide):
     g.pg.click('[data-prompt="1"]')
     g.tap("EXP", "novice")
     g.tap("B1", "20plus")
-    g.tap("B2", "10plus")
     g.tap("A2", "yes")
     g.tap("A3", "no")
     g.pg.locator("[data-money='25000']").last.click()
@@ -797,9 +782,186 @@ def test_none_is_an_answer_to_the_income_question(guide):
     g.pg.click('[data-prompt="1"]')
     g.tap("EXP", "some")
     g.tap("B1", "20plus")
-    g.tap("B2", "10plus")
     g.tap("A2", "yes")
     g.tap("A3", "no")
     g.pg.locator("[data-money='25000']").last.click()
     g.say("none")
     assert g.js("window.robokitGuide.st.answers.B5") == "none"
+
+
+# ------------------------------------------------------------------ v3.3: the team's cleaned-up feedback (Penguru review, tab 3)
+
+
+def test_v33_the_page_is_penguru_with_the_brand_kit(guide):
+    g = guide()
+    assert g.pg.title() == "Penguru"
+    assert g.js("document.querySelector('.brand b').textContent") == "Penguru" and g.js("!!document.querySelector('.brand svg.logo')")
+    assert "Sora" in g.js("getComputedStyle(document.body).fontFamily")
+    assert g.js("getComputedStyle(document.documentElement).getPropertyValue('--ink').trim().toUpperCase()") == "#12263F"
+    g.to_mix()
+    text = g.js("document.body.innerText")
+    assert "Robo-Kit" not in text and "Penguru is an educational tool" in text  # the engine's disclosure is renamed too
+    assert "Robo-Kit" not in g.js("window.robokitGuide.summary()")
+
+
+def test_v33_the_opening_has_no_printed_definitions_and_carries_the_mark(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    hello = g.js("document.querySelector('#thread .k-hello').innerText")
+    assert hello.startswith("Hi, I'm Penguru.")
+    assert g.js("!!document.querySelector('#thread .k-hello svg.logo')")
+    assert g.js("document.querySelectorAll('#thread .defs').length") == 0  # the words are buttons instead
+    assert g.js("document.querySelectorAll('#thread .k-hello .term').length") >= 1
+
+
+def test_v33_a_term_or_learn_more_tapped_twice_is_shown_once(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    term = g.js("document.querySelector('#thread .k-hello .term').dataset.term")
+    for _ in range(3):
+        g.pg.locator("#thread .k-hello .term").first.click()
+    assert g.js(f"window.robokitGuide.st.log.filter(m => m.def === 'term:{term}').length") == 1
+    g.pg.wait_for_function("!!document.querySelector('#thread .msg.flash')", timeout=5000)  # the earlier one is pointed to
+    g.tap("EXP", "some")
+    for _ in range(2):
+        g.pg.locator('[data-learn="B1"]').last.click()
+    assert g.js("window.robokitGuide.st.log.filter(m => m.def === 'learn:B1').length") == 1
+
+
+def test_v33_a_suggested_question_tapped_twice_is_answered_once(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "novice")
+    chip = '[data-ask="Why does time matter?"]'
+    g.pg.locator(chip).last.click()
+    g.pg.wait_for_function("window.robokitGuide.st.log.some(m => m.def === 'ask:Why does time matter?')", timeout=10000)
+    g.pg.locator(chip).first.click()
+    assert g.js("window.robokitGuide.st.log.filter(m => m.who === 'me' && m.text === 'Why does time matter?').length") == 1
+
+
+def test_v33_factor_is_not_linked_outside_its_investing_sense(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "novice")
+    g.say("Why does time matter?")
+    assert "biggest factor" in " ".join(g.last(3))  # the answer Javed flagged
+    assert g.js("document.querySelectorAll('[data-term=factor]').length") == 0
+
+
+def test_v33_no_risk_level_is_mentioned_before_the_assessment(guide):
+    import re
+
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "novice")
+    g.tap("B1", "20plus")
+    g.tap("A2", "no")  # the gate that used to say "keeps the level at 2 or below"
+    g.tap("A3", "lot")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.tap("B5", "mostly")
+    g.tap("C0", "medium")
+    g.tap("C2", "wait")
+    seen = g.js("document.querySelector('#thread').innerText")
+    assert not re.search(r"\blevels?\b", seen, re.I), re.findall(r".{60}\blevels?\b.{20}", seen, re.I)
+    if g.pending_step() == "RECON":
+        g.tap("RECON", "C2")
+    g.tap("C1", "3")
+    assert not re.search(r"\blevels?\b", g.js("[...document.querySelectorAll('.step-card')].at(-1).innerText"), re.I)  # the fine-tune offer
+    g.tap("FT", "no")
+    g.pg.wait_for_selector("#assess .means", timeout=30000)
+    assert "SUGGESTED RISK LEVEL" in g.js("document.querySelector('#assess').innerText").upper()  # introduced here, with what it means
+
+
+def test_v33_preferences_lead_straight_to_the_tickers_then_the_mix(guide):
+    g = guide()
+    g.to_assessment()
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-pref="focus"][data-key="esg"]').last.click()
+    g.pg.locator('[data-act="prefs-apply"]').last.click()
+    g.pg.wait_for_selector('.step-card[data-step="TICKER"]', timeout=15000)
+    thread = g.js("document.querySelector('#thread').innerText")
+    assert "Quick note" not in thread and "Keep going as planned" not in thread  # no market note mid-flow
+    assert g.js("document.querySelectorAll('.step-card[data-step=TICKER]').length") == 1  # the ticker question once
+    g.pg.locator('[data-skip="TICKER"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)  # no shortlist preview, no Calculate button
+    assert g.js("document.querySelectorAll('[data-act=calculate]').length") == 0
+    assert "Market context" in g.js("document.querySelector('[data-screen=mix]').innerText")  # context stays on the mix
+
+
+def test_v33_the_withdrawal_plan_follows_the_goal_and_can_be_changed(guide):
+    g = guide()
+    g.to_assessment()
+    how = g.js("document.querySelector('#assess').textContent")  # "How this was worked out" is a closed <details>
+    assert "more than 10 years, assumed from your goal" in how
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.locator('[data-skip="TICKER"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    answers = g.js("document.querySelector('dl.answers').textContent")  # inside the closed "Your answers" panel
+    assert "assumed from your goal" in answers
+    g.pg.locator("details.more summary").first.click()  # open "Your answers"
+    g.pg.locator('dl.answers [data-change="B2"]').click()
+    g.pg.wait_for_selector('.step-card[data-step="B2"]', timeout=15000)
+    g.tap("B2", "once")
+    assert g.js("window.robokitGuide.st.answers.B2") == "once" and not g.js("window.robokitGuide.st.auto.has('B2')")
+
+
+def test_v33_a_home_needed_within_two_years_gets_no_stock_mix(guide):
+    g = guide()
+    g.pg.click('[data-prompt="2"]')  # saving for a home: all at once, assumed
+    g.tap("EXP", "some")
+    g.tap("B1", "lt2")
+    assert g.js("window.robokitGuide.st.answers.B2") == "once"
+    assert g.pending_step() == "BASICS"  # no withdrawal question
+
+
+def test_v33_a_ticker_that_adds_nothing_keeps_the_question_open(guide):
+    # found by the cross-family review: with no shortlist preview, "SPY" built the mix before its alternatives could be used
+    g = guide()
+    g.to_assessment()
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.wait_for_selector('.step-card[data-step="TICKER"]', timeout=15000)
+    g.say("SPY")
+    assert g.js("window.robokitGuide.st.screen") == "chat" and g.pending_step() == "TICKER"
+    adds = g.js("[...document.querySelectorAll('#thread [data-add]')].map(b => b.dataset.add)")
+    assert adds, "the Canadian-listed alternatives are offered"
+    pick = next((t for t in adds if not t.startswith("VFV")), adds[0])
+    g.pg.locator(f'#thread [data-add="{pick}"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    assert pick in g.js("window.robokitGuide.st.picks") or pick.startswith("VFV")
+
+
+def test_v33_a_term_tapped_again_on_the_mix_points_to_the_mix_copy(guide):
+    # found by the cross-family review: the highlight went to the copy on the hidden chat screen
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "novice")
+    g.tap("B1", "20plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.tap("B5", "mostly")
+    g.tap("C0", "medium")
+    g.pg.locator('[data-learn="C2"]').last.click()
+    g.pg.locator('#thread [data-def="learn:C2"] .term[data-term="stock"]').click()
+    assert g.js("window.robokitGuide.st.log.some(m => m.def === 'term:stock')")
+    g.tap("C2", "wait")
+    if g.pending_step() == "RECON":
+        g.tap("RECON", "C2")
+    g.tap("C1", "3")
+    g.tap("FT", "no")
+    g.pg.wait_for_selector("#assess .means", timeout=30000)
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.locator('[data-skip="TICKER"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    term = '[data-screen="mix"] .fund .term[data-term="stock"]'
+    g.pg.locator(term).first.click()
+    g.pg.locator(term).first.click()
+    assert g.js("window.robokitGuide.st.qa.mix.filter(m => m.def === 'term:stock').length") == 1
+    g.pg.wait_for_selector('#qa-mix .msg.flash[data-def="term:stock"]', timeout=5000)

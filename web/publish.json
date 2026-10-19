@@ -14,7 +14,7 @@
   ],
   "markets": ["CA"],
   "capabilities": {"sample": {}, "comments": {"composer_only": true}, "downloads": true},
-  "title": "Robo-Kit",
+  "title": "Penguru",
   "icon": "chart",
   "description": "A guided conversation that builds an ETF portfolio from Canadian-listed ETFs, explains every step, and answers questions on the viewer's own Claude plan."
 }

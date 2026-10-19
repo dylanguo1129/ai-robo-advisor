@@ -275,8 +275,11 @@ def _item_answer(item_id: str, value) -> dict:
     return {"id": item_id, "question_en": it["text"], "answer_en": o["text"]}
 
 
-def score(answers: dict) -> ProfileResult:
-    """Score the self-check. ``answers`` maps item id -> option value (amount B3 is a number)."""
+def score(answers: dict, assumed=None) -> ProfileResult:
+    """Score the self-check. ``answers`` maps item id -> option value (amount B3 is a number). ``assumed`` names the
+    answers a page filled in from another answer rather than asked (the guided page sets B2 from the goal): they score
+    exactly the same and are worded as assumptions in the explanation."""
+    assumed = set(assumed or ())
     a = {k: v for k, v in (answers or {}).items() if v is not None and v != ""}
     for k, v in a.items():  # reject answers that are not one of the fixed options
         if k in ITEM and ITEM[k]["options"]:
@@ -325,6 +328,8 @@ def score(answers: dict) -> ProfileResult:
         base = 1 if H <= 2 else 2 if H <= 5 else 3 if H <= 9 else 4 if H <= 12 else 5
         b1o, b2o = _opt("B1", a["B1"]), _opt("B2", b2)
         how_en = b2o["text"].lower() if b2_asked else "not asked (no fixed date)"
+        if b2_asked and "B2" in assumed:
+            how_en += ", assumed from your goal"
         why_en.append(f"Time horizon (start taking money out: {b1o['text'].lower()}; for how long: {how_en}) allows up to level {base}.")
         cap_items.append({**_item_answer("B1", a["B1"]), "effect_en": f"allows up to level {base}"})
         if b2_asked:

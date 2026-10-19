@@ -1,4 +1,4 @@
-"""Check what gets published as the Robo-Kit web page, and print the publish settings.
+"""Check what gets published as the web page (Penguru, built on the Robo-Kit engine), and print the publish settings.
 
 The page is a claude.ai Artifact made from the files listed in web/publish.json. This script checks that list against
 the code (every module, worker and data file the page loads is listed, and nothing else), checks the sizes against
@@ -173,7 +173,7 @@ def main(argv):
         print(json.dumps(settings(m), indent=2))
         return 0 if not problems(m) else 1
     found = problems(m)
-    print("Robo-Kit web page: what gets published\n")
+    print("Penguru web page: what gets published\n")
     for f in [m["page"], *m["files"]]:
         p = WEB / f
         if p.is_file():

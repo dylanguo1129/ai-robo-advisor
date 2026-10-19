@@ -153,6 +153,19 @@ generated inputs): web/test_robokit.mjs, web/test_engine.mjs, web/test_safety.mj
 | V5 | The Claude-led interview (Claude asks the questions, code records) is not built | phase 3 of the specification | It needs one live rehearsal on the owner's account; the page runs fully without it | open |
 | V6 | Market news is linked to approved sources, not copied | BNN Bloomberg, CNN Business, Nasdaq | PRD v3 E3, X5; the copied headlines came from sources outside that list | done; the team confirms the list |
 
+## 16. The team's second feedback round and the Penguru brand (3.3.0)
+
+| # | Decision | Value | Evidence | Status |
+|---|---|---|---|---|
+| P1 | The guided page is named Penguru; the engine and the Python package keep the name Robo-Kit, and the page renames the engine's words on the way in | `brand()` in guide.js | Feedback v2 (cleaned up), "ADD" 1; the report V1 uses Penguru | done |
+| P2 | The brand kit's colours and typeface replace the page tokens; asset-class hues stay for data only | navy, ice blue, gold, slate, mist; Sora 400/600/700 | Feedback "ADD" 2; brand kit "Colour & type" | done |
+| P3 | The brand mark is redrawn as an inline SVG from the kit's icon, without the chart line below 32 px | header 30 px, greeting 34 px, favicon | Brand kit "Icon variants" (the kit could not be exported into the repo from this session) | done; swap in the kit's own SVG when exported |
+| P4 | Question 3 (B2) is not asked; it is filled in from the goal and marked as assumed, and it scores exactly as a given answer | home: all at once; education: 2 to 5 years; retirement: more than 10 years; other: not sure yet; wealth: not used | Feedback "REMOVE" 3. B2 moves the horizon points by up to five, so dropping it outright would move many people by a level. Assuming the typical answer for the goal keeps the score and the "not ready" gate for a home needed within two years | done |
+| P5 | After the ticker question the mix is built at once | no shortlist preview | Feedback "REMOVE" 1; funds can still be added or removed by typing on the mix | done |
+| P6 | No risk level is named before the assessment introduces it; "How this is scored" says what a risk level is before using one | the careful-side wording for the gates | Feedback "FIX" 10; Javed's review ("Robo-Kit level 2" was not understood) | done |
+| P7 | Words printed as definitions under messages are removed; the word buttons stay | E2 is met by the buttons | Feedback "REMOVE" 2; Monamee's review (static and dynamic definitions repeated) | done |
+| P8 | Anna's "button and its text shown twice" ("Back to building your portfolio?") is kept | the user's requirement (V4) | Not in the cleaned-up list | kept |
+
 ## Examination record
 
 Two outside examiners from different model families (cross-family, so neither shares the author's blind spots) were
