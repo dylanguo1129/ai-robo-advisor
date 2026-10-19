@@ -915,3 +915,53 @@ def test_v33_a_home_needed_within_two_years_gets_no_stock_mix(guide):
     g.tap("B1", "lt2")
     assert g.js("window.robokitGuide.st.answers.B2") == "once"
     assert g.pending_step() == "BASICS"  # no withdrawal question
+
+
+def test_v33_a_ticker_that_adds_nothing_keeps_the_question_open(guide):
+    # found by the cross-family review: with no shortlist preview, "SPY" built the mix before its alternatives could be used
+    g = guide()
+    g.to_assessment()
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.wait_for_selector('.step-card[data-step="TICKER"]', timeout=15000)
+    g.say("SPY")
+    assert g.js("window.robokitGuide.st.screen") == "chat" and g.pending_step() == "TICKER"
+    adds = g.js("[...document.querySelectorAll('#thread [data-add]')].map(b => b.dataset.add)")
+    assert adds, "the Canadian-listed alternatives are offered"
+    pick = next((t for t in adds if not t.startswith("VFV")), adds[0])
+    g.pg.locator(f'#thread [data-add="{pick}"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    assert pick in g.js("window.robokitGuide.st.picks") or pick.startswith("VFV")
+
+
+def test_v33_a_term_tapped_again_on_the_mix_points_to_the_mix_copy(guide):
+    # found by the cross-family review: the highlight went to the copy on the hidden chat screen
+    g = guide()
+    g.pg.click('[data-prompt="1"]')
+    g.tap("EXP", "novice")
+    g.tap("B1", "20plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.tap("B5", "mostly")
+    g.tap("C0", "medium")
+    g.pg.locator('[data-learn="C2"]').last.click()
+    g.pg.locator('#thread [data-def="learn:C2"] .term[data-term="stock"]').click()
+    assert g.js("window.robokitGuide.st.log.some(m => m.def === 'term:stock')")
+    g.tap("C2", "wait")
+    if g.pending_step() == "RECON":
+        g.tap("RECON", "C2")
+    g.tap("C1", "3")
+    g.tap("FT", "no")
+    g.pg.wait_for_selector("#assess .means", timeout=30000)
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.locator('[data-skip="TICKER"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    term = '[data-screen="mix"] .fund .term[data-term="stock"]'
+    g.pg.locator(term).first.click()
+    g.pg.locator(term).first.click()
+    assert g.js("window.robokitGuide.st.qa.mix.filter(m => m.def === 'term:stock').length") == 1
+    g.pg.wait_for_selector('#qa-mix .msg.flash[data-def="term:stock"]', timeout=5000)

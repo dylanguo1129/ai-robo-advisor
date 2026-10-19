@@ -168,8 +168,9 @@ function bot(m) {
   return msg;
 }
 /** An explanation already on screen is shown again, not repeated: scroll to it and highlight it (v3.3). */
-function flashDef(key) {
-  const el = [...document.querySelectorAll('[data-def]')].find((x) => x.dataset.def === key); if (!el) return;
+function flashDef(key, list) {
+  const root = document.querySelector(list === st.log ? '#thread' : list === st.qa.lm ? '#lm-qa-list' : `#qa-${st.screen}`);
+  const el = [...(root?.querySelectorAll('[data-def]') || [])].find((x) => x.dataset.def === key); if (!el) return;
   el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
 const shownIn = (list, key) => list.some((m) => m.def === key);
@@ -657,7 +658,10 @@ function addPicks(ts, unknown = []) {
     bot(`Added ${f.symbol} (${f.name}) to your shortlist as your own pick.${C.leverageNote(f) ? ` ${C.leverageNote(f)}` : ''}`);
     event(`Added ${f.symbol} as an own pick`);
   }
-  st.tickerDone = st.tickerDone || pending() === 'TICKER';
+  if (pending() === 'TICKER') {  // v3.3: the mix is built next, so the step closes only when a fund was actually added
+    if (JSON.stringify([st.picks, [...st.exclude]]) === before) { bot({ step: 'TICKER', short: true }); render(); return; }
+    st.tickerDone = true;
+  }
   if (st.built) { if (JSON.stringify([st.picks, [...st.exclude]]) !== before) { st.changed = true; liveRebuild('your shortlist changed'); return; } render(); return; }
   advance();
 }
@@ -1304,7 +1308,7 @@ document.addEventListener('click', (e) => {
   if (b.dataset.term) {
     const k = b.dataset.term, g = eng.core.glossary[k]?.en || KB.TERMS[k]; if (!g) return;
     const key = `term:${k}`, list = st.dialog === 'lm' ? st.qa.lm : st.screen === 'chat' ? st.log : (st.qa[st.screen] ||= []);
-    if (shownIn(list, key)) { flashDef(key); return; }
+    if (shownIn(list, key)) { flashDef(key, list); return; }
     if (!st.learned.includes(g.term)) st.learned.push(g.term);
     list.push({ who: 'bot', text: `${g.term}: ${g.definition}`, def: key });
     if (list === st.log) renderThread(); else renderQA();
@@ -1318,13 +1322,13 @@ document.addEventListener('click', (e) => {
   if (b.dataset.learn) {
     const id = b.dataset.learn, key = `learn:${id}`, msg = (id === 'CONTEXT' ? KB.CONTEXT_LEARN_CA : '') || KB.LEARN[id] || '';
     const list = st.screen === 'chat' ? st.log : (st.qa[st.screen] ||= []);
-    if (shownIn(list, key)) { flashDef(key); return; }
+    if (shownIn(list, key)) { flashDef(key, list); return; }
     if (st.screen === 'chat') { me('Learn more'); bot({ text: msg, def: key }); bot({ kind: 'back' }); render(); } else { list.push({ who: 'bot', text: msg, def: key }); renderQA(); }
     return;
   }
   if (b.dataset.ask || b.dataset.askLm) {  // a suggested question: answered once, then shown again on later taps
     const text = b.dataset.ask || b.dataset.askLm, key = `ask:${text}`, list = b.dataset.ask ? st.log : (st.qa[st.dialog === 'lm' ? 'lm' : st.screen] ||= []);
-    if (shownIn(list, key)) { flashDef(key); return; }
+    if (shownIn(list, key)) { flashDef(key, list); return; }
     const n = list.length;
     (b.dataset.ask ? onChatText(text) : onSideText(text)).then(() => { const m = list.slice(n).find((x) => x.who === 'bot' && x.text && !x.kind && !x.step); if (m) { m.def = key; if (list === st.log) renderThread(); else renderQA(); } });
     return;

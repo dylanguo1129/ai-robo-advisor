@@ -30,6 +30,9 @@ The team's second round of feedback on the guided page, as Yasmin consolidated i
     - "capacity" and "yields" on their own are not linked.
   - Nothing said before the assessment mentions a risk level; the assessment is where it is introduced. The careful-side messages for no emergency fund or high-interest debt, the fine-tune offer and "How this is scored" were reworded. A typed term question no longer shows the person's level figures before the assessment.
 - **Engine.** `score()` in Python and `scoreProfile()` in the browser take an optional list of assumed answers. These score exactly as given answers and are worded as assumptions.
+- **Found by the cross-family review and fixed.**
+  - A ticker that adds nothing (such as the US-listed SPY) keeps the ticker question open, so the Canadian alternatives can be added.
+  - A term tapped again on the mix highlights the copy on the mix, not the one on the hidden chat screen.
 
 ## 3.2.0 (October 2026)
 
