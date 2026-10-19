@@ -762,7 +762,7 @@ export function slotsFrom(st) {
   return {
     goal: own && a.A1 !== 'retirement' ? `saving for ${own}` : KB.PHRASE.A1[a.A1], goal_np: own || KB.GOAL_NP[a.A1] || 'this money',
     when: st.words?.years != null && a.B1 ? `in about ${st.words.years} years` : KB.PHRASE.B1[a.B1],
-    how: a.B2 && a.A1 !== 'wealth' && a.A1 !== 'learning' ? `, ${KB.PHRASE.B2[a.B2]}` : '',
+    how: a.B2 && a.A1 !== 'wealth' && a.A1 !== 'learning' ? `, ${KB.PHRASE.B2[a.B2]}${st.auto?.has?.('B2') ? ' (assumed from your goal)' : ''}` : '',
     ef: KB.PHRASE.A2[a.A2], debt: KB.PHRASE.A3[a.A3], income: KB.PHRASE.B5[a.B5],
     amount: st.amountSet ? m(st.amount) : null, after: st.amountSet ? m(st.amount * 0.8) : null,
     monthly: st.monthly ? ` plus ${m(st.monthly)} a month` : '',

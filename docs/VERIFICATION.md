@@ -522,3 +522,18 @@ docs/research/requirements_coverage_v32.md maps each requirement of the team's P
 | `python -m pytest -q` | 658 passed locally (with the local data archive; CI runs it without the archive and skips the data-dependent tests) |
 | `python -m pytest -m ui -q tests/ui` | 122 passed (52 on the guided page, 70 on web/classic.html) |
 | `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |
+
+### 8.12 The team's second feedback round and the Penguru brand (19 Oct 2026, v3.3.0)
+
+The list was the team's prototype review, "cleaned up feedback v2", with the screenshots in its two earlier tabs. docs/DECISIONS.md section 16 records each choice.
+
+| Check | Result |
+|---|---|
+| Each item, driven in the page (Browser pane, desktop, phone width and dark mode) | Penguru title, header mark and Sora type; no definitions printed under the greeting; the checkpoint names the withdrawal plan "assumed from your goal" and no level; the assessment introduces the level and says the plan was assumed; preferences go straight to one ticker question, then to the mix; no Calculate button; Market context stays on the mix |
+| Cross-family review: Gemini 3.8 Flash High, two blind lanes (Cursor pools out of usage) | LANE_A_RESULT. Scoring lane: no issue; it traced a changed goal, a withdrawal plan typed before or after the goal, Change on the plan, "building wealth" and "just learning" |
+| `node web/test_converse.mjs` | 537 checks pass. New: no "Robo-Kit" in the fixed words; terms only in their investing sense (factor, index, distribution, capacity, yields); no risk level in any text shown before the assessment; "How this is scored" says what a risk level is first; an assumed withdrawal plan scores the same, is named in the explanation and the checkpoint, and keeps the "not ready" gate |
+| `python -m pytest -q tests/test_v33_feedback.py` | 4 passed: the same rule in Python |
+| `python -m pytest -m ui -q tests/ui` | 131 passed (61 on the guided page, 70 on web/classic.html). Nine new guided tests, one per item |
+| `python -m pytest -q` | 662 passed locally (CI runs it without the data archive and skips the data-dependent tests) |
+| `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean; the data snapshot was rebuilt only for the engine version |
+

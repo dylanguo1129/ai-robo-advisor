@@ -1405,8 +1405,8 @@ export function explain(p) {
 }
 
 // ------------------------------------------------------------------ profile scoring (robokit/profile.py score)
-export function scoreProfile(items, answers) {
-  // port of robokit/profile.py score(): same rules, same wording, same fields
+export function scoreProfile(items, answers, { assumed = [] } = {}) {
+  // port of robokit/profile.py score(): same rules, same wording, same fields (assumed: answers filled in from another answer)
   const a = {}; for (const [k, v] of Object.entries(answers || {})) if (v != null && v !== '') a[k] = v;
   const item = (id) => items.find(x => x.id === id);
   const opt = (id, v) => { const it = item(id); const o = it && it.options.find(o => o.value === String(v)); if (!o) throw new Error(`${id}: unknown answer ${v}`); return o; };
@@ -1430,7 +1430,7 @@ export function scoreProfile(items, answers) {
     const b1o = opt('B1', a.B1), b2o = opt('B2', b2);
     const H = b1o.pts + b2o.pts;
     const base = H <= 2 ? 1 : H <= 5 ? 2 : H <= 9 ? 3 : H <= 12 ? 4 : 5;
-    const howEn = b2Asked ? b2o.text.toLowerCase() : 'not asked (no fixed date)';
+    const howEn = b2Asked ? b2o.text.toLowerCase() + (assumed.includes('B2') ? ', assumed from your goal' : '') : 'not asked (no fixed date)';
     whyEn.push(`Time horizon (start taking money out: ${b1o.text.toLowerCase()}; for how long: ${howEn}) allows up to level ${base}.`);
     capItems.push({ ...ia('B1', a.B1), effect_en: `allows up to level ${base}` });
     if (b2Asked) capItems.push({ ...ia('B2', b2), effect_en: `allows up to level ${base}` });

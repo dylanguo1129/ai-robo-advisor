@@ -98,7 +98,7 @@ ok('defines active and factor funds', /judgement/.test(C.localAnswer('what is an
 ok('context learn-more is neutral', !/followed by higher|returns/i.test(KB.CONTEXT_LEARN));
 
 // fixed words: every step has a reason and a learn-more, every default fund has sourced holdings
-for (const id of ['EXP', 'A1', 'B1', 'B2', 'BASICS', 'MONEY', 'B5', 'C0', 'C2', 'C1', 'B4', 'C3', 'C4', 'PREFS', 'TICKER', 'SHORTLIST']) ok(`WHY and LEARN for ${id}`, KB.WHY[id] && KB.LEARN[id]);
+for (const id of ['EXP', 'A1', 'B1', 'B2', 'BASICS', 'MONEY', 'B5', 'C0', 'C2', 'C1', 'B4', 'C3', 'C4', 'PREFS', 'TICKER']) ok(`WHY and LEARN for ${id}`, KB.WHY[id] && KB.LEARN[id]);
 for (const [t, h] of Object.entries(KB.HOLDINGS)) ok(`holdings ${t}`, M.fund(t)?.eligible && h.top.length >= 1 && /^https:\/\//.test(h.url) && h.as_of);
 eq('ten default funds have holdings', Object.keys(KB.HOLDINGS).length, 10);
 const words = JSON.stringify(KB);
@@ -252,7 +252,7 @@ ok('no exclamation marks', !/!/.test(newText));
 ok('no labels for the person', !/\b(?:novice|beginners?|experts?|experienced investor|intermediate|newbie)\b/i.test(newText));
 ok('Canadian spelling', !/\b(?:color|favor|behavior|center|per cent|adviser)\b/i.test(newText));
 ok('no directives', !/\byou should (?:buy|sell|invest)\b|\bI recommend\b/i.test(newText));
-ok('the approved opening is unchanged', KB.OPENING.startsWith("Hi, I'm Robo-Kit. I'll ask a few questions about your goals"));
+ok('the approved opening, with the product name', KB.OPENING.startsWith("Hi, I'm Penguru. I'll ask a few questions about your goals"));
 // the checkpoint says what the answers mean, never a level number
 for (const a of [{ A1: 'home', B1: '2to4', B2: 'once', A2: 'yes', A3: 'no', B5: 'very' }, { A1: 'wealth', B1: '20plus', B2: 'unsure', A2: 'partly', A3: 'no', B5: 'varies' }, { A1: 'home', B1: 'lt2', B2: 'once', A2: 'yes', A3: 'no', B5: 'very' }, { A1: 'retirement', B1: '10to19', B2: '10plus', A2: 'no', A3: 'lot', B5: 'none' }])
   for (const d of ['novice', 'some', 'expert']) { const t = C.checkpointText({ answers: a, amount: 25000, amountSet: true, monthly: 0, depth: d, words: {} }, scoreProfile(core.questions, a)); ok(`checkpoint ${d} ${a.B1}`, t && !/\{/.test(t) && !/level [1-5]/i.test(t.replace(/level at 2 or below/, ''))); }
@@ -290,6 +290,37 @@ eq('a bare 3 asks: option 3 or 3 years', C.readTurn('3', { pending: 'B1', option
 eq('a bare 8 is 8 years', C.readTurn('8', { pending: 'B1', options: B1o }).facts.B1, '5to9');
 eq('a bare 1 is the same either way', C.readTurn('1', { pending: 'B1', options: B1o }).facts.B1, 'lt2');
 eq('none is an income answer, not a skip', C.readAnswer('B5', 'none', core.questions.find((x) => x.id === 'B5').options), { value: 'none' });
+
+// v3.3: the team's cleaned-up feedback (Penguru review, tab 3)
+{ // the product name in every fixed text (the engine's own words are renamed by the page as they come in)
+  const fixed = JSON.stringify(Object.fromEntries(Object.entries(KB).filter(([, v]) => typeof v !== 'function'))) + KB.NOT_CANADIAN('SPY') + KB.ETF_ONLY('stocks') + ['EXP', 'A1', 'B1', 'BASICS', 'C0', 'TICKER'].map((id) => KB.whyDeep(id, core)).join(' ');
+  ok('the fixed words say Penguru, never Robo-Kit', !fixed.includes('Robo-Kit') && fixed.includes('Penguru'));
+}
+// item 9: a word is a term button only in its investing sense
+ok('"the biggest factor in" is not the factor-fund term', !KB.TERMS.factor.match.test(KB.WHY.B1) && !KB.TERMS.factor.match.test('Time is the biggest factor in how many ups and downs'));
+ok('a factor fund is still the term', KB.TERMS.factor.match.test('No factor (smart-beta) funds') && KB.TERMS.factor.match.test('factor ETFs') && KB.TERMS.factor.match.test('smart beta'));
+ok('a risk or price index is not a market index', !KB.TERMS.index.match.test('the geopolitical risk index') && !KB.TERMS.index.match.test('the consumer price index') && KB.TERMS.index.match.test('an index such as the S&P 500'));
+ok('a distribution of outcomes is not a fund distribution', !KB.TERMS.distribution.match.test('the distribution of outcomes') && KB.TERMS.distribution.match.test('with distributions reinvested'));
+ok('"capacity" alone is not risk capacity', !KB.GLOSSARY_MATCH.risk_capacity.test('the capacity of the fund') && KB.GLOSSARY_MATCH.risk_capacity.test('your risk capacity'));
+ok('"yields" as a verb is not a yield', !KB.GLOSSARY_MATCH.yield.test('this yields a mix') && KB.GLOSSARY_MATCH.yield.test('bond yields'));
+{ // item 10: no risk level in anything said before the assessment introduces it
+  const PRE = ['EXP', 'A1', 'B1', 'B2', 'BASICS', 'A2', 'A3', 'MONEY', 'B5', 'C0', 'C2', 'RECON', 'C1', 'FT', 'B4', 'C3', 'C4'];
+  const w = (id) => KB.WORDING[id] || {};
+  const texts = [KB.OPENING, KB.REQUIRED_SKIP, KB.EFFECT.gate, KB.EFFECT.G1, KB.HIGHLIGHT, KB.CALIBRATION.text, ...KB.CALIBRATION.options.flatMap((o) => [o.text, o.ex]),
+    ...PRE.flatMap((id) => [KB.WHY[id], KB.LEARN[id], KB.SHORT_ASK[id], KB.REPAIR[id], ...(KB.SUGGEST[id] || []), w(id).novice?.q, w(id).expert?.q, ...Object.values(w(id).novice?.qBy || {}), ...Object.values(w(id).novice?.opts || {}), ...Object.values(w(id).expert?.opts || {}), ...Object.values(w(id).ex || {})]),
+    ...Object.values(KB.ACK).flatMap((x) => Object.values(x)), ...Object.values(KB.CHECKPOINT), ...Object.values(KB.DEPTH_ACK).flatMap((x) => (typeof x === 'string' ? [x] : Object.values(x)))].filter(Boolean);
+  const said = texts.filter((t) => /\blevels?\b/i.test(t));
+  ok(`no risk level before the assessment (${said.join(' | ') || 'none'})`, !said.length);
+  for (const id of PRE) { const t = KB.whyDeep(id, core); ok(`"How this is scored" says what a risk level is before using one: ${id}`, !t || !/\blevels?\b/i.test(t) || t.startsWith('Risk level runs from 1')); }
+}
+{ // item 3 (Q3 removed): the withdrawal plan assumed from the goal scores the same and says it was assumed
+  const a = { A1: 'home', A2: 'yes', A3: 'no', B1: '2to4', B2: 'once', B5: 'very', C0: 'medium', C2: 'wait' };
+  const asked = scoreProfile(core.questions, a), assumed = scoreProfile(core.questions, a, { assumed: ['B2'] });
+  eq('an assumed withdrawal plan scores the same', [assumed.capacity, assumed.tolerance, assumed.suggested_level], [asked.capacity, asked.tolerance, asked.suggested_level]);
+  ok('the explanation says it was assumed', /all at once, assumed from your goal/.test(assumed.explanation.en.join(' ')) && !/assumed/.test(asked.explanation.en.join(' ')));
+  ok('the checkpoint says so too', /all at once \(assumed from your goal\)/.test(C.checkpointText({ answers: a, auto: new Set(['B2']), amount: 25000, amountSet: true, monthly: 0, depth: 'novice', words: {} }, assumed)));
+  eq('a home needed within two years, all at once, still gets no stock mix', scoreProfile(core.questions, { ...a, B1: 'lt2' }, { assumed: ['B2'] }).status, 'not_ready');
+}
 
 console.log(fails ? `${fails} of ${n} checks FAILED` : `all ${n} conversation checks pass`);
 if (fails) process.exit(1);

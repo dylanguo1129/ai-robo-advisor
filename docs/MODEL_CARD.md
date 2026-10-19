@@ -64,6 +64,8 @@ no proven edge over a static mix; crisis replays start in 2008; for BNDX holders
 
 ## Versions
 
+v3.3.0 (October 2026): the team's second feedback round and the Penguru brand kit. The guided page is named Penguru. The shortlist preview, the definitions printed under messages and the mid-flow market note are gone. Question 3 (how long the money is taken out) is filled in from the goal, marked as assumed, and scores as a given answer. No risk level is named before the assessment. Explanations are shown once. Words are linked to a term only in their investing sense.
+
 v3.2.0 (October 2026): the team's PRD v3. The conversation reads every answer in a message and says it back. Explanation depth is self-identified or inferred and never shown as a label. Experienced viewers see more on the results. Categories outside the locked lists are flagged. The engine's math and the default mixes are unchanged.
 
 v3.1.0 (October 2026): the web page becomes the guided conversation (team wireframes and conversation script); a risk self-rating (C0, levels 2 / 3 / 4) joins the tolerance answers with a second chance when it disagrees with the drop scenario; answers without it score as before; the default mixes are unchanged.
