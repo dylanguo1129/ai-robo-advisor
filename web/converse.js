@@ -43,6 +43,8 @@ export const isSkip = (t) => has(/^(?:skip|pass|next|no thanks|nothing|none|no p
 export const isContinue = (t) => { const s = norm(t).replace(/[.!]+$/, ''); return s.split(' ').length <= 8 && (/^(?:(?:ok(?:ay)?|thanks|thank you|sure|great|cool|got it|alright|right)[,!.]?\s+)*(?:continue|keep going|go on|back(?: to (?:it|building|the (?:questions|portfolio|mix)))?|let'?s (?:continue|go|keep going|build|move on)|carry on|resume|move on|next question|build (?:it|my portfolio|the portfolio))\b/.test(s) || /\b(?:keep going|carry on|back to (?:it|building|the questions)|let'?s (?:continue|keep going|move on))\b/.test(s)); };
 export const wantsLearnMore = (t) => has(/\blearn more\b|\bexplain\b|\bi don'?t (?:understand|get it)\b|\bwhat do you mean\b|\bwhat does (?:this|that|it) mean\b|\bconfus\w*\b|\bhelp me understand\b|\bmore (?:info|information|detail)\b|^help\b|^\?+$/, t);
 export const asksWhy = (t) => has(/\bwhy (?:do|did) you (?:ask|need)\b|\bwhy (?:this|that) question\b|\bwhy does (?:this|that|it) matter\b|\bwhy does time matter\b|\bwhy does income matter\b/, t);
+/** "If I add $350 a month, would it go into the mix?": a question that starts with a condition. */
+export const isConditionalQuestion = (t) => /\?\s*$/.test(norm(t)) && /^(?:if|say|suppose|assuming|what if|when|once)\b.*\b(?:would|will|does|do|did|can|could|should|is|are|how|what)\b/.test(norm(t));
 /** A question rather than an answer: a question mark, a question word first, or an ask to explain. */
 export function isQuestionText(t) {
   const s = norm(t);
@@ -82,6 +84,7 @@ export function parseGoal(t) {
   if (/\b(?:house|home|condo|down ?payment|mortgage|apartment|property|car|wedding|major purchase|big purchase)\b/.test(s)) return 'home';
   if (/\b(?:school|tuition|education|universit\w*|college|resp|kids?'? (?:school|education))\b/.test(s)) return 'education';
   if (/\b(?:income|dividends?|spend (?:it|now)|live (?:off|on)|cash ?flow)\b/.test(s)) return 'income';
+  if (/\blong(?:er)?[- ]term (?:investor|investing|investment|growth)\b/.test(s)) return 'wealth';
   if (/\b(?:learn\w*|practi[cs]e|curious|just looking|explor\w*|understand investing)\b/.test(s)) return 'learning';
   if (/\b(?:wealth|grow\w*|long[- ]term|future|general|save more|build (?:up )?(?:savings|money))\b/.test(s)) return 'wealth';
   return null;
@@ -122,16 +125,20 @@ export function parseWithdrawal(t) {
   if (/\b(?:a few|couple of|several) years\b/.test(s)) return '2to5';
   return null;
 }
+const LEAD = /^(?:(?:actually|honestly|well|so|oh|um+|uh+|ok(?:ay)?|sorry|i mean|to be honest|right)\W+)+/;  // "Actually, I don't have one"
+const NOT_HAVE = /^(?:i )?(?:don'?t|do not|haven'?t|have not|never had)\b|\b(?:don'?t|do not|haven'?t|have not) (?:have|got)\b/;
 export function parseEmergency(t) {
-  const s = norm(t);
+  const s = norm(t).replace(LEAD, '');
   if (/\b(?:partly|partial|some|a bit|kind of|sort of|working on it|half|not enough|a little)\b/.test(s)) return 'partly';
-  if (/^(?:no|nope|nah|not yet|none|i don'?t|don'?t)\b|\bno (?:savings|emergency)\b/.test(s)) return 'no';
+  if (NOT_HAVE.test(s) && /\b(?:much|a lot|enough|a big)\b/.test(s)) return 'partly';  // I don't have much saved: partly
+  if (/^(?:no|nope|nah|not yet|none)\b|\bno (?:savings|emergency)\b/.test(s) || NOT_HAVE.test(s)) return 'no';
   if (/^(?:yes|yeah|yep|yup|i do|i have|sure|definitely|of course|absolutely)\b|\b\d+ months\b/.test(s)) return 'yes';
   return null;
 }
 export function parseDebt(t) {
-  const s = norm(t);
-  if (/^(?:no|nope|nah|none|i don'?t|zero)\b|\bno debt\b|\bpaid (?:it )?off\b|\bdebt[- ]free\b/.test(s)) return 'no';
+  const s = norm(t).replace(LEAD, '');
+  if (/^(?:no|nope|nah|none|zero)\b|\bno debts?\b|\bpaid (?:it )?off\b|\bdebt[- ]free\b/.test(s)) return 'no';
+  if (NOT_HAVE.test(s)) return /\b(?:a lot|lots|much|many|a ton|huge|big|significant)\b/.test(s) ? 'little' : 'no';  // I don't have much debt: a little
   if (/\b(?:a lot|lots|loads|huge|big|a ton|significant|maxed)\b/.test(s)) return 'lot';
   if (/\b(?:a little|a bit|small|some|minor|a few hundred)\b/.test(s)) return 'little';
   return null;  // a bare "yes" leaves which one open: the page asks
@@ -165,6 +172,8 @@ export function parseDrop(t) {
 export function parseShare(t) {
   const s = norm(t);
   if (/\b(?:not sure|don'?t know|no idea)\b/.test(s)) return null;
+  const rg = s.match(/(\d+(?:\.\d+)?)\s*(?:%|percent)?\s*(?:-|\u2013|to)\s*(\d+(?:\.\d+)?)\s*(?:%|percent)/);
+  if (rg) { const b = Number(rg[2]); return b <= 10 ? 'lt10' : b <= 25 ? '10to25' : b <= 50 ? '25to50' : b <= 75 ? '50to75' : 'gt75'; }
   const p = s.match(/(\d+(?:\.\d+)?)\s*(?:%|percent)/);
   if (p) { const v = Number(p[1]); return v < 10 ? 'lt10' : v < 25 ? '10to25' : v < 50 ? '25to50' : v <= 75 ? '50to75' : 'gt75'; }
   if (/\b(?:all|everything|almost all|nearly all)\b/.test(s)) return 'gt75';
@@ -173,6 +182,15 @@ export function parseShare(t) {
   if (/\b(?:quarter)\b/.test(s)) return '10to25';
   if (/\b(?:small|tiny|little|bit)\b/.test(s)) return 'lt10';
   return null;
+}
+/** On the share-of-savings question a bare "10-25" or "15" is a percent: a range by its upper end; 1 to 5 stay option numbers. */
+export function bareShare(t) {
+  const m = norm(t).replace(/[.!?]+$/, '').match(/^(?:about |around |roughly |maybe |between )?(\d{1,3})(?:\s*(?:-|\u2013|to|and)\s*(\d{1,3}))?$/);
+  if (!m) return null;
+  const hi = Number(m[2] ?? m[1]);
+  if (hi > 100 || (m[2] == null && hi <= 5) || (m[2] != null && Number(m[1]) > hi)) return null;
+  if (m[2] != null) return hi <= 10 ? 'lt10' : hi <= 25 ? '10to25' : hi <= 50 ? '25to50' : hi <= 75 ? '50to75' : 'gt75';
+  return hi < 10 ? 'lt10' : hi < 25 ? '10to25' : hi < 50 ? '25to50' : hi <= 75 ? '50to75' : 'gt75';
 }
 export function parseWorry(t) {
   const s = norm(t);
@@ -216,7 +234,7 @@ export function parseStep(id, text, options = [], ctx = {}) {
     case 'B5': return viaOption() ?? parseIncome(text);
     case 'C0': return viaOption() ?? parseComfort(text);
     case 'C2': return viaOption() ?? parseDrop(text);
-    case 'B4': return viaOption() ?? parseShare(text);
+    case 'B4': return viaOption() ?? parseShare(text) ?? bareShare(text);
     case 'C4': return viaOption() ?? parseWorry(text);
     case 'C1': case 'C3': return parseCard(text);
     case 'MONEY': {
@@ -512,7 +530,9 @@ export function rationale(h, ctx = {}) {
 /** The closing recap: 2-3 teaching moments that actually fired, and one general next step. */
 export function recap(ctx = {}) {
   const covered = [];
-  if (ctx.lowerOf) covered.push(`how your level was set: the lower of what your situation can absorb (${ctx.capacity}) and what you are comfortable with (${ctx.tolerance})`);
+  if (ctx.lowerOf && ctx.binding === 'gate') covered.push(`how your level was set: your situation allows ${ctx.capacity} and your comfort points to ${ctx.tolerance}, but the emergency-fund or debt check holds it at ${ctx.gateCap} for now`);
+  else if (ctx.lowerOf && ctx.capacity === ctx.tolerance) covered.push(`how your level was set: what your situation can absorb and what you are comfortable with both point to ${ctx.capacity}`);
+  else if (ctx.lowerOf) covered.push(`how your level was set: the lower of what your situation can absorb (${ctx.capacity}) and what you are comfortable with (${ctx.tolerance})`);
   if (ctx.gates?.length) covered.push('why an emergency fund and paying off expensive debt usually come before investing');
   if (ctx.secondChance) covered.push('the gap between how people rate their comfort with risk and how they react to a real drop');
   if (ctx.terms?.length) { const t = ctx.terms.slice(0, 3); covered.push(`what ${t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0]} mean${t.length > 1 ? '' : 's'}`); }
@@ -676,7 +696,7 @@ export function readTurn(text, ctx = {}) {
   const out = { facts: {}, vague: {}, changes: [], words: {}, question: isQuestionText(raw), advice: isAdvice(raw) };
   if (out.advice) return out;
   const cue = CORRECTION.test(s);
-  const clauses = raw.replace(/(\d),(?=\d{3}\b)/g, '$1').replace(PAST_DURATION, ' ').split(/[,;!?]|\.(?!\d)|\band\b|\bbut\b|\bplus\b|\balso\b/i).map((c) => c.trim()).filter(Boolean);
+  const clauses = raw.replace(/(\d),(?=\d{3}\b)/g, '$1').replace(/\bbetween (\d+(?:\.[0-9]+)?)(\s*%?)\s+and\s+(?=\d)/gi, '$1$2 to ').replace(PAST_DURATION, ' ').split(/[,;!?]|\.(?!\d)|\band\b|\bbut\b|\bplus\b|\balso\b/i).map((c) => c.trim()).filter(Boolean);
   const money = {}, seen = {};
   const put = (id, r) => {
     if (!r) return;
@@ -687,6 +707,7 @@ export function readTurn(text, ctx = {}) {
     seen[id] = r.value; out.facts[id] = r.value; delete out.vague[id];
   };
   const anyTopic = (x) => Object.keys(TOPIC).some((k) => TOPIC[k].test(norm(x)));
+  let basicsNext = answers.A2 == null ? 'A2' : 'A3';  // bare answers on the two-check card fill it in order
   const merged = [];
   for (const c of clauses) {  // a short qualifier belongs to the clause before it ("I have some savings, but not much")
     const n = norm(c), prev = merged[merged.length - 1];
@@ -708,7 +729,12 @@ export function readTurn(text, ctx = {}) {
     if (t.has('A2') && /\bsavings?\b/.test(n) && !/\bemergenc|rainy|cushion|safety|set aside|expenses\b/.test(n) && pending !== 'BASICS' && pending !== 'A2') t.delete('A2');
     if (t.has('EXP') && t.size > 1 && !selfDepth(n)) t.delete('EXP');
     if (!t.size && topics.length) continue;  // about something else, just not clearly: never taken as the open question
-    if (!t.size && pending) { const id = pending === 'BASICS' ? (answers.A2 == null ? 'A2' : 'A3') : pending; put(id, readAnswer(id, c, ctx.options?.[id] || [], ctx)); continue; }
+    if (!t.size && pending) {
+      const id = pending === 'BASICS' ? basicsNext : pending, r = readAnswer(id, c, ctx.options?.[id] || [], ctx);
+      put(id, r);
+      if (pending === 'BASICS' && id === 'A2' && r?.value != null) basicsNext = 'A3';
+      continue;
+    }
     for (const id of t) {
       if (id === 'EXP') { const v = selfDepth(n); if (v) put('EXP', { value: v }); continue; }
       const clean = id === 'C0' ? n.replace(/\b(?:risk|comfort\w*)\b/g, '') : n;

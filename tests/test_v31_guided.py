@@ -17,7 +17,8 @@ def flags(a):
 
 
 def test_the_self_rating_maps_to_the_briefs_three_settings():
-    assert [o["level"] for o in prof.ITEM["C0"]["options"]] == [prof.PRESETS["low"], prof.PRESETS["mid"], prof.PRESETS["high"]]
+    # low and medium are the brief's settings; high is 5 since 3.3.1, so every tolerance question can reach the top level
+    assert [o["level"] for o in prof.ITEM["C0"]["options"]] == [prof.PRESETS["low"], prof.PRESETS["mid"], 5]
     assert prof.ITEM["C0"]["optional"] is True
     assert "C0" not in prof.score(BASE).missing
 

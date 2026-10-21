@@ -21,4 +21,4 @@ Every number a user sees is computed here. Language models only ask questions,
 call these tools and explain what the tools returned.
 """
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"

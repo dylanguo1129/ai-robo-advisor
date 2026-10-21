@@ -218,7 +218,15 @@ function labelOf(id, v) {
   if (id === 'EXP') return KB.DEPTH_ROW[v] || String(v);  // how much is explained, never a label for the person
   if (id === 'MONEY') return `${money(v.B3 ?? st.amount)}${(v.MONTHLY ?? st.monthly) ? ` plus ${money(v.MONTHLY ?? st.monthly)} a month` : ''}`;
   if (id === 'C1' || id === 'C3') { const r = st.ladder?.find((x) => x.level === Number(v)); const qq = r && rangeOf(r, id === 'C1' ? 'one' : 'ten'); return qq ? `Between ${money(qq.p10)} and ${money(qq.p90)}` : `Card ${v}`; }
-  return optionsFor(id).find((o) => o.value === v)?.text ?? String(v);
+  const seen = st.depth === 'novice' || st.depth === 'expert' ? KB.WORDING[id]?.[st.depth]?.opts?.[v] : null;
+  return seen ?? optionsFor(id).find((o) => o.value === v)?.text ?? String(v);
+}
+/** The open step's option whose label was typed word for word ("New to this: explain as we go"), or null. */
+const labelKey = (s) => String(s).toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^a-z0-9$%+' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function exactOption(id, text) {
+  if (!id || ['BASICS', 'MONEY', 'PREFS', 'TICKER', 'C1', 'C3', 'ASSESS'].includes(id)) return null;
+  const t = labelKey(text); if (!t) return null;
+  return (optsMap()[id] || []).find((o) => labelKey(o.text) === t)?.value ?? null;
 }
 function record(id, v) {
   if (!C.validValue(eng.core.questions, id, v)) return false;  // only the engine's own option values are ever recorded
@@ -280,7 +288,7 @@ function noteCues(text) {
   for (const [k, [re, line]] of Object.entries(KB.CUES)) { if (out.length >= 2) break; if (!st.cueSaid.has(k) && re.test(text)) { st.cueSaid.add(k); out.push(line); } }
   return out;
 }
-function skip(id) { me('Skip'); st.skipped.add(id); event(`${stepLabel(id)}: skipped`); if (id === 'TICKER') st.tickerDone = true; if (id === 'PREFS') st.prefsDone = true; profile(); advance(); }
+function skip(id, { echo = true } = {}) { if (echo) me('Skip'); st.skipped.add(id); event(`${stepLabel(id)}: skipped`); if (id === 'TICKER') st.tickerDone = true; if (id === 'PREFS') st.prefsDone = true; profile(); advance(); }
 function advance() {
   const id = pending(), last = st.log[st.log.length - 1];
   if (!id && st.built && st.changed) { liveRebuild('your answers changed'); return; }
@@ -416,9 +424,10 @@ function learnedFrom(local) { if (local.kind === 'term') { const t = local.text.
 const plainFor = (t) => st.base?.holdings.find((h) => h.ticker === t)?.plain || null;
 
 // ------------------------------------------------------------------ what people type in the chat
-async function onChatText(text) {
+async function onChatText(text, { cue = false } = {}) {
   const id = pending();
   me(text); renderThread();
+  { const v = exactOption(id, text); if (v != null && !C.isAdvice(text)) { answer(id, v, { echo: false }); return; } }
   if (C.isCrisis(text)) { bot(KB.SUPPORT.crisis); render(); return; }
   if (C.isMoneyStress(text)) { bot(KB.SUPPORT.money); bot({ kind: 'back' }); render(); return; }
   if (C.isAdvice(text)) { bot({ text: KB.ADVICE_REDIRECT, kind: 'advice' }); bot(eng.core.disclosure.en); event('Advice request redirected to the disclosure'); bot({ kind: 'back', short: KB.SHORT_ASK[id] }); render(); return; }
@@ -438,7 +447,8 @@ async function onChatText(text) {
   if (lastBot?.kind === 'zero' && /^(?:yes|yeah|yep|sure|ok(?:ay)?|drop it|please do|go ahead)\b/i.test(text.trim())) { flush(); st.prefsDone = false; applyPrefs({ key: lastBot.key, drop: lastBot.drop }); return; }
   if (lastBot?.kind === 'zero' && /^(?:no|nope|leave it|skip|don'?t)\b/i.test(text.trim())) { flush(); event('Zero match: theme left out'); bot('Left out. Your shortlist stays as it is.'); advance(); return; }
   const cmd = C.parseCommand(text, { symbols: symbolMap() });
-  if (cmd && !(cmd.type === 'change' && cmd.id === 'EXP' && dAck)) { flush(); if (applyCommand(cmd)) return; }
+  const several = cmd?.type === 'change' && (() => { const r0 = C.readTurn(text, { pending: null, options: optsMap(), answers: st.answers, symbols: symbolMap(), year: new Date().getFullYear() }); return Object.keys(r0.facts).length + r0.changes.length > 1; })();
+  if (cmd && !several && !(cmd.type === 'change' && cmd.id === 'EXP' && dAck)) { flush(); if (applyCommand(cmd)) return; }
   if (C.isContinue(text)) { flush(); resume(); return; }
   if (dAck && id === 'EXP' && text.trim().split(/\s+/).length <= 8 && !C.isQuestionText(text)) { flush(); advance(); return; }  // "I'm new to this": answered
   const opts = optionsFor(id);
@@ -449,14 +459,14 @@ async function onChatText(text) {
     if (stepDef(id)?.optional || ['C1', 'C3'].includes(id)) { st.skipped.add(id); bot('No problem, I will skip that one.'); event(`${stepLabel(id)}: skipped`); advance(); return; }
     bot(`${KB.LEARN[id] || ''} I do need this one to build a portfolio for you; even a rough guess is fine.`.trim()); bot({ step: id, short: true }); render(); return;
   }
-  const asking = /^(?:what|how|why|which|who|when|where|is|are|am|can|could|should|would|does|do|did|will|explain|tell me|define)\b/i.test(text.trim()) || C.wantsLearnMore(text);
+  const asking = /^(?:what|how|why|which|who|when|where|is|are|am|can|could|should|would|does|do|did|will|explain|tell me|define)\b/i.test(text.trim()) || C.wantsLearnMore(text) || C.isConditionalQuestion(text);
   if (id && !asking) {
     // the page's own controls for these steps come first
     if (id === 'TICKER') { const ts = C.findTickers(text, symbolMap(), { loose: true, allowCommon: true }); if (ts.length) { flush(); addPicks(ts); return; } }
     { const ts = C.findTickers(text, symbolMap()); if (ts.length && !text.replace(/\b[A-Z]{2,5}(?:[.-][A-Z]{1,2})?\b/g, '').replace(/\band\b|[,;&+]/gi, '').trim()) { flush(); addPicks(ts); return; } }
     { const t0 = text.trim(), unk = C.tickerLike(t0, symbolMap()); if (unk.length && t0 === t0.toUpperCase() && /[A-Z]/.test(t0) && t0.split(/\s+/).length <= 3 && C.parseStep(id, t0, opts) == null) { flush(); addPicks(C.findTickers(t0, symbolMap()), unk); return; } }  // "XEQ", "SPY": a ticker that is not in the data
     if (id === 'PREFS' || (st.prefsDone && C.parsePrefs(text))) { const pr = C.parsePrefs(text); if (pr) { flush(); mergePrefs(pr); applyPrefs(); return; } }
-    if ((C.isSkip(text) || /^no\b/i.test(text.trim())) && (stepDef(id)?.optional || id === 'C1') && id !== 'FT') { flush(); skip(id); return; }
+    if ((C.isSkip(text) || /^no\b/i.test(text.trim())) && (stepDef(id)?.optional || id === 'C1') && id !== 'FT') { flush(); skip(id, { echo: false }); return; }
     if (st.preselect[id] != null && /^(?:yes|yeah|yep|ok|okay|correct|right|sure|that'?s right|that one)\b/i.test(text.trim())) { flush(); answer(id, st.preselect[id], { echo: false }); return; }
     if (C.isSkip(text) && !(stepDef(id)?.optional) && C.readAnswer(id === 'BASICS' ? (st.answers.A2 == null ? 'A2' : 'A3') : id, text, optsMap()[id] || []) == null) { flush(); bot(`${KB.REQUIRED_SKIP || 'I do need this one to build a portfolio for you; even a rough guess is fine.'}`); bot({ step: id, short: true }); render(); return; }
   }
@@ -464,7 +474,7 @@ async function onChatText(text) {
   // every answer in the message, in any order, through the same gate
   const r = asking ? { facts: {}, vague: {}, changes: [], words: {} } : C.readTurn(text, { pending: id === 'EXP' ? null : id, options: optsMap(), answers: st.answers, symbols: symbolMap(), year: new Date().getFullYear() });
   if (r.words.goal) st.words.goal = r.words.goal; if (r.words.years != null) st.words.years = r.words.years;
-  const res = applyTurn(r, { open: id });
+  const res = applyTurn(r, { open: id, cue });
   const openItem = id === 'BASICS' ? (st.answers.A2 == null ? 'A2' : 'A3') : id;
   const vid = r.vague[openItem] && !res.recorded.includes(openItem) ? openItem : Object.keys(r.vague).find((k) => !isDone(k) && !res.recorded.includes(k));
   const turn = [...lead, ...(res.recorded.length >= 3 ? [C.fill(KB.READBACK[st.depth === 'expert' ? 'short' : 'full'], { list: C.readbackText(Object.fromEntries(res.recorded.filter((x) => x !== 'MONEY').map((x) => [x, st.answers[x]]).concat(res.recorded.includes('MONEY') ? [['MONEY', true]] : [])), st) })] : res.acks)].filter(Boolean).join(' ');
@@ -503,7 +513,7 @@ function optsMap() {
 /** Record what a message said, through one gate (admit): facts for unanswered steps, a highlight for risk answers read
  * off their own card, and changes that are applied when the person signalled one (or the old value came from the
  * opener or a default), else confirmed first. */
-function applyTurn(r, { open = null, pre = false } = {}) {
+function applyTurn(r, { open = null, pre = false, cue = false } = {}) {
   const out = { chips: [], acks: [], recorded: [], preselected: [] };
   const openItem = open === 'BASICS' ? (st.answers.A2 == null ? 'A2' : 'A3') : open;
   for (const [fid, v] of Object.entries(r.facts || {})) {
@@ -520,7 +530,7 @@ function applyTurn(r, { open = null, pre = false } = {}) {
   }
   for (const c of r.changes || []) {
     if (C.OPEN_ONLY.has(c.id) && c.id !== openItem) continue;
-    if (c.cue || st.pre.has(c.id) || st.auto.has(c.id) || c.id === openItem) { resetAckFor(c.id); if (record(c.id, c.to)) { out.recorded.push(c.id); out.chips.push({ id: c.id, label: `${stepLabel(c.id)}: ${labelOf(c.id, c.to)}`, changed: true, was: labelOf(c.id, c.from) }); } }
+    if (cue || c.cue || st.pre.has(c.id) || st.auto.has(c.id) || c.id === openItem) { resetAckFor(c.id); if (record(c.id, c.to)) { out.recorded.push(c.id); out.chips.push({ id: c.id, label: `${stepLabel(c.id)}: ${labelOf(c.id, c.to)}`, changed: true, was: labelOf(c.id, c.from) }); } }
     else if (!st.confirm) st.confirm = c;
   }
   return out;
@@ -646,20 +656,21 @@ function unknownTicker(u) {
   return { text: `I couldn't find ${u} among the Canadian-listed ETFs in Penguru's data.${near.length ? ` The closest tickers are ${near.map(sym).join(', ')}.` : ' Check the spelling, or type the fund name.'}`, add: near.filter((y) => M().fund(y)?.eligible) };
 }
 function addPicks(ts, unknown = []) {
+  let known = 0, refused = 0;
   for (const u of unknown) { const r = unknownTicker(u); bot({ kind: 'tickers', text: r.text, add: r.add }); event(`Ticker ${u} not in the data`); }
   const before = JSON.stringify([st.picks, [...st.exclude]]);
   for (const t of ts) {
-    const f = M().fund(t); if (!f) { bot(`I couldn't find ${t} among Canadian-listed ETFs.`); continue; }
+    const f = M().fund(t); if (!f) { bot(`I couldn't find ${t} among Canadian-listed ETFs.`); refused++; continue; }
     refreshShelf();
     if (st.exclude.has(t)) { st.exclude.delete(t); st.removed.delete(t); bot(`${f.symbol} is back on your shortlist.`); event(`Put back ${f.symbol}`); continue; }
-    if (shelf.some((s) => s.ticker === t) || st.picks.includes(t)) { bot(`${f.symbol} is already on your shortlist.`); continue; }
-    if (!f.eligible) { bot(`${f.symbol} (${f.name}) can't be added. Penguru's screen leaves it out because: ${f.excluded_because}.${C.leverageNote(f) ? ` ${C.leverageNote(f)}` : ''}`); event(`Ticker ${f.symbol} refused: ${f.excluded_because}`); continue; }
+    if (shelf.some((s) => s.ticker === t) || st.picks.includes(t)) { bot(`${f.symbol} is already on your shortlist.`); known++; continue; }
+    if (!f.eligible) { bot(`${f.symbol} (${f.name}) can't be added. Penguru's screen leaves it out because: ${f.excluded_because}.${C.leverageNote(f) ? ` ${C.leverageNote(f)}` : ''}`); event(`Ticker ${f.symbol} refused: ${f.excluded_because}`); refused++; continue; }
     st.picks.push(t); st.pickWhy[t] = 'your pick';
     bot(`Added ${f.symbol} (${f.name}) to your shortlist as your own pick.${C.leverageNote(f) ? ` ${C.leverageNote(f)}` : ''}`);
     event(`Added ${f.symbol} as an own pick`);
   }
-  if (pending() === 'TICKER') {  // v3.3: the mix is built next, so the step closes only when a fund was actually added
-    if (JSON.stringify([st.picks, [...st.exclude]]) === before) { bot({ step: 'TICKER', short: true }); render(); return; }
+  if (pending() === 'TICKER') {  // the mix is built next: the step stays open only when nothing usable was named, so the alternatives can be added
+    if (JSON.stringify([st.picks, [...st.exclude]]) === before && (unknown.length || refused || !known)) { bot({ step: 'TICKER', short: true }); render(); return; }
     st.tickerDone = true;
   }
   if (st.built) { if (JSON.stringify([st.picks, [...st.exclude]]) !== before) { st.changed = true; liveRebuild('your shortlist changed'); return; } render(); return; }
@@ -872,10 +883,10 @@ function wholePcts(holdings) {
 /** X3/O3: the mix before and after a change, side by side: weights, expected return and volatility. */
 function changedHTML(p) {
   const a = st.prevBase; if (!a || st.custom) return '';
-  const w = (P, t) => P.holdings.find((h) => h.ticker === t)?.weight || 0;
+  const w = (P, t) => P.holdings.find((h) => h.ticker === t)?.weight || 0, wa = wholePcts(a.holdings), wn = wholePcts(p.holdings);
   const rows = [...new Set([...a.holdings.map((h) => h.ticker), ...p.holdings.map((h) => h.ticker)])].map((t) => ({ t, b: w(a, t), n: w(p, t) })).filter((r) => r.b >= 0.005 || r.n >= 0.005);
   return `<section class="changed" aria-labelledby="chg-h"><h2 id="chg-h">What changed</h2><p class="small muted">${esc(st.changeWhy ? `Updated because ${st.changeWhy}; Penguru re-ran the optimizer.` : 'Penguru re-ran the optimizer.')} Before and after, side by side:</p>
-    <div class="table-wrap"><table class="cmp"><thead><tr><th scope="col">Fund</th><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>${rows.map((r) => `<tr><th scope="row">${esc(sym(r.t))}</th><td>${pct(r.b)}</td><td>${pct(r.n)}</td></tr>`).join('')}
+    <div class="table-wrap"><table class="cmp"><thead><tr><th scope="col">Fund</th><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>${rows.map((r) => `<tr><th scope="row">${esc(sym(r.t))}</th><td>${wa[r.t] ?? 0}%</td><td>${wn[r.t] ?? 0}%</td></tr>`).join('')}
     <tr class="sum"><th scope="row">Behaves like</th><td>level ${roundHalfUp(a.risk.level, 1)}</td><td>level ${roundHalfUp(p.risk.level, 1)}</td></tr>
     <tr class="sum"><th scope="row">Expected return a year</th><td>${pct(a.stats.planning_return, 1)}</td><td>${pct(p.stats.planning_return, 1)}</td></tr>
     <tr class="sum"><th scope="row">Volatility a year</th><td>${pct(a.stats.volatility, 1)}</td><td>${pct(p.stats.volatility, 1)}</td></tr></tbody></table></div>
@@ -893,12 +904,13 @@ function renderMix() {
   const levNotes = p.holdings.map((h) => C.leverageNote(M().fund(h.ticker))).filter(Boolean);
   const engineNotes = (p.notes || []).map((n) => n.en).filter((t) => !/Dropped because (?:it|each) would have held less than 2%/.test(t)).concat((p.checks || []).filter((c) => c.id === 'fee_unknown').map((c) => c.en));
   const wp = wholePcts(p.holdings);
-  const rc = C.recap({ lowerOf: !!st.profile?.capacity, capacity: st.profile?.capacity, tolerance: st.profile?.tolerance, gates: st.profile?.gates, secondChance: st.reconciled, terms: st.learned.map((x) => x.replace(/\s*\(.*\)$/, '')).map((x) => (/^[A-Z]{2,}/.test(x) ? x : x.toLowerCase())), badYear: `${money(bad.dollars)} at year end`, leverage: levNotes.length > 0 });
+  const rc = C.recap({ lowerOf: !!st.profile?.capacity, capacity: st.profile?.capacity, tolerance: st.profile?.tolerance, gates: st.profile?.gates, binding: st.profile?.binding, gateCap: st.profile?.gate_cap, secondChance: st.reconciled, terms: st.learned.map((x) => x.replace(/\s*\(.*\)$/, '')).map((x) => (/^[A-Z]{2,}/.test(x) ? x : x.toLowerCase())), badYear: `${money(bad.dollars)} at year end`, leverage: levNotes.length > 0 });
   const chosen = st.level !== s && !st.custom;
   host.innerHTML = `<div class="mix-head"><div><p class="eyebrow">Your portfolio mix</p><h1 id="mix-h">${st.custom ? 'Your adjusted mix' : `${esc(p.risk.label)}, level ${lvl} of 5`}</h1>
       <p class="sub">${p.holdings.length} ETFs · ${money(st.amount)}${st.monthly ? ` plus ${money(st.monthly)} a month` : ''} · ${st.years} years</p></div></div>
     ${chosen ? `<p class="banner warn">This risk level was not calculated for you based on your responses: you chose level ${st.level}. Your answers suggest level ${s}. <button type="button" class="linkbtn" data-level="${s}">Use level ${s}</button></p>` : ''}
     ${st.custom ? `<p class="banner">This mix was not calculated for you based on your responses: you changed the weights. It behaves like level ${lvl} of 5 (${esc(levelLabel(p.risk.level))}); your answers suggest level ${s}. <button type="button" class="linkbtn" data-act="reset-custom">Back to the calculated mix</button></p>` : ''}
+    ${!st.custom && st.profile?.gates?.length ? `<div class="notes gates">${st.profile.gates.map((g) => `<p class="notice">${esc(g.en)}</p>`).join('')}</div>` : ''}
     ${levelPicker()}
     ${changedHTML(p)}
     ${stackHTML(p)}
@@ -957,12 +969,14 @@ function wordsOnPage(p) {
 function levelPicker() {
   const s = st.profile?.suggested_level; if (!s) return '';
   const cap = st.profile?.gate_cap ?? 5;
-  return `<div class="levels" role="group" aria-label="Risk level"><span class="small muted">Risk level</span>${[1, 2, 3, 4, 5].map((L) => `<button type="button" class="lvl" data-level="${L}" aria-pressed="${st.level === L && !st.custom}" ${L > cap ? 'disabled title="Not available until the emergency-fund or debt check is met"' : ''}>${L}${L === s ? '<small>suggested</small>' : ''}</button>`).join('')}</div>`;
+  return `<div class="levels" role="group" aria-label="Risk level"><span class="small muted">Risk level</span>${[1, 2, 3, 4, 5].map((L) => `<button type="button" class="lvl${L > cap ? ' locked' : ''}" data-level="${L}" aria-pressed="${st.level === L && !st.custom}" ${L > cap ? 'aria-disabled="true" title="Not available until the emergency-fund or debt check is met"' : ''}>${L}${L === s ? '<small>suggested</small>' : ''}</button>`).join('')}</div>`;
 }
+/** Whole percents by asset class: the sums of the fund rows' whole percents. */
+function classPcts(p) { const wp = wholePcts(p.holdings), out = {}; for (const h of p.holdings) out[h.asset_class] = (out[h.asset_class] || 0) + (wp[h.ticker] || 0); return out; }
 function stackHTML(p) {
-  const parts = sortClasses(p.mix.asset_class).filter(([, v]) => v >= 0.005);
-  return `<div class="stack" role="img" aria-label="${esc(parts.map(([k, v]) => `${cls(k).name} ${pct(v)}`).join(', '))}">${parts.map(([k, v]) => `<span style="flex:${v} 1 0;background:${cls(k).c}" title="${esc(`${cls(k).name} ${pct(v)}`)}">${v >= 0.09 ? `${pct(v)} ${esc(cls(k).name.toLowerCase())}` : ''}</span>`).join('')}</div>
-    <div class="legend">${parts.map(([k, v]) => `<span><i style="background:${cls(k).c}"></i>${esc(cls(k).name)} ${pct(v)}</span>`).join('')}</div>`;
+  const parts = sortClasses(p.mix.asset_class).filter(([, v]) => v >= 0.005), cp = classPcts(p), lab = (k) => `${cp[k] ?? 0}%`;
+  return `<div class="stack" role="img" aria-label="${esc(parts.map(([k]) => `${cls(k).name} ${lab(k)}`).join(', '))}">${parts.map(([k, v]) => `<span style="flex:${v} 1 0;background:${cls(k).c}" title="${esc(`${cls(k).name} ${lab(k)}`)}">${v >= 0.09 ? `${lab(k)} ${esc(cls(k).name.toLowerCase())}` : ''}</span>`).join('')}</div>
+    <div class="legend">${parts.map(([k]) => `<span><i style="background:${cls(k).c}"></i>${esc(cls(k).name)} ${lab(k)}</span>`).join('')}</div>`;
 }
 function badYear(p) { const pr = p.projection, one = pr.one_year, val = pr.one_year_value; return { pct: one.p5, dollars: st.monthly && val ? val.p5 : st.amount * (1 + one.p5) }; }
 function contextCard() {
@@ -997,7 +1011,7 @@ function openLevel(L) {
 // screen 5: learn more
 function openLM(ticker) {
   st.dialog = 'lm'; st.lm = { ticker, tab: 'exp', oneP: null }; st.qa.lm = [];
-  if (ticker) run('build', { fixedWeights: { [ticker]: 1 }, amount: st.amount, monthly: st.monthly, years: Math.max(10, st.years), nBoot: 0, resample: false }).then((d) => { if (st.lm?.ticker === ticker) { st.lm.oneP = d.result; renderLM(); } }, (e) => { if (st.lm?.ticker === ticker) { st.lm.err = e.message; renderLM(); } });
+  if (ticker) run('build', { fixedWeights: { [ticker]: 1 }, amount: st.amount, monthly: st.monthly, years: st.years, nBoot: 0, resample: false }).then((d) => { if (st.lm?.ticker === ticker) { st.lm.oneP = d.result; renderLM(); } }, (e) => { if (st.lm?.ticker === ticker) { st.lm.err = e.message; renderLM(); } });
   event(ticker ? `Learn more: ${sym(ticker)}` : 'Explore: the whole mix');
   renderLM(); where(); renderDock();
 }
@@ -1197,7 +1211,7 @@ function summaryText() {
   const wp = wholePcts(p.holdings), pr = st.profile;
   const lines = [`Penguru summary (engine ${eng.core.meta.engine_version}, data to ${M().months.at(-1)})`, '',
     '1. YOUR PORTFOLIO MIX', `Risk level: ${st.custom ? `own weights, behaves like level ${roundHalfUp(p.risk.level, 1)}` : `${st.level} of 5 (${p.risk.label})`}; suggested by your answers: level ${pr.suggested_level}.`, `Amount: ${money(st.amount)}${st.monthly ? ` plus ${money(st.monthly)} a month` : ''}, ${st.years} years.`, ...(notForYou() ? [notForYou()] : []),
-    `Stocks, bonds and other: ${sortClasses(p.mix.asset_class).filter(([, v]) => v >= 0.005).map(([k, v]) => `${cls(k).name} ${pct(v)}`).join(', ')}.`];
+    `Stocks, bonds and other: ${sortClasses(p.mix.asset_class).filter(([, v]) => v >= 0.005).map(([k]) => `${cls(k).name} ${classPcts(p)[k] ?? 0}%`).join(', ')}.`, ...(pr.gates || []).map((g) => g.en)];
   for (const h of p.holdings) lines.push(`- ${h.symbol} ${wp[h.ticker]}% (${money(h.dollars)}), ${feeTxt(h.mer)}: ${h.name}`);
   lines.push(`Expected return a year (planning assumption, after fees): ${pct(p.stats.planning_return, 1)}. Volatility a year: ${pct(p.stats.volatility, 1)}. Bad year (about 1 in 20): ${money(badYear(p).dollars)} at year end.`,
     '', '2. THE REASONING', 'How your level was worked out:', ...pr.explanation.en.map((t) => `- ${t}`), 'Why this mix:', ...explain(p).en.map((t) => `- ${t}`),
@@ -1221,11 +1235,11 @@ function summaryHTML() {
   const hex = { Equity: '#2F7FB0', 'Fixed income': '#1baf7a', Cash: '#C98A2B', 'Real estate': '#d95926', Commodity: '#d55181' };
   const src = (f) => { const x = KB.CONTEXT_SOURCES[f.key]; return x ? `; source: <a href="${esc(x.url)}">${esc(x.name)}</a>` : ''; };
   return `<!doctype html><html lang="en-CA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Penguru summary</title><style>body{font:15px/1.55 system-ui,sans-serif;max-width:780px;margin:24px auto;padding:0 16px;color:#111;background:#fff}h1{font-size:24px}h2{font-size:18px;display:inline}h3{font-size:15px;margin:16px 0 4px}section>details>summary{cursor:pointer;padding:10px 0;border-top:2px solid #111}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left}.bar{display:flex;height:28px;border-radius:6px;overflow:hidden;margin:8px 0}.bar span{color:#fff;font-size:12px;padding:6px;white-space:nowrap;overflow:hidden}.small{font-size:12px;color:#555}details details{margin:6px 0 6px 12px}svg{width:100%;height:auto}.grid line{stroke:#E6E6E2}.axis text{fill:#6B6B66;font-size:11px}.lbl{fill:#111;font-size:12px}.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#555}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px}.note{background:#FDF1E7;padding:8px 10px;border-radius:8px}</style></head><body>
-    <h1>Penguru summary</h1><p>${esc(st.custom ? `Own weights; behaves like level ${roundHalfUp(p.risk.level, 1)} of 5` : `Level ${st.level} of 5, ${p.risk.label}`)} · suggested by your answers: level ${pr.suggested_level} · ${money(st.amount)}${st.monthly ? ` plus ${money(st.monthly)} a month` : ''} · ${st.years} years</p>${notForYou() ? `<p class="note"><b>${esc(notForYou())}</b></p>` : ''}
+    <h1>Penguru summary</h1><p>${esc(st.custom ? `Own weights; behaves like level ${roundHalfUp(p.risk.level, 1)} of 5` : `Level ${st.level} of 5, ${p.risk.label}`)} · suggested by your answers: level ${pr.suggested_level} · ${money(st.amount)}${st.monthly ? ` plus ${money(st.monthly)} a month` : ''} · ${st.years} years</p>${notForYou() ? `<p class="note"><b>${esc(notForYou())}</b></p>` : ''}${(pr.gates || []).map((g) => `<p class="note">${esc(g.en)}</p>`).join('')}
     <p class="small">Three sections: the mix, the reasoning and the disclosure. Click a heading or a fund to open or close it.</p>
     <section><details open><summary><h2>1. Your portfolio mix</h2></summary>
-      <div class="bar" role="img" aria-label="${esc(parts.map(([k, v]) => `${cls(k).name} ${pct(v)}`).join(', '))}">${parts.map(([k, v]) => `<span style="flex:${v} 1 0;background:${hex[k] || '#8f857b'}">${v >= 0.08 ? `${pct(v)} ${esc(cls(k).name.toLowerCase())}` : ''}</span>`).join('')}</div>
-      <div class="legend">${parts.map(([k, v]) => `<span><i style="background:${hex[k] || '#8f857b'}"></i>${esc(cls(k).name)} ${pct(v)}</span>`).join('')}</div>
+      <div class="bar" role="img" aria-label="${esc(parts.map(([k]) => `${cls(k).name} ${classPcts(p)[k] ?? 0}%`).join(', '))}">${parts.map(([k, v]) => `<span style="flex:${v} 1 0;background:${hex[k] || '#8f857b'}">${v >= 0.08 ? `${classPcts(p)[k] ?? 0}% ${esc(cls(k).name.toLowerCase())}` : ''}</span>`).join('')}</div>
+      <div class="legend">${parts.map(([k]) => `<span><i style="background:${hex[k] || '#8f857b'}"></i>${esc(cls(k).name)} ${classPcts(p)[k] ?? 0}%</span>`).join('')}</div>
       <table><thead><tr><th>Fund</th><th>Weight</th><th>Dollars</th><th>Fee</th></tr></thead><tbody>${p.holdings.map((h) => `<tr><td><a href="#f-${esc(h.symbol)}"><b>${esc(h.symbol)}</b></a> ${esc(h.name)}</td><td>${wp[h.ticker]}%</td><td>${money(h.dollars)}</td><td>${h.mer != null ? pct(h.mer, 2) : 'not in our data'}</td></tr>`).join('')}</tbody></table>
       <p>Expected return a year (a planning assumption, after fees): <b>${pct(p.stats.planning_return, 1)}</b>. Volatility a year: <b>${pct(p.stats.volatility, 1)}</b>. Bad year (about 1 in 20): about <b>${money(badYear(p).dollars)}</b> at year end.</p>
       <h3>How the mix could grow (hypothetical)</h3>${staticFan(p.projection.yearly)}<p class="small">The band holds 8 of 10 simulated paths; the line is the typical (median) path; the dashed line is what you put in. ${esc(eng.core.projection_disclosure.en)}</p>
@@ -1260,7 +1274,11 @@ async function onSideText(text) {
     const where = st.dialog === 'lm' ? 'lm' : st.screen, list = st.qa[where] || (st.qa[where] = []);
     list.push({ who: 'me', text }); renderQA();
     const cmd = C.parseCommand(text, { symbols: symbolMap() });
-    if (cmd && where !== 'lm') { if (cmd.type === 'level') { chooseLevel(cmd.level); return; } if (cmd.type === 'add') { show('chat'); addPicks(cmd.tickers); return; } if (cmd.type === 'remove') { for (const t of cmd.tickers) removeFund(t); list.push({ who: 'bot', text: 'Removed. Rebuilding the mix.' }); liveRebuild(`you removed ${cmd.tickers.map(sym).join(', ')}`); return; } if (cmd.type === 'change') { show('chat'); answer(cmd.id, cmd.value, { echo: false }); return; } if (cmd.type === 'restart') { restart(); return; } }
+    if (cmd && where !== 'lm') { if (cmd.type === 'level') { chooseLevel(cmd.level); return; } if (cmd.type === 'add') { show('chat'); addPicks(cmd.tickers); return; } if (cmd.type === 'remove') { for (const t of cmd.tickers) removeFund(t); list.push({ who: 'bot', text: 'Removed. Rebuilding the mix.' }); liveRebuild(`you removed ${cmd.tickers.map(sym).join(', ')}`); return; } if (cmd.type === 'restart') { restart(); return; } }
+    if (where !== 'lm' && !C.isQuestionText(text) && !C.isAdvice(text)) {
+      const r0 = C.readTurn(text, { pending: null, options: optsMap(), answers: st.answers, symbols: symbolMap(), year: new Date().getFullYear() });
+      if (cmd?.type === 'change' || Object.keys(r0.facts).length || r0.changes.length) { show('chat'); st.busy = false; await onChatText(text, { cue: true }); return; }
+    }
     if (where !== 'lm' && !C.isQuestionText(text) && !C.isAdvice(text)) { const pr = C.parsePrefs(text); if (pr) { show('chat'); me(text); mergePrefs(pr); applyPrefs(); return; } }  // preferences changed after the mix
     if (C.isCrisis(text)) { list.push({ who: 'bot', text: KB.SUPPORT.crisis }); renderQA(); return; }
     await answerQuestion(text, (m) => { const msg = { who: 'bot', ...m }; list.push(msg); renderQA(); return msg; }, { fund: st.lm?.ticker });
@@ -1270,7 +1288,9 @@ async function onSideText(text) {
 
 // ------------------------------------------------------------------ home
 const PROMPTS = [["I'm a long-term investor looking to learn more", 'wealth'], ["I'm saving for retirement", 'retirement'], ["I'm saving for a home", 'home']];
+const promptKey = (s) => labelKey(s).replace(/\blonger term\b/g, 'long term');
 async function startChat(text, presetGoal = null) {
+  if (!presetGoal) presetGoal = PROMPTS.find(([p]) => promptKey(p) === promptKey(text))?.[1] ?? null;
   show('chat');
   me(text);
   if (ai === 'available' || ai === 'connecting' || ai === 'on') st.log.push({ who: 'bot', kind: 'connect' });
@@ -1283,7 +1303,7 @@ async function startChat(text, presetGoal = null) {
   let res = { chips: [], acks: [], recorded: [], preselected: [] };
   if (C.isAdvice(text)) { bot({ text: KB.ADVICE_REDIRECT, kind: 'advice' }); bot(eng.core.disclosure.en); event('Advice request redirected to the disclosure'); }
   else {
-    const asking = /^(?:what|how|why|which|who|when|where|is|are|am|can|could|should|would|does|do|did|will|explain|tell me|define)\b/i.test(text.trim());
+    const asking = /^(?:what|how|why|which|who|when|where|is|are|am|can|could|should|would|does|do|did|will|explain|tell me|define)\b/i.test(text.trim()) || C.isConditionalQuestion(text);
     const r = asking ? { facts: {}, vague: {}, changes: [], words: {} } : C.readTurn(text, { pending: null, options: optsMap(), answers: st.answers, symbols: symbolMap(), year: new Date().getFullYear() });
     if (r.words.goal) st.words.goal = r.words.goal; if (r.words.years != null) st.words.years = r.words.years;
     for (const [k, vg] of Object.entries(r.vague || {})) if (k === 'B1' && st.preselect.B1 == null) st.preselect.B1 = vg.candidates[1];  // "long term": highlighted, then asked

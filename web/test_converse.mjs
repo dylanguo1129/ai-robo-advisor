@@ -110,7 +110,7 @@ const P = (a) => scoreProfile(core.questions, { A1: 'wealth', A2: 'yes', A3: 'no
 ok('low vs buy disagree', P({ C0: 'low', C2: 'buy' }).flags.some((f) => f.id === 'F_self_vs_drop'));
 ok('medium vs wait agree', !P({ C0: 'medium', C2: 'wait' }).flags.some((f) => f.id === 'F_self_vs_drop'));
 ok("don't know never flags", !P({ C0: 'high', C2: 'dont_know' }).flags.some((f) => f.id === 'F_self_vs_drop'));
-eq('self-rating levels are the brief three', core.questions.find((q) => q.id === 'C0').options.map((o) => o.level), [2, 3, 4]);
+eq('self-rating levels: low and medium are the brief settings, high reaches the top (3.3.1)', core.questions.find((q) => q.id === 'C0').options.map((o) => o.level), [2, 3, 5]);
 
 // leverage heads-up and rationale
 ok('leverage note', /leverage/.test(C.leverageNote(M.fund('AAPU.TO')) || ''));
@@ -320,6 +320,54 @@ ok('"yields" as a verb is not a yield', !KB.GLOSSARY_MATCH.yield.test('this yiel
   ok('the explanation says it was assumed', /all at once, assumed from your goal/.test(assumed.explanation.en.join(' ')) && !/assumed/.test(asked.explanation.en.join(' ')));
   ok('the checkpoint says so too', /all at once \(assumed from your goal\)/.test(C.checkpointText({ answers: a, auto: new Set(['B2']), amount: 25000, amountSet: true, monthly: 0, depth: 'novice', words: {} }, assumed)));
   eq('a home needed within two years, all at once, still gets no stock mix', scoreProfile(core.questions, { ...a, B1: 'lt2' }, { assumed: ['B2'] }).status, 'not_ready');
+}
+
+
+// v3.3.1: found by rehearsing the two demo personas
+{ // level 5 within reach: every tolerance answer at its top, a long horizon spread over time, no cushions or limits
+  const top = { A1: 'retirement', A2: 'yes', A3: 'no', B1: '20plus', B2: '10plus', B5: 'very', B4: 'lt10', C0: 'high', C1: '5', C2: 'buy', C3: '5', C4: 'missing' };
+  eq('all-top answers reach level 5', [scoreProfile(core.questions, top).tolerance, scoreProfile(core.questions, top).suggested_level], [5, 5]);
+  eq('the shortest path (no fine-tune) reaches 5 too', scoreProfile(core.questions, { A1: 'wealth', A2: 'yes', A3: 'no', B1: '20plus', B5: 'very', C0: 'high', C1: '5', C2: 'buy' }).suggested_level, 5);
+  eq('one answer below the top keeps it at 4', scoreProfile(core.questions, { ...top, C3: '4' }).suggested_level, 4);
+  eq('a home bought all at once in 20+ years stays at 4 (capacity)', scoreProfile(core.questions, { ...top, A1: 'home', B2: 'once' }, { assumed: ['B2'] }).suggested_level, 4);
+  eq('a home bought all at once in 10-19 years stays at 3 (capacity)', scoreProfile(core.questions, { ...top, A1: 'home', B1: '10to19', B2: 'once' }, { assumed: ['B2'] }).suggested_level, 3);
+}
+ok('"If I add $350 a month, would it be invested in the mix?" is a question', C.isConditionalQuestion('If I add 350 a month, would those added funds get invested in the chosen mix?') && !C.isConditionalQuestion('10 years?') && !C.isConditionalQuestion('if I retire in 20 years'));
+ok('and it has a saved answer', /each month's amount is added to the same mix/.test(C.localAnswer('If I add 350 a month, would those added funds get invested in the chosen mix?', { step: 'MONEY', glossary: core.glossary })?.text || ''));
+eq('"10-25%" is the 10% to 25% band', C.parseShare('10-25%'), '10to25');
+eq('"10 to 25%" too', C.parseShare('10 to 25%'), '10to25');
+eq('"25-50%" is the next band', C.parseShare('25-50%'), '25to50');
+eq('"about 20%" unchanged', C.parseShare('about 20%'), '10to25');
+eq('"Yes, no" on the two checks fills them in order', RT('Yes, No', 'BASICS').facts, { A2: 'yes', A3: 'no' });
+eq('"no, a little" too', RT('no, a little', 'BASICS').facts, { A2: 'no', A3: 'little' });
+eq('a long-term investor looking to learn more is building wealth', C.parseGoal("I'm a longer term investor looking to learn more"), 'wealth');
+eq('just learning is still learning', C.parseGoal("I'm just learning"), 'learning');
+{ // the recap names the limit when it holds the level, and says "both" when the two scores agree
+  const rc = C.recap({ lowerOf: true, capacity: 3, tolerance: 3, binding: 'gate', gateCap: 2, gates: [{ id: 'G2' }] }).covered.join(' ');
+  ok('recap: the limit holds the level', /holds it at 2 for now/.test(rc) && !/\(3\) and .*\(3\)/.test(rc));
+  ok('recap: both point to the same level', /both point to 3/.test(C.recap({ lowerOf: true, capacity: 3, tolerance: 3, binding: 'both' }).covered.join(' ')));
+}
+eq('the one-year card question includes the monthly money', C.stepWording('C1', 'novice', { slots: C.slotsFrom({ answers: {}, amount: 10000, amountSet: true, monthly: 350, words: {} }) }).q, 'Here are five possible mixes. Each card shows where your $10,000 plus $350 a month might be after one year. Which range could you live with?');
+
+eq('"Actually I don\u2019t have an emergency fund" is a no', C.parseEmergency("Actually I don't have an emergency fund"), 'no');
+eq('"I do not have emergency savings" is a no, not a yes', C.parseEmergency('I do not have emergency savings'), 'no');
+eq('"I haven’t got one" is a no', C.parseEmergency('I haven’t got an emergency fund'), 'no');
+eq('"I don’t have much saved" is partly', C.parseEmergency('I don’t have much saved'), 'partly');
+eq('"I don’t have much debt" is a little', C.parseDebt('I don’t have much debt'), 'little');
+eq('"Actually I don’t have any debt" is none', C.parseDebt('Actually I don’t have any debt'), 'no');
+eq('a correction naming both checks changes both', C.readTurn("Actually I don't have an emergency fund and I have a lot of credit card debt", { answers: { A2: 'yes', A3: 'no' } }).changes.map((c) => [c.id, c.to]), [['A2', 'no'], ['A3', 'lot']]);
+
+{ // the share-of-savings question: a bare range or number is a percent (found rehearsing persona 2: "10-25")
+  const o = { B4: [{ value: 'lt10', text: 'Less than 10%' }, { value: '10to25', text: '10% to 25%' }, { value: '25to50', text: '25% to 50%' }, { value: '50to75', text: '50% to 75%' }, { value: 'gt75', text: 'More than 75%' }] };
+  const at = (t) => C.readTurn(t, { pending: 'B4', options: o, answers: {} }).facts.B4;
+  eq('"10-25" on the share question is 10% to 25%', at('10-25'), '10to25');
+  eq('"10 to 25" too', at('10 to 25'), '10to25');
+  eq('"between 10 and 25" is one range, not two answers', at('between 10 and 25'), '10to25');
+  eq('a bare "15" is a percent', at('15'), '10to25');
+  eq('a bare "2" is still the second option', at('2'), '10to25');
+  eq('"80" is more than 75%', at('80'), 'gt75');
+  eq('"120" is not a share', at('120'), undefined);
+  eq('"between 5 and 9 years" on the horizon still reads', C.readTurn('between 5 and 9 years', { pending: 'B1', answers: {} }).facts.B1, '5to9');
 }
 
 console.log(fails ? `${fails} of ${n} checks FAILED` : `all ${n} conversation checks pass`);

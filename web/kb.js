@@ -160,6 +160,7 @@ export const GLOSSARY_MATCH = {
 
 // Answers to common questions, matched by pattern (first match wins). {level} etc. are filled by the page.
 export const FAQ = [
+  { re: /\bmonth(?:ly)?\b.*\b(?:invest\w*|go(?:es)? (?:in|into)|in(?:to)? the (?:mix|portfolio)|added to)\b|\b(?:invest\w*|go(?:es)? (?:in|into)|added to)\b.*\bmonth(?:ly)?\b/i, a: 'In the projections, yes: each month\'s amount is added to the same mix, at its weights, so it rises and falls with the mix. It does not change your risk level or the weights. Nothing here is actually invested: Penguru is a model.' },
   { re: /\bhow long (?:does|will) (?:this|it) take\b|\bhow many (?:more )?questions\b/i, a: 'About five minutes for the main questions; the three optional ones add about a minute. You can ask questions along the way.' },
   { re: /\bdon'?t have a goal\b|\bno goal\b|\bnot sure (?:what|about) (?:my|the) goal/i, a: 'That is fine. Pick "Building wealth, no fixed date" or "I\'m just learning" and we will build a practice mix you can explore. You can change the goal at any time.' },
   { re: /\bwhat does "?all at once"? mean\b/i, a: '"All at once" means you plan to take the whole amount out in one go, for example a home down payment. "Over several years" means you would take it out bit by bit, like retirement income or tuition paid each term.' },
@@ -571,7 +572,7 @@ export const WORDING = {
     expert: { q: 'Your self-rating ({c0w}) and your drop response ("{c2}") point different ways. Which should count? The other is set aside.', opts: { C0: 'Self-rating', C2: 'Drop response' } },
   },
   C1: {
-    novice: { q: 'Here are five possible mixes. Each card shows where your {amount} might be after one year. Which range could you live with?' },
+    novice: { q: 'Here are five possible mixes. Each card shows where your {amount}{monthly} might be after one year. Which range could you live with?' },
     expert: { q: 'One-year outcomes by mix, 10th to 90th percentile. Which range would you accept?' },
   },
   FT: {
