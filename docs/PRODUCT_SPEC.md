@@ -51,7 +51,7 @@ Full survey: `research/prior-art-github.md`.
 | --- | --- | --- | --- | --- |
 | Web page (Claude artifact) | The viewer's own Claude plan (artifact `sample` capability; the viewer approves the first call and pays with their own usage) | Quick, Standard or Deep in the Assistant menu (`modelTier` quick / default / complex) | Dated snapshot bundled with the page (the page cannot reach the internet) | Open the link |
 | MCP server (`python -m robokit mcp`) | The user's Claude Desktop or Claude Code session, on their own subscription | Whatever model they pick in their Claude app | The committed snapshot at once; fresh data after `python -m robokit refresh` on their machine | Add to `claude_desktop_config.json`, or `claude mcp add robokit -- python -m robokit.mcp_server` |
-| Claude Code plugin (`.claude-plugin/`) | Their Claude Code session | Their model setting | As above | `/plugin marketplace add dylanguo1129/ai-robo-advisor` (collaborators of the private repository) then `/plugin install robo-kit@robo-kit` |
+| Claude Code plugin (`.claude-plugin/`) | Their Claude Code session | Their model setting | As above | `/plugin marketplace add dylanguo1129/ai-robo-advisor` then `/plugin install robo-kit@robo-kit` |
 | Command-line agent (`python -m robokit chat`) | Their own `ANTHROPIC_API_KEY` | `--tier quick|default|complex` (Haiku 4.5, Sonnet 5.5, Opus 5.5) or any `--model` | Live | Terminal |
 
 **Who can use which surface.** Anthropic's sharing rules for artifacts that call Claude matter here (`research/gap-artifact-runtime-and-distribution.md`):

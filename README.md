@@ -112,8 +112,8 @@ reads the page code, publishes it and gives you your link. Publishing takes some
 the assistant's replies count against your plan, never the owner's.
 
 - **Updating:** `git pull`, then `/publish-robo-kit update` (same link). A copy never updates by itself.
-- **Keep it private:** the data snapshot is licensed for personal use, and artifacts that use Claude cannot be
-  shared by public link anyway.
+- **Sharing:** artifacts that use Claude cannot be shared by public link. The data snapshot comes from public
+  sources whose terms cover personal, non-commercial use ([data/README.md](data/README.md)).
 - **How it works:** the command is `.claude/skills/publish-robo-kit/SKILL.md`; the published files are listed in
   `web/publish.json`, and `tests/test_publish_manifest.py` fails if the page loads a file that is not listed.
 
@@ -207,8 +207,8 @@ Teammates outside the owner's organization who want the assistant should **publi
 ([above](#your-own-copy-of-the-web-page)). The **Claude Code plugin** and the **MCP server** from this repository are
 the other route: same tools, same rules, their own model choice, in Claude Code or Claude Desktop instead of the page.
 
-The data snapshot inside the page is built from sources licensed for personal use (see [data/README.md](data/README.md)),
-which is one more reason to keep the page shared only with the team.
+The data snapshot inside the page is built from public sources whose terms cover personal, non-commercial use (see
+[data/README.md](data/README.md)); the page is a course prototype, not a commercial product.
 
 ## How it works
 
@@ -420,7 +420,7 @@ dollars before percentages. Style: Wealthsimple (minimal, but complete).
 
 Data: every ETF buyable in CAD on the TSX or Cboe Canada and every US-listed ETF; one market per mix. Sources:
 Nasdaq Trader, TMX, Yahoo (yfinance), Bank of Canada, GPR, EPU, GDELT, all fetched by scripts with as-of stamps;
-monthly total returns. These allow personal use only, so the page stays private or team-shared. The artifact
+monthly total returns. These allow personal, non-commercial use; the page is a course prototype. The artifact
 cannot fetch at runtime: bundle a dated snapshot under 16 MB; refresh by hand (refresh, bundle, republish).
 
 Engine (code produces every number): equilibrium expected returns from a written market anchor (never
@@ -462,6 +462,7 @@ me only to pick between design directions, or before changing the level policy.
   with citation; this project's AI use is recorded in [docs/AI_USE_LOG.md](docs/AI_USE_LOG.md), and the checks
   that were run are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - Code: MIT licence ([LICENSE](LICENSE)). Market data and the derived snapshot remain under their providers' terms
-  ([data/README.md](data/README.md)); the repository and the web page are private to the team.
+  ([data/README.md](data/README.md)); the repository is public for the course and includes the derived snapshot for
+  non-commercial, educational use.
 - The original v1 prototype (a 20-ETF optimizer with three risk-aversion settings) lives on in `optimizer/`,
   `scripts/run_prototype.py`, `scripts/run_robustness.py` and `output/`; see [docs/METHOD.md](docs/METHOD.md).
