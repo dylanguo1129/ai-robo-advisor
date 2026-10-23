@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.3.1 (October 2026)
+
+Fixes found by rehearsing the team's two demo personas ("Presentation click flow") on the published page, and one scoring change so the top level can be reached.
+
+- **Level 5 can be suggested.** The self-rating "High: I can live with big swings for more growth" now counts as 5 (it was 4). Before, tolerance could never reach 5, so no answers could suggest level 5. Level 5 now needs all three of: a long horizon spread over time, no cushion or emergency-fund/debt limit, and every comfort answer at its top. Money for a home taken out all at once stays at 4 at most (20+ years) or 3 (10 to 19 years), because of the capacity score. The brief's low / mid / high settings stay levels 2 / 3 / 4. A side effect: "High" next to a comfort answer of 2 now counts as inconsistent answers and lowers tolerance by one step (60 of the 2,160 answer combinations).
+- **Questions are answered, not recorded.** "If I add $350 a month, would those funds be invested in the mix?" is read as a question. It has a saved answer (each month's amount goes into the same mix at its weights; it does not change the level), and it is no longer taken as the amount.
+- **Typed answers.**
+  - An option's label typed word for word ("New to this: explain as we go") is that answer.
+  - "Yes, No" on the emergency-fund and debt card fills both in order.
+  - A ready-made prompt typed instead of tapped ("I'm a longer term investor looking to learn more") sets the same goal.
+  - A share of savings given as a range ("10-25%", "10 to 25", "between 10 and 25") is read by its upper end, and a bare number from 6 to 100 is a percent; 1 to 5 still pick an option.
+  - A reply that opens with "Actually", "Well" or "Honestly" is read; "I do not have emergency savings" is a no (it was read as a yes); "I don't have much saved" is partly; "I don't have much debt" is a little.
+  - A typed "Skip" on an optional question is shown once, and the fine-tune answer is shown in the person's wording.
+- **Changes typed on the mix.** A sentence that changes answers ("Actually I don't have an emergency fund and I have a lot of credit card debt") goes through the conversation, so every answer in it is kept and the assessment is shown again.
+- **The emergency-fund and debt limits are visible on the mix.** Their "first things first" notices are shown above the mix and in the summary. Levels above the limit are greyed out; tapping one says why it is not available, instead of doing nothing.
+- **The recap.** When the limit holds the level, the recap says so instead of comparing the two scores; when both scores are the same it says "both point to N".
+- **Whole percents agree.** The asset-class bar, its legend, the summary and the before-and-after table use the same whole percents as the fund rows, so each adds to 100.
+- **Tickers.** A ticker already on the shortlist answers the ticker question, so the mix is built.
+- **One fund's projection** (Learn more on a fund) uses the same horizon as the mix, not at least 10 years.
+- **Wording.** The one-year question names the monthly amount when there is one.
+
 ## 3.3.0 (October 2026)
 
 The team's second round of feedback on the guided page, as Yasmin consolidated it (prototype review, "cleaned up feedback v2"), and her Penguru brand kit. Only the listed changes were made.

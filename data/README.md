@@ -35,8 +35,8 @@ All v2 sources are fetched by `robokit/data/` (`listings.py`, `prices.py`, `cont
 | Written into code | FP Canada 2026 planning assumptions (`robokit/cma.py`), the policy anchor (`robokit/shelf.py`), crisis windows (`robokit/stress.py`), proxy tickers (`robokit/history.py`) | – | Own work |
 
 "Personal use" means the source's terms allow fetching for your own non-commercial use but not redistribution.
-That is why raw payloads stay out of git, why this repository is **private**, and why the artifact should be shared
-only with the team (never by public link). A public product would need licensed data
+Raw payloads stay out of git. The repository is public for the course and includes only the derived snapshot (monthly
+returns and summary fields), for non-commercial, educational use. A commercial product would need licensed data
 (see `docs/research/gap-public-data-licensing.md`).
 
 ## What is in git and what is not

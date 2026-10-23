@@ -11,7 +11,8 @@ Design (docs/research/ux-conversation.md section 6, methods-signals.md 1.2-1.6):
   what is built at level 2.
 * Tolerance items show outcomes in the user's own dollars (scenario cards).
   The dollar ranges come from the engine. One self-rating (C0, low / medium /
-  high = levels 2 / 3 / 4, the brief's three settings) is asked as well, because
+  high = levels 2 / 3 / 5; until 3.3.0 high was 4, which kept the average below 5
+  even when every other answer was at the top) is asked as well, because
   the team's conversation script pairs it with the drop scenario (C2): when the
   two disagree, the page asks which fits better (flag F_self_vs_drop) and sets
   the other aside.
@@ -157,7 +158,7 @@ ITEMS = [
         "options": [
             {"value": "low", "text": "Low: I'd rather keep it steady, even if it grows slowly", "level": 2},
             {"value": "medium", "text": "Medium: some ups and downs are fine", "level": 3},
-            {"value": "high", "text": "High: I can live with big swings for more growth", "level": 4},
+            {"value": "high", "text": "High: I can live with big swings for more growth", "level": 5},
         ],
     },
     {

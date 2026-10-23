@@ -334,7 +334,7 @@ def test_the_emergency_fund_check_caps_the_level(guide):
     g.pg.locator('[data-skip="TICKER"]').last.click()
     g.pg.wait_for_selector(".fund", timeout=30000)
     assert g.js("window.robokitGuide.st.level") <= 2
-    assert g.js("[3, 4, 5].every(L => document.querySelector(`.levels [data-level='${L}']`).disabled)")
+    assert g.js("[3, 4, 5].every(L => document.querySelector(`.levels [data-level='${L}']`).getAttribute('aria-disabled') === 'true')")
 
 
 def test_required_steps_ask_again_and_requests_get_answers(guide):
@@ -965,3 +965,164 @@ def test_v33_a_term_tapped_again_on_the_mix_points_to_the_mix_copy(guide):
     g.pg.locator(term).first.click()
     assert g.js("window.robokitGuide.st.qa.mix.filter(m => m.def === 'term:stock').length") == 1
     g.pg.wait_for_selector('#qa-mix .msg.flash[data-def="term:stock"]', timeout=5000)
+
+
+# ------------------------------------------------------------------ v3.3.1: found by rehearsing the two demo personas
+
+
+def _to_amount(g):
+    g.pg.click('[data-prompt="0"]')
+    g.tap("EXP", "novice")
+    g.tap("B1", "5to9")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+
+
+def test_v331_a_conditional_question_about_monthly_money_is_answered(guide):
+    g = guide()
+    _to_amount(g)
+    g.say("If I add 350 a month, would those added funds get invested in the chosen mix?")
+    assert "each month's amount is added to the same mix" in " ".join(g.last(3))
+    st = g.js("({set: window.robokitGuide.st.amountSet, monthly: window.robokitGuide.st.monthly})")
+    assert st == {"set": False, "monthly": 0}  # a question, not an answer
+    assert "Back to building your portfolio?" in " ".join(g.last(2))
+
+
+def test_v331_typed_option_labels_and_two_checks(guide):
+    g = guide()
+    g.pg.click('[data-prompt="0"]')
+    g.say("New to this: explain as we go")
+    assert g.js("window.robokitGuide.st.depth") == "novice" and g.pending_step() == "B1"
+    assert g.js('window.robokitGuide.st.log.filter(m => m.text && m.text.startsWith("We\'ll go step by step")).length') == 1
+    g.tap("B1", "5to9")
+    g.say("Yes, No")
+    a = g.js("window.robokitGuide.st.answers")
+    assert a.get("A2") == "yes" and a.get("A3") == "no", a
+
+
+def test_v331_a_typed_ready_made_prompt_means_the_same_goal(guide):
+    g = guide()
+    g.pg.fill("#ask", "I\u2019m a longer term investor looking to learn more")
+    g.pg.press("#ask", "Enter")
+    g.pg.wait_for_function(
+        "window.robokitGuide.st.screen === 'chat' && document.querySelectorAll('#thread .step-card').length > 0", timeout=15000
+    )
+    assert g.js("window.robokitGuide.st.answers.A1") == "wealth"
+
+
+def test_v331_fine_tune_echo_skip_once_and_the_ten_year_question(guide):
+    g = guide()
+    g.through_core()
+    g.tap("C1", "3")
+    g.tap("FT", "yes")
+    assert "Yes, three more" in g.last(3)[0] or any(m == "Yes, three more" for m in g.last(4))
+    g.tap("B4", "10to25")
+    g.tap("C3", "3")
+    g.say("Skip")
+    assert g.js("window.robokitGuide.st.log.filter(m => m.who === 'me' && m.text === 'Skip').length") == 1
+
+
+def test_v331_a_typed_change_on_the_mix_keeps_both_answers_and_shows_the_limits(guide):
+    g = guide()
+    g.to_mix()
+    g.pg.fill("#chat-in", "Actually I don't have an emergency fund and I have a lot of credit card debt")
+    g.pg.press("#chat-in", "Enter")
+    g.pg.wait_for_selector("#assess .means", timeout=30000)
+    a = g.js("window.robokitGuide.st.answers")
+    assert a.get("A2") == "no" and a.get("A3") == "lot", a
+    modal = g.js("document.querySelector('#assess').innerText")
+    assert "First things first" in modal and "Paying off high-interest debt" in modal
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.wait_for_selector(".notes.gates .notice", timeout=30000)
+    mix = g.js("document.querySelector('[data-screen=mix]').innerText")
+    assert "First things first" in mix and g.js("window.robokitGuide.st.level") <= 2
+    locked = g.js("[3, 4, 5].map(L => document.querySelector(`.levels [data-level='${L}']`).className)")
+    assert all("locked" in c for c in locked)
+    g.pg.click(".levels [data-level='4']", force=True)  # aria-disabled: still tappable, it explains why
+    g.pg.wait_for_function("document.querySelector('#qa-mix').innerText.includes('not available')", timeout=5000)
+    assert "First things first" in g.js("window.robokitGuide.summary()")
+
+
+def test_v331_whole_percents_agree_across_the_mix(guide):
+    g = guide()
+    g.to_mix()
+    rows = g.js(
+        "Object.fromEntries([...document.querySelectorAll('.fund')].map(f => [f.querySelector('b').textContent, parseInt(f.querySelector('.w').textContent)]))"
+    )
+    legend = g.js(
+        "Object.fromEntries([...document.querySelectorAll('.legend span')].map(s => [s.textContent.replace(/\\s*\\d+%$/, '').trim(), parseInt(s.textContent.match(/(\\d+)%/)[1])]))"
+    )
+    assert sum(rows.values()) == 100 and sum(legend.values()) == 100, (rows, legend)
+    assert legend.get("Cash") == rows.get("CASH"), (legend, rows)
+    g.pg.click(".levels [data-level='2']")
+    g.pg.wait_for_selector(".changed .cmp", timeout=30000)
+    after = g.js(
+        "Object.fromEntries([...document.querySelectorAll('.changed .cmp tbody tr:not(.sum)')].map(r => [r.querySelector('th').textContent, parseInt(r.querySelectorAll('td')[1].textContent)]))"
+    )
+    rows2 = g.js(
+        "Object.fromEntries([...document.querySelectorAll('.fund')].map(f => [f.querySelector('b').textContent, parseInt(f.querySelector('.w').textContent)]))"
+    )
+    assert all(after[k] == v for k, v in rows2.items()), (after, rows2)
+
+
+def test_v331_a_ticker_already_on_the_shortlist_answers_the_question(guide):
+    g = guide()
+    g.to_assessment()
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.wait_for_selector('.step-card[data-step="TICKER"]', timeout=15000)
+    g.pg.fill("#chat-in", "VFV")
+    g.pg.press("#chat-in", "Enter")
+    g.pg.wait_for_selector(".fund", timeout=30000)
+
+
+def test_v331_level_5_is_reachable(guide):
+    g = guide()
+    g.pg.click('[data-prompt="1"]')  # retirement: withdrawals over more than 10 years
+    g.tap("EXP", "some")
+    g.tap("B1", "20plus")
+    g.tap("A2", "yes")
+    g.tap("A3", "no")
+    g.pg.locator("[data-money='25000']").last.click()
+    g.tap("B5", "very")
+    g.tap("C0", "high")
+    g.tap("C2", "buy")
+    g.tap("C1", "5")
+    g.tap("FT", "no")
+    g.pg.wait_for_selector("#assess .means", timeout=30000)
+    assert "SUGGESTED RISK LEVEL 5" in g.js("document.querySelector('#assess').innerText").upper()
+
+
+def test_v331_one_funds_projection_uses_the_mix_horizon(guide):
+    g = guide()
+    _to_amount(g)
+    g.pg.locator("[data-money='10000']").last.click()
+    g.tap("B5", "very")
+    g.tap("C0", "medium")
+    g.tap("C2", "wait")
+    g.tap("C1", "3")
+    g.tap("FT", "no")
+    g.pg.wait_for_selector("#assess .means", timeout=30000)
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.locator('[data-skip="TICKER"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    g.pg.locator(".fund [data-lm]").nth(1).click()
+    g.pg.wait_for_function(
+        "document.querySelector('#lm .side') && /After \\d+ years/.test(document.querySelector('#lm .side').innerText)", timeout=30000
+    )
+    years = g.js("window.robokitGuide.st.years")
+    assert f"After {years} years" in g.js("document.querySelector('#lm .side').innerText")
+
+
+def test_v331_a_bare_range_answers_the_share_of_savings(guide):
+    g = guide()
+    g.through_core()
+    g.tap("C1", "3")
+    g.tap("FT", "yes")
+    assert g.pending_step() == "B4"
+    g.say("10-25")
+    assert g.js("window.robokitGuide.st.answers.B4") == "10to25"

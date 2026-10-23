@@ -537,3 +537,18 @@ The list was the team's prototype review, "cleaned up feedback v2", with the scr
 | `python -m pytest -q` | 662 passed locally (CI runs it without the data archive and skips the data-dependent tests) |
 | `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean; the data snapshot was rebuilt only for the engine version |
 
+### 8.13 Demo rehearsal fixes (21 Oct 2026, v3.3.1)
+
+The team's two demo personas ("Presentation click flow") were replayed line by line on the page (the same files as the published artifact), without Claude connected. Each problem found became a failing test first. docs/DECISIONS.md section 17 records the scoring change.
+
+| Check | Result |
+|---|---|
+| Level 5 within reach (DECISIONS P9) | Every combination of the comfort answers the page can produce (2,160) scored under the old and new C0 values: 205 change (145 up, 60 down), 8 reach tolerance 5, all with every answer at its top; the 60 that move down pair "High" with an answer of 2 and now trip the inconsistency rule. Capacity is unchanged, so a home taken out all at once stays at 4 (20+ years) or 3 (10 to 19 years) |
+| Both personas replayed with the script's lines typed as written (scratch harness, headless Edge) | Persona 1: 21 of 21 checks, including the typed ready-made prompt, the option labels, "Yes, No", "10-25%", the conditional question about $350 a month (answered, not recorded), and the correction typed on the mix (both answers kept, the limits shown on the mix and in the summary). Persona 2 as written suggests level 3: capacity 3 (a home taken out all at once in 15 years) and comfort 5. The same answers reach level 5 with 25 years and the money taken out over 6 to 10 years, or with building wealth over 25 years. The replay found one more problem, fixed with a test: a bare "10-25" on the share-of-savings question was not read |
+| Cross-family review: Gemini 3.8 Flash High, two blind lanes (both Cursor pools out of usage) | Flow lane (parsers, typed answers, the mix screen) and scoring lane (Python and browser scorers, the C0 change): no issue. With no findings to weigh, the evidence for this release is the deterministic checks below and the persona replays |
+| `node web/test_converse.mjs` | 570 checks pass. New: level 5 on the full and the shortest path; one answer below the top gives 4; the capacity caps for a home taken out all at once; the conditional question and its saved answer; ranges for the share of savings; "Yes, No" on the two checks; the typed prompt's goal; the recap's wording; the one-year question with monthly money; replies that open with "Actually"; "I do not have" as a no; a correction that names both checks; a bare range or number on the share-of-savings question, and "between 10 and 25" kept as one range |
+| `node web/test_robokit.mjs` | the browser engine still matches Python on the 400 random answer sets, with the new C0 value |
+| `python -m pytest -m ui -q tests/ui` | 143 passed (73 on the guided page, 70 on web/classic.html). Ten new guided tests, one per problem found. In an earlier run, made while two review lanes were also running, one classic-page test (test_reset_to_reference_is_saved) timed out once; it passed six times on its own and in the clean full run, and web/classic.html is unchanged in this release |
+| `python -m pytest -q` | 662 passed locally (CI runs it without the data archive and skips the data-dependent tests) |
+| `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean; the data snapshot was rebuilt only for the engine version and the C0 value |
+

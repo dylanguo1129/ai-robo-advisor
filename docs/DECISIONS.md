@@ -166,6 +166,14 @@ generated inputs): web/test_robokit.mjs, web/test_engine.mjs, web/test_safety.mj
 | P7 | Words printed as definitions under messages are removed; the word buttons stay | E2 is met by the buttons | Feedback "REMOVE" 2; Monamee's review (static and dynamic definitions repeated) | done |
 | P8 | Anna's "button and its text shown twice" ("Back to building your portfolio?") is kept | the user's requirement (V4) | Not in the cleaned-up list | kept |
 
+## 17. Demo rehearsal fixes (3.3.1)
+
+| # | Decision | Value | Evidence | Status |
+|---|---|---|---|---|
+| P9 | The self-rating "High" counts as level 5; this replaces the value in W1 | C0 low / medium / high = levels 2 / 3 / 5 | With high = 4 the floor of the mean of the comfort answers could never exceed 4, so no answers suggested level 5 (scratch enumeration of every answer combination the page can produce). Of the options tried (C0 = 1 / 3 / 5, leaving C0 out, rounding the mean, the median), this one changes the fewest of the 2,160 comfort-answer combinations: 9.5%, 145 up and 60 down, and only 8 reach 5, all with every answer at its top. The 60 that move down all pair "High" with an answer of 2, which now trips the inconsistency rule (a spread of 3 or more). The brief's low / mid / high settings (D24) are unchanged. Engine parity: web/test_robokit.mjs; the paths to 5 and the caps from capacity: web/test_converse.mjs; a browser test drives the shortest path to 5 | done |
+| P10 | A limit from the emergency-fund or debt check is shown on the mix, and the levels above it are greyed out but still tappable, with the reason | `aria-disabled` buttons; notices above the mix and in the summary | Demo rehearsal: the limit was only stated in the assessment, and the disabled buttons gave no reason when tapped | done |
+| P11 | Money for a home taken out all at once keeps its capacity cap; the flow is not changed for the demo | at most 4 (20+ years), 3 (10 to 19 years) | The team's choice: keep the flow and say so in the click-flow notes | kept |
+
 ## Examination record
 
 Two outside examiners from different model families (cross-family, so neither shares the author's blind spots) were
