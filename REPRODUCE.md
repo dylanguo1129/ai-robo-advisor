@@ -10,7 +10,7 @@ and nothing depends on today's market prices.
 | The data snapshot behind the web page | `python scripts/replicate.py snapshot` | 5 minutes | about 320,000 values identical |
 | The registered evaluation, quick part | `python scripts/replicate.py evaluation` | a few minutes | 60 statistics and 3 monthly paths identical |
 | The registered evaluation, in full | `python scripts/replicate.py evaluation --full` | hours | every value in `output/v3/results.json` |
-| The test suite on the full data | `python scripts/replicate.py data`, then `python -m pytest -q` | 20 minutes | 662 passed |
+| The test suite on the full data | `python scripts/replicate.py data`, then `python -m pytest -q` | 20 minutes | 664 passed |
 
 Each command prints `PASS` or `FAIL` for every check and ends with "All checks passed." The same checks run on Linux
 in GitHub Actions on every push (the "Reproduce" job in [.github/workflows/ci.yml](.github/workflows/ci.yml)).
@@ -96,9 +96,9 @@ git ignores), checking that the data is the snapshot the run used.
 ## 4. The test suite
 
 ```bash
-python -m pytest -q                    # a fresh clone: 575 pass, 87 skipped (they need the full data)
+python -m pytest -q                    # a fresh clone: 577 pass, 87 skipped (they need the full data)
 python scripts/replicate.py data       # unpack the archived data into data/v2/ (git-ignored)
-python -m pytest -q                    # now 662 pass
+python -m pytest -q                    # now 664 pass
 python -m pytest -m ui -q tests/ui     # optional: the 143 browser tests (needs: python -m playwright install chromium)
 node web/test_robokit.mjs              # optional: the web page's engine reproduces Python (needs Node 18+)
 ```
