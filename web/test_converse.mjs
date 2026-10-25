@@ -387,7 +387,7 @@ eq('a correction naming both checks changes both', C.readTurn("Actually I don't 
   eq('"I am a student" is still no regular income', C.parseIncome('I am a student'), 'none');
   // V: "... for me" said as an answer is an answer; asked, it is advice
   for (const t of ['medium is ok for me', 'I would hold, selling is not right for me', '10k is a lot for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
-  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?']) ok(`advice: ${t}`, C.isAdvice(t));
+  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?', 'pick something good for me', 'choose a level that is right for me', 'give me something safe for me', 'I need something good for me', 'set the level that is best for me', 'make it right for me']) ok(`advice: ${t}`, C.isAdvice(t));
   eq('"medium is ok for me" answers the self-rating', RO('medium is ok for me', 'C0').facts, { C0: 'medium' });
   // Z: a month count is compared with the 3-month bar
   for (const t of ['I have 2 months of expenses', 'only 2 months', 'I have a month of expenses', 'a couple of months']) eq(`emergency fund: ${t}`, C.parseEmergency(t), 'partly');

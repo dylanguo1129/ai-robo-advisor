@@ -33,15 +33,16 @@ const ADVICE = [
   /\bshould i (?:go|stay|stick|move|switch|jump|bump|drop) (?:up |down |back )?(?:to|at|with|on) (?:a |the )?(?:level|risk level|lvl|[1-5]\b)/,
   /\bshould i (?:cut|raise|lower|increase|reduce|trim|boost|bump|drop|sell off|add to|top up|change) (?:\w+ ){0,3}(?:to|by) (?:\$?\d|level|zero|nothing)/,
 ];
-// "... for me" is advice only when it is asked ("is level 5 too risky for me?", "which level is right for me"); said as a
-// statement it answers the open question ("medium is ok for me", "10k is a lot for me")
+// "... for me" is advice when it is asked or requested ("is level 5 too risky for me?", "which level is right for me",
+// "pick something good for me"); said as a statement it answers the open question ("medium is ok for me")
+const FOR_ME_ASKS = /\b(?:which|what|whether|if|wondering|pick|choose|find|give|suggest|select|decide|build)\b|\b(?:want|need) (?:something|a|an|the|one|some)\b|\bset (?:the|a|my) (?:level|mix|portfolio|risk)\b|\bmake (?:it|one|something|a mix|a portfolio)\b/;
 const FOR_ME = [
   /\b(?:right|best|good|suitable|appropriate|ok|okay) for me\b/,
   /\b(?:too (?:risky|safe|aggressive|conservative|much|little|high|low)|a lot|enough|right|risky|safe) for (?:me|someone like me|my situation)\b/,
 ];
 export const isAdvice = (t) => {
   const s = norm(t);
-  return ADVICE.some((re) => re.test(s)) || (FOR_ME.some((re) => re.test(s)) && (isQuestionText(s) || /\b(?:which|what|whether|if|wondering)\b/.test(s)));
+  return ADVICE.some((re) => re.test(s)) || (FOR_ME.some((re) => re.test(s)) && (isQuestionText(s) || FOR_ME_ASKS.test(s)));
 };
 export const isCrisis = (t) => has(/\b(?:kill myself|suicid\w*|end my life|self[- ]harm|hurt myself|want to die)\b/, t);
 export const isMoneyStress = (t) => has(/\b(?:lost my job|laid off|can'?t pay|cannot pay|unpaid bills|eviction|bankrupt\w*|collections? agenc\w*|gambling|in debt up to|drowning in debt)\b/, t);
