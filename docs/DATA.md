@@ -1,6 +1,6 @@
 # Data: sources, dictionary, refresh, licences
 
-Snapshot in this repo: prices through 31 Aug 2026, listings and context fetched 28 Sep 2026. Rebuild everything on your own machine with `python -m robokit refresh`, then `python -m robokit bundle` for the web page. Everything under `data/v2/` is a local cache and is not in git; only the `web/data/` snapshot is committed (see `data/README.md`).
+Snapshot in this repo: prices through 31 Aug 2026, listings and context fetched 28 Sep 2026. Rebuild everything on your own machine with `python -m robokit refresh`, then `python -m robokit bundle` for the web page. Everything under `data/v2/` is a local cache and is not in git; only the `web/data/` snapshot and the archived data of record in `data/replication/` are committed (see `data/README.md`).
 
 ## Files
 

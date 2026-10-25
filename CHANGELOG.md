@@ -1,5 +1,61 @@
 # Changelog
 
+## 3.3.2 (October 2026)
+
+Fixes from a review of the whole repository in six lanes (documentation, links and commands, the Python engine and
+tools, the web page, scripts and CI, data and outputs). Each finding was reproduced by running the code before it was
+fixed, checked by a reviewer from another model family, and given a test; docs/VERIFICATION.md section 8.15 has the
+record. The engine, the data and every published number are unchanged: `web/data/` differs only in the engine version.
+
+- **The guided page reads answers more carefully.**
+  - Months count as the horizon only when they say when the money is needed. "6 months of expenses" answers the
+    emergency-fund question and "hold for 6 months" the drop question; neither sets the horizon to "less than 2 years"
+    any more, which could lower the suggestion from 5 to 2. "In 6 months" still means less than 2 years.
+  - An emergency fund below the question's 3-month bar ("I have 2 months of expenses", "less than 3 months") is
+    "partly", not "yes", and "zero months" is "no". A bare "18 months" after the goal still answers the horizon,
+    spelled-out months ("eighteen months") are read, and 24 months or more counts as two years or more.
+  - A student loan or student credit card is debt: it no longer records "no regular income"; "I'm a student" still
+    does.
+  - Answers that end in "... for me" ("medium is ok for me") are recorded. Asked or requested ("is level 5 too risky
+    for me?", "tell me the mix that is right for me") they still get the advice redirect, and so do three phrasings
+    that never did: "what is the right mix for me?", "which level is good for my situation?" and "the best level for
+    someone like me".
+  - A number of years the person typed ("in about 25 years") is repeated later only while it matches the recorded
+    horizon, not after a tap or a change.
+  - With the assessment waiting and its window closed, a reply that is neither a question nor an answer opens the
+    assessment again; before, it showed an empty question card.
+  - On the mix, "remove XUS" for a fund that is not in it says so instead of claiming a removal and rebuilding, and
+    "add SPY" explains why the fund is not available.
+  - The assessment's asset-class shares and the session log use the fund rows' whole percents, so each adds to 100.
+  - "Why we ask" about the goal now says the goal sets how the money is likely to come out, which feeds the risk
+    capacity (it said the goal did not change the math).
+  - The back-test sentence under Historicals names what was tested: Penguru's earlier rules (version 2, September
+    2026, a 60-month window). Its figures are unchanged (DECISIONS P12).
+- **Tools and the command line.**
+  - `reference_shelf` was described as "the lowest-cost broad funds", but it is ordered by the published score, in
+    which low fees weigh most; the first fund is not the cheapest of the five listed in 11 of 14 Canadian classes. The
+    descriptions now say so, the default `sort_by` is `score` (the same order as before) and `cost` now sorts by fee
+    (DECISIONS P13).
+  - `compare_etfs` no longer fails on a fund without a price series or on two spellings of the same fund, and a
+    missing first month is sent as null, so `etf_profile` works over MCP in local-data mode.
+  - `backtest_summary` labels its result as the v2 engine's September 2026 run and names its settings.
+  - `get_questions` says that the self-rating (C0) is asked with the tolerance questions.
+  - `python -m robokit refresh --help` (and `bundle` and `status`) prints help instead of starting a download or
+    rewriting `web/data/`.
+  - Exclusion reasons round amounts down, so a fund just under a minimum never reads as having it. The shipped reasons
+    keep the old rounding until the next data refresh.
+- **Reproducing.** `replicate.py evaluation --full --code <folder>` refuses at once unless the folder is a git checkout
+  of the registered commit (the registered script records its commit, so it failed after unpacking the data);
+  REPRODUCE.md and the script say a ZIP download covers the quick part only.
+- **Tooling.** `make check` also runs the conversation checks and the syntax check of every module, as CI does. The
+  research URL check writes the date it ran. `/publish-robo-kit update` looks for copies titled "Penguru" as well as
+  "Robo-Kit", and its sizes and model wording match the page.
+- **Documentation.** The pointers to the page's assistant rules name `web/guide.js` (the published page), not only
+  the classic page's `web/assistant.js`. PRODUCT_SPEC's calibration, parity and test counts are current. data/README,
+  docs/DATA.md and CONTRIBUTING describe the committed data of record and how to restore the cache offline instead of
+  downloading new data. AGENT.md gives the engine's rebalancing band and asks the self-rating. optimizer/README and the
+  model card carry the level-4 caveat, and "run once" is corrected where a run was made twice.
+
 ## Reproducibility kit (October 2026; no change to the engine or its numbers)
 
 - **The data of record is in the repository.** `data/replication/` holds the local-cache files every published number was computed from (snapshot `00a560f4a6d3`, 4.3 MB as `.tar.xz`), with SHA-256 hashes in `MANIFEST.json`, and the optimizer tables as printed in our reports (`report_tables.json`).

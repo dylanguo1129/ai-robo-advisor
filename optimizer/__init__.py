@@ -9,8 +9,8 @@ Public API
 RoboKitOptimizer   estimate inputs once, then optimize any subset of ETFs for
                    any risk-aversion level, with resampling and diagnostics.
 load_prices, to_monthly_returns   data hygiene helpers.
-walk_forward_backtest             honest out-of-sample comparison of methods.
-export_web_spec                   JSON hand-off for the browser prototype.
+optimizer.backtest.walk_forward_backtest   honest out-of-sample comparison of methods.
+optimizer.export.export_web_spec          JSON hand-off for the browser prototype.
 """
 
 from .data import download_prices, load_prices, to_monthly_returns

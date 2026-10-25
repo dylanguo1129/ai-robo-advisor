@@ -57,8 +57,8 @@ def risk_ladder(market: str = "CA") -> dict:
 
 
 @mcp.tool()
-def reference_shelf(market: str = "CA", prefer_esg: bool = False, sort_by: str = "cost") -> dict:
-    """For each asset class, the lowest-cost broad funds that fit its written rule, with runners-up. sort_by: 'cost', 'size' or 'history'."""
+def reference_shelf(market: str = "CA", prefer_esg: bool = False, sort_by: str = "score") -> dict:
+    """For each asset class, the broad funds that fit its written rule, best first by the published score (low fee weighs most, then size, trading, history), with runners-up. sort_by: 'score' (default), 'cost' (lowest fee first), 'size' or 'history'."""
     return tools.reference_shelf(market, prefer_esg, sort_by)
 
 
@@ -170,7 +170,7 @@ def explain_term(term: str) -> dict:
 
 @mcp.tool()
 def backtest_summary(market: str = "CA", level: int = 3) -> dict:
-    """The pre-registered walk-forward back-test at one level, after costs. Always hypothetical."""
+    """The v2 engine's pre-registered walk-forward back-test (September 2026) at one level, after costs. Always hypothetical, and not a test of the current engine."""
     return tools.backtest_summary(market, level)
 
 

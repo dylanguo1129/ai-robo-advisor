@@ -11,6 +11,7 @@ suitable for a buy-and-hold portfolio").
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -206,6 +207,11 @@ def apply_issuer_mer(U: pd.DataFrame, path: Path = ISSUER_MER) -> pd.DataFrame:
     return U
 
 
+def below(x: float, unit: float) -> str:
+    """``x`` in ``unit``s, rounded down to one decimal, so an amount just under a minimum never reads as the minimum."""
+    return f"{math.floor(x / unit * 10) / 10:g}"
+
+
 def build_universe(save: bool = True) -> pd.DataFrame:
     L = dedupe_canada(load_listings())
     C = classify(L)
@@ -239,9 +245,9 @@ def build_universe(save: bool = True) -> pd.DataFrame:
         elif r.stale:
             why.append("price history stops before the latest month")
         if pd.notna(r.aum) and r.aum < MIN_AUM[r.market]:
-            why.append(f"small fund: {r.aum / 1e6:.0f}M in assets (minimum {MIN_AUM[r.market] / 1e6:.0f}M)")
+            why.append(f"small fund: {below(r.aum, 1e6)}M in assets (minimum {MIN_AUM[r.market] / 1e6:.0f}M)")
         if pd.notna(r.dollar_volume) and r.dollar_volume < MIN_DOLLAR_VOLUME[r.market]:
-            why.append(f"thinly traded: about {r.dollar_volume / 1e3:.0f}K a day")
+            why.append(f"thinly traded: about {below(r.dollar_volume, 1e3)}K a day (minimum {MIN_DOLLAR_VOLUME[r.market] / 1e3:.0f}K)")
         if pd.isna(r.aum) and pd.isna(r.dollar_volume):
             why.append("no size or trading data")
         reasons.append("; ".join(why))

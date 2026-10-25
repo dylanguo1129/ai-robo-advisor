@@ -370,5 +370,44 @@ eq('a correction naming both checks changes both', C.readTurn("Actually I don't 
   eq('"between 5 and 9 years" on the horizon still reads', C.readTurn('between 5 and 9 years', { pending: 'B1', answers: {} }).facts.B1, '5to9');
 }
 
+// v3.3.2: found by the whole-repository review (docs/VERIFICATION.md section 8.15)
+{
+  const OPTS = Object.fromEntries(core.questions.map((q) => [q.id, q.options]));
+  const RO = (t, pending, answers = {}) => C.readTurn(t, { pending, answers, options: OPTS, symbols, year: 2026 });
+  // S: months are a horizon only when they say when
+  eq('"6 months of expenses" on the basics is the emergency fund, not the horizon', (({ facts, changes }) => ({ facts, changes }))(RO('Yes, I have 6 months of expenses', 'BASICS', { B1: '20plus' })), { facts: { A2: 'yes' }, changes: [] });
+  eq('"hold for 6 months" answers the drop question', RO('Probably hold for 6 months and see', 'C2', { B1: '20plus' }).facts, { C2: 'wait' });
+  eq('"250 monthly for 6 months" is money, not the horizon', RO('10k now, then 250 monthly for 6 months', 'MONEY', { B1: '20plus' }).changes, []);
+  eq('"about 6 months" on the horizon question is still less than 2 years', RO('about 6 months', 'B1').facts.B1, 'lt2');
+  eq('"I need it in about 18 months" is still less than 2 years', RO('I need it in about 18 months').facts.B1, 'lt2');
+  eq('a bare "18 months" after the goal is still the horizon', RO('A car, 18 months', 'A1').facts, { A1: 'home', B1: 'lt2' });
+  eq('a bare "6 months" on the basics is the emergency fund', RO('6 months', 'BASICS').facts, { A2: 'yes' });
+  eq('"eighteen months" is less than 2 years', H('eighteen months'), { value: 'lt2', sure: true });
+  eq('"24 months" is two years', H('24 months'), { value: '2to4', sure: true });
+  // T: a student loan is debt, not "no income"
+  eq('a student loan says nothing about income', C.parseIncome('I have a student loan'), null);
+  eq('"no credit card debt, just student loans" answers only the debt', RT('no credit card debt, just student loans', 'BASICS').facts, { A3: 'no' });
+  eq('a student loan on the debt card does not record income', RT('I have a student loan', 'A3').facts.B5, undefined);
+  eq('nor does a student credit card', RT('just a student credit card', 'A3').facts.B5, undefined);
+  eq('"I am a student" is still no regular income', C.parseIncome('I am a student'), 'none');
+  // V: "... for me" said as an answer is an answer; asked, it is advice
+  for (const t of ['medium is ok for me', 'I would hold, selling is not right for me', '10k is a lot for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
+  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?', 'pick something good for me', 'choose a level that is right for me', 'give me something safe for me', 'I need something good for me', 'set the level that is best for me', 'make it right for me', 'Please tell me the portfolio that is right for me', 'I need to know the mix that is right for me', 'the portfolio that is right for me', 'What is the right mix for me?', 'Tell me the right mix for me', 'Which level is good for my situation?', 'the best level for someone like me']) ok(`advice: ${t}`, C.isAdvice(t));
+  for (const t of ['that is too risky for me', 'level 4 feels right for me', 'Medium sounds right for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
+  eq('"medium is ok for me" answers the self-rating', RO('medium is ok for me', 'C0').facts, { C0: 'medium' });
+  // Z: a month count is compared with the 3-month bar
+  for (const t of ['I have 2 months of expenses', 'only 2 months', 'I have a month of expenses', 'a couple of months', 'less than 3 months of expenses', 'under 3 months', 'almost 3 months']) eq(`emergency fund: ${t}`, C.parseEmergency(t), 'partly');
+  eq('emergency fund: zero months is none', C.parseEmergency('I have zero months of expenses'), 'no');
+  for (const t of ['I have 6 months of expenses', 'I have 3 months', 'twelve months']) eq(`emergency fund: ${t}`, C.parseEmergency(t), 'yes');
+  eq('"I have 2 months saved" on the basics is partly', RO('I have 2 months saved', 'BASICS', { B1: '20plus' }).facts, { A2: 'partly' });
+  eq('a typed change to 2 months is partly', C.parseCommand('actually my emergency fund is only 2 months', { symbols })?.value, 'partly');
+  // U: the person's own number of years only while it names the recorded horizon
+  eq('years said for an earlier horizon are not used', C.slotsFrom({ answers: { B1: '5to9' }, words: { years: 25 } }).when, KB.PHRASE.B1['5to9']);
+  eq('years said for this horizon are used', C.slotsFrom({ answers: { B1: '20plus' }, words: { years: 25 } }).when, 'in about 25 years');
+  ok('the beginner acknowledgement does not repeat outdated years', !/25/.test(C.ackText('B1', '5to9', { depth: 'novice', answers: { B1: '5to9' }, words: { years: 25 } })));
+  // Y: the goal feeds the level through the withdrawal pattern, and the "why" says so
+  ok('why the goal is asked does not say it leaves the math alone', !/does not change/.test(KB.WHY.A1));
+}
+
 console.log(fails ? `${fails} of ${n} checks FAILED` : `all ${n} conversation checks pass`);
 if (fails) process.exit(1);

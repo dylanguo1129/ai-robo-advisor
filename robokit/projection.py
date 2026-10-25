@@ -2,9 +2,11 @@
 
 Method (docs/research/methods-signals.md section 6):
 
-1. Each fund's monthly history over the estimation window is de-meaned and
-   re-centred on its long-run planning assumption net of its fee
-   (``robokit.cma``; FP Canada 2026 for Canada). Geometric assumptions are
+1. Each fund's monthly history over the longest window every fund in the mix
+   shares (spliced and back-filled as disclosed, so it reaches back past the
+   15-year estimation window to include 2008) is de-meaned and re-centred on
+   its long-run planning assumption net of its fee (``robokit.cma``; FP Canada
+   2026 for Canada). Geometric assumptions are
    converted to arithmetic monthly means (add half the monthly variance), as
    FP Canada's guidelines say to do for Monte Carlo work.
 2. Blocks of months are drawn with replacement (stationary bootstrap, mean

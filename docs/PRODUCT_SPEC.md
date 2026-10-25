@@ -8,9 +8,9 @@ Robo-Kit is a do-it-yourself ETF portfolio lab. A person can:
 
 1. **Search every ETF they can buy.** That covers 2,187 Canadian listings in Canadian dollars (TSX and Cboe Canada) and 5,770 US listings. Every fund is classified, and every exclusion comes with a reason.
 2. **Take a short self-check.** The questions are fixed. It scores risk capacity (what their situation can absorb) and risk tolerance (what they are comfortable with) separately, and suggests the lower of the two.
-3. **Choose a level and fill each asset class with funds.** The page starts from the lowest-cost broad fund in each class, and the person keeps, swaps or adds funds.
+3. **Choose a level and fill each asset class with funds.** The page starts from one broad fund per class, chosen by a published score in which low fees weigh most, and the person keeps, swaps or adds funds.
 4. **See what a transparent engine does with those choices.** The result shows weights with uncertainty bands, ranges in dollars, fees in dollars, past-crisis replays, ten-year paths, plain-language reasons and the full mechanism.
-5. **Ask Claude anything along the way.** Claude runs on the viewing account, where Anthropic allows it (the owner, or the owner's Team/Enterprise organization; see section 2), and the person chooses how powerful a model to use. Claude calls Robo-Kit's tools for every number, and a checker rejects any reply that contains a number no tool produced.
+5. **Ask Claude anything along the way.** Claude runs on the viewing account, where Anthropic allows it (the owner, or the owner's Team/Enterprise organization; see section 2). Claude calls Robo-Kit's tools for every number, and a checker rejects any reply that contains a number no tool produced.
 
 It ships three ways, all built on one engine:
 - a web page (a Claude artifact);
@@ -49,7 +49,7 @@ Full survey: `research/prior-art-github.md`.
 
 | Surface | Who runs Claude | Model choice | Data | How to use |
 | --- | --- | --- | --- | --- |
-| Web page (Claude artifact) | The viewer's own Claude plan (artifact `sample` capability; the viewer approves the first call and pays with their own usage) | Quick, Standard or Deep in the Assistant menu (`modelTier` quick / default / complex) | Dated snapshot bundled with the page (the page cannot reach the internet) | Open the link |
+| Web page (Claude artifact) | The viewer's own Claude plan (artifact `sample` capability; the viewer approves the first call and pays with their own usage) | One tier (`modelTier` default; a quick check when Claude is connected). The Quick / Standard / Deep menu is on the earlier classic page only | Dated snapshot bundled with the page (the page cannot reach the internet) | Open the link |
 | MCP server (`python -m robokit mcp`) | The user's Claude Desktop or Claude Code session, on their own subscription | Whatever model they pick in their Claude app | The committed snapshot at once; fresh data after `python -m robokit refresh` on their machine | Add to `claude_desktop_config.json`, or `claude mcp add robokit -- python -m robokit.mcp_server` |
 | Claude Code plugin (`.claude-plugin/`) | Their Claude Code session | Their model setting | As above | `/plugin marketplace add dylanguo1129/ai-robo-advisor` then `/plugin install robo-kit@robo-kit` |
 | Command-line agent (`python -m robokit chat`) | Their own `ANTHROPIC_API_KEY` | `--tier quick|default|complex` (Haiku 4.5, Sonnet 5.5, Opus 5.5) or any `--model` | Live | Terminal |
@@ -127,7 +127,7 @@ All sources were tested on 28 Sep 2026 (`research/data-sources.md`; `robokit/dat
 **Refresh.** Run `python -m robokit refresh` (15-30 minutes), then `python -m robokit bundle` to rebuild the web snapshot. A monthly refresh matches the monthly data.
 
 **Licensing (a launch gate).** Findings from `research/gap-public-data-licensing.md`:
-- A full monthly return series can be turned back into a price history, so vendors treat it as price data. The published page's bundle therefore stays private or team-shared.
+- A full monthly return series can be turned back into a price history, so vendors treat it as price data. The published page therefore stays private or team-shared; the same snapshot is in the public course repository for non-commercial, educational use only.
 - **US, free and licence-clean:** SEC Form N-PORT filings carry each fund's monthly total returns from mid-2019. Gaps: grantor trusts and commodity pools such as GLD.
 - **US, cheapest paid:** Tiingo's commercial plan with a "Derived Products" clause (volatilities, correlations and model outputs may be published; return series may not).
 - **Canada:** no vendor with a published price that allows public display. It takes a negotiated licence (EODHD, Intrinio, Barchart, TMX Datalinx), or Canadian computations stay on the user's machine through the MCP server.
@@ -194,7 +194,7 @@ This is `robokit/engine.py`, mirrored in `web/robokit.js`.
 4. **Estimates.**
    - Covariance: Ledoit-Wolf shrinkage over up to 15 years of monthly data.
    - Expected returns: equilibrium returns implied by a written market anchor (equity 60 / bonds 35 / real estate 3 / gold 2, with 30% of equity in Canada for Canadian investors and market-cap shares for US investors). Never historical averages. This is the v1 finding: history-based expected returns chase noise.
-5. **Risk calibration.** Bisection on the risk-aversion parameter (lambda) until the portfolio's volatility equals the level's target.
+5. **Risk calibration.** A bisection on log lambda over a single solve gives a starting point; the final lambda is found on the full pipeline (resampling and the minimum position included) by bracketing and then the Illinois method on log lambda, until the mix's volatility is within 0.005 percentage points of the level's target. If the target cannot be reached, the closest mix is kept and labelled "out of reach".
 6. **Guardrails** (the ones a human advisor would apply):
    - 50% per fund;
    - REITs and gold 10% each;
@@ -204,7 +204,7 @@ This is `robokit/engine.py`, mirrored in `web/robokit.js`.
 7. **Resampling.** The weights are averaged over 200 resampled histories (stationary block bootstrap). The 5-95% band per weight shows how firmly the data pins it down. Positions under 2% are dropped and the rest re-optimised.
 8. **Optional views.** A person's own view ("gold beats bonds by 2% a year, 60% sure") enters through Black-Litterman with Idzorek-style 0-100% confidence. The tilt is capped at 1% tracking error and 5 points per fund, and it is shown next to the no-view mix. Views are off by default.
 
-Parity: the JavaScript engine reproduces the Python weights and crisis replays to within 0.002 (largest observed gap 0.0002), with identical notes and checks, on 13 reference cases, including satellites, the hedged sleeve, a hedged swap and refused swaps (`web/test_robokit.mjs`). The view case names IAUM, which is no longer the shelf's default gold fund (GLDM is), so the view is not applied and the Black-Litterman path is not yet parity-tested.
+Parity: the JavaScript engine reproduces the Python weights and crisis replays to within 0.002 (largest observed gap 0.0005), with identical notes and checks, on 28 reference cases and 6 resampled cases, including satellites, the hedged sleeve, a hedged swap, refused swaps, fixed weights, the suitability gate and views on default funds (GLDM over BND, XIC over ZAG, VFV over XIC), so the Black-Litterman path is parity-tested (`web/test_robokit.mjs`).
 
 ## 9. Market context: fundamentals, sentiment, news, geopolitics
 
@@ -231,7 +231,7 @@ When someone brings a headline, the assistant must follow a fixed pattern (`AGEN
 
 ## 10. Back-testing
 
-The protocol was pre-registered before any v2 run (`docs/RESEARCH_LOG.md` section 6) and run once (`scripts/run_backtest_v2.py`, `output/v2/`). It uses a 60-month rolling window, re-estimation every year, monthly rebalancing and a 10 bps trading cost; fund fees are included in the returns. All results are hypothetical.
+The protocol was pre-registered before any v2 run (`docs/RESEARCH_LOG.md` section 6) and run twice: the code review found two errors, and the corrected run is the one reported (`scripts/run_backtest_v2.py`, `output/v2/`; `docs/RESEARCH_LOG.md` section 6). It uses a 60-month rolling window, re-estimation every year, monthly rebalancing and a 10 bps trading cost; fund fees are included in the returns. All results are hypothetical.
 
 | Level 3 (Balanced) | Canada, Dec 2009 to Aug 2026 | US, Jul 2018 to Aug 2026 |
 | --- | --- | --- |
@@ -260,7 +260,7 @@ The product labels every back-test "hypothetical" and says that volatility is a 
 
 ## 12. Conversation design
 
-The guided page (3.1.0) follows the team's conversation script: opening, calibration ("How much do you already know about ETFs?", which sets explanation depth for the session and never the risk disclosure), goal and horizon, the basics, money, income, the risk check with its second chance, the one-year range cards, an optional fine-tune, optional preferences and tickers, the shortlist, the assessment, the mix and a closing recap. Typed text is read as an answer, a change, a ticker or a question (web/converse.js); questions are answered (by Claude when the viewer connects it, else from the page's glossary, FAQ and fund facts) and followed by "Back to building your portfolio?". Advice requests get the script's fixed redirect and the disclosure before any AI is asked. The fixed wording is in web/kb.js; the coverage of the Requirements Plan is in docs/research/requirements_coverage_v31.md.
+The guided page (3.1.0) follows the team's conversation script: opening, calibration ("How much do you already know about ETFs?", which sets explanation depth for the session and never the risk disclosure), goal and horizon, the basics, money, income, the risk check with its second chance, the one-year range cards, an optional fine-tune, the assessment, optional preferences and tickers, then the mix (no shortlist preview since 3.3.0) and a closing recap. Typed text is read as an answer, a change, a ticker or a question (web/converse.js); questions are answered (by Claude when the viewer connects it, else from the page's glossary, FAQ and fund facts) and followed by "Back to building your portfolio?". Advice requests get the script's fixed redirect and the disclosure before any AI is asked. The fixed wording is in web/kb.js; the coverage of the Requirements Plan is in docs/research/requirements_coverage_v31.md.
 
 The assistant rules for the other surfaces are in `AGENT.md`. Its essentials:
 - **Disclosure.** An AI disclosure in the first message of every session (Anthropic Usage Policy). Never "AI financial advisor" (AI washing).
@@ -312,12 +312,12 @@ Requirement checklist (R-numbers from `research/regulation.md`):
 | R6 product data | Partial: facts, reasons and dates are in place; monitoring of issuer changes (mergers, fee changes) is a remaining item |
 | R7 AI guardrails | Done: rules, validator, escalation links, tier logged |
 | R8 records | Done for Path A (version, snapshot, parameters in every result); Path B needs retention and KYC records |
-| R9 model governance | Done: 120 Python tests, JS parity test, pre-registered back-test, supplier list in docs/DATA.md |
+| R9 model governance | Done: 681 Python tests (593 on a fresh clone), JS parity test, pre-registered back-test, supplier list in docs/DATA.md |
 | R10 no monetisation without sign-off | Policy stated |
 
 ## 15. Quality and verification
 
-- `python -m pytest tests -q`: 639 tests (552 run on a fresh clone and in CI; the 87 others need the local data cache in `data/v2/` or the v1 price file). They cover the v1 solver and estimators, the classification rules, profile scoring (gates, flags, the lower-of rule, rejection of unknown answers), the group-capped solver against SLSQP, bounded views, the provenance validator, engine invariants (weights sum to 1, caps hold, volatility rises with level, the cash cap), exclusion of leveraged funds with a reason, the satellite cap, the claim that explanations use only computed numbers, the tool contract, and 18 regressions from the code review (docs/VERIFICATION.md section 3).
+- `python -m pytest tests -q`: 681 tests (593 run on a fresh clone and in CI; the 88 others need the local data cache in `data/v2/` or the v1 price file, both restored by `python scripts/replicate.py data`). They cover the v1 solver and estimators, the classification rules, profile scoring (gates, flags, the lower-of rule, rejection of unknown answers), the group-capped solver against SLSQP, bounded views, the provenance validator, engine invariants (weights sum to 1, caps hold, volatility rises with level, the cash cap), exclusion of leveraged funds with a reason, the satellite cap, the claim that explanations use only computed numbers, the tool contract, and 18 regressions from the code review (docs/VERIFICATION.md section 3).
 - `node web/test_robokit.mjs`: the browser engine against the Python engine.
 - MCP end-to-end: a stdio client lists all 15 tools and the `robo_kit_guide` prompt, and calls them.
 - The API-key agent loop was tested with a stub model. The validator caught an invented return and an invented ticker, and forced a rewrite.

@@ -1,7 +1,7 @@
 /* Penguru, the guided page (web/index.html): Yasmin's six screens with the team's conversation script.
  *   1 Homepage: a type box, three ready-made prompts, and "Connect Claude" for viewers who have it
  *   2 Q&A: calibration, goal and horizon, the basics, money, the risk check with its second chance, optional
- *     fine-tuning, preferences, tickers and the shortlist, as a chat; answers by tap or in words; questions any time
+ *     fine-tuning, the assessment, preferences and tickers, as a chat; answers by tap or in words; questions any time
  *   3 Initial assessment and disclaimer: the suggested level, what it means in dollars, how it was set
  *   4 Portfolio mix: the mix, one line per fund, why, market context, a recap, export, and the session log
  *   5 Learn more: expected returns, historicals, industry news, what the fund holds, and questions
@@ -367,7 +367,7 @@ function pageState(extra = {}) {
   if (id && id !== 'ASSESS') out.open_question = { text: questionText(id), why: KB.WHY[id] || null, answers: optionsFor(id).map((o) => o.text) };
   if (st.ack && st.profile?.suggested_level) out.suggested = { level: st.profile.suggested_level, label: st.profile.label, capacity: st.profile.capacity, tolerance: st.profile.tolerance, why: st.profile.explanation.en };
   if (st.ladder?.length === 5) out.levels = st.ladder.map((r) => ({ level: r.level, ...(st.ack ? { label: r.label } : {}), stocks: pct(r.mix.Equity || 0), bonds: pct(r.mix['Fixed income'] || 0), cash: pct(r.mix.Cash || 0), bad_year_end_value: money(r.one_year_value?.p5 ?? 0), typical_year: pct(r.one_year.p50, 1) }));
-  if (p) out.mix = { level: roundHalfUp(p.risk.level, 1), label: p.risk.label, own_weights: !!st.custom, volatility: pct(p.stats.volatility, 1), planning_return: pct(p.stats.planning_return, 1), fees_a_year: money(p.stats.fee_per_year), funds: p.holdings.map((h) => ({ symbol: h.symbol, name: h.name, role: h.sleeve_label, weight: pct(h.weight), dollars: money(h.dollars), fee: h.mer != null ? pct(h.mer, 2) : 'not in the data' })), explanation: explain(p).en };
+  if (p) out.mix = { level: roundHalfUp(p.risk.level, 1), label: p.risk.label, own_weights: !!st.custom, volatility: pct(p.stats.volatility, 1), planning_return: pct(p.stats.planning_return, 1), fees_a_year: money(p.stats.fee_per_year), funds: ((wp) => p.holdings.map((h) => ({ symbol: h.symbol, name: h.name, role: h.sleeve_label, weight: `${wp[h.ticker]}%`, dollars: money(h.dollars), fee: h.mer != null ? pct(h.mer, 2) : 'not in the data' })))(wholePcts(p.holdings)), explanation: explain(p).en };
   if (p && !st.custom) { const h = C.hoodRows(p); out.under_the_hood = { risk_by_fund: h.risk, assumptions: h.assumptions, constraints: h.constraints, method: h.method }; }
   if (st.lm?.ticker) out.fund_shown = fundFacts(st.lm.ticker);
   return out;
@@ -451,6 +451,10 @@ async function onChatText(text, { cue = false } = {}) {
   if (cmd && !several && !(cmd.type === 'change' && cmd.id === 'EXP' && dAck)) { flush(); if (applyCommand(cmd)) return; }
   if (C.isContinue(text)) { flush(); resume(); return; }
   if (dAck && id === 'EXP' && text.trim().split(/\s+/).length <= 8 && !C.isQuestionText(text)) { flush(); advance(); return; }  // "I'm new to this": answered
+  if (id === 'ASSESS' && !C.isQuestionText(text) && !C.isConditionalQuestion(text) && !C.parsePrefs(text)) {  // the assessment has no question card: show it again
+    const r1 = C.readTurn(text, { pending: null, options: optsMap(), answers: st.answers, symbols: symbolMap(), year: new Date().getFullYear() });
+    if (!Object.keys(r1.facts).length && !r1.changes.length && !Object.keys(r1.vague).length) { flush(); advance(); return; }
+  }
   const opts = optionsFor(id);
   if (id && C.isDontKnow(text)) {
     flush();
@@ -697,7 +701,7 @@ async function build({ compare = false } = {}) {
   st.built = true; st.changed = false; st.base = null; st.baseErr = null; st.custom = null; st.customP = null;
   show('mix');
   try {
-    const d = await run('build', reqBase()); st.base = d.result; event(`Built level ${st.level}: ${st.base.holdings.map((h) => `${h.symbol} ${pct(h.weight)}`).join(', ')}`);
+    const d = await run('build', reqBase()); st.base = d.result; { const wp = wholePcts(st.base.holdings); event(`Built level ${st.level}: ${st.base.holdings.map((h) => `${h.symbol} ${wp[h.ticker]}%`).join(', ')}`); }
     if (st.prevBase) event(`Before and after: expected return ${pct(st.prevBase.stats.planning_return, 1)} to ${pct(st.base.stats.planning_return, 1)} a year; volatility ${pct(st.prevBase.stats.volatility, 1)} to ${pct(st.base.stats.volatility, 1)}`);
   } catch (e) { st.baseErr = e.message; st.prevBase = null; event(`The optimizer could not build the mix: ${e.message}`); }
   if (st.screen === 'mix') render();
@@ -831,7 +835,8 @@ function openAssess() {
   const ok = p.status === 'complete' && p.suggested_level, lvl = p.suggested_level;
   if (ok && st.level == null) st.level = lvl;
   const r = st.ladder?.find((x) => x.level === lvl), gfc = r?.stress?.find((s) => s.key === 'gfc');
-  const means = r ? `<div class="means"><p><b>What level ${lvl} means.</b> It aims for about ${lvl * 20}% of the stock market's ups and downs. With the default funds that is about ${pct(r.mix.Equity || 0)} stocks, ${pct(r.mix['Fixed income'] || 0)} bonds and ${pct(r.mix.Cash || 0)} cash${(r.mix['Real estate'] || 0) + (r.mix.Commodity || 0) >= 0.005 ? `, plus ${pct((r.mix['Real estate'] || 0) + (r.mix.Commodity || 0))} in real estate and gold` : ''}.</p>
+  const sh = r ? wholePcts([['e', r.mix.Equity || 0], ['b', r.mix['Fixed income'] || 0], ['c', r.mix.Cash || 0], ['o', (r.mix['Real estate'] || 0) + (r.mix.Commodity || 0)]].map(([ticker, weight]) => ({ ticker, weight }))) : null;  // adds to 100, like the mix
+  const means = r ? `<div class="means"><p><b>What level ${lvl} means.</b> It aims for about ${lvl * 20}% of the stock market's ups and downs. With the default funds that is about ${sh.e}% stocks, ${sh.b}% bonds and ${sh.c}% cash${sh.o > 0 ? `, plus ${sh.o}% in real estate and gold` : ''}.</p>
       <p>On your ${money(st.amount)}${st.monthly ? ` plus ${money(st.monthly)} a month` : ''}: a typical year ${signed(r.one_year.p50)}; in a bad year (about 1 in 20) the value could end the year near ${money(r.one_year_value?.p5 ?? 0)}${gfc?.dollars != null ? `; a 2008-style crisis would have cost about ${money(-gfc.dollars)}` : ''}. ${KB.PAST_PERFORMANCE}</p></div>` : '<p class="muted small">Working out what this level means in your dollars…</p>';
   const gates = p.gates.map((g) => `<p class="notice">${esc(g.en)}</p>`).join('');
   const flags = p.flags.filter((f) => f.id !== 'F_self_vs_drop').map((f) => `<p class="notice">${esc(f.en)} You can change either answer.</p>`).join('');
@@ -1041,7 +1046,7 @@ function renderLM() {
       const shown = p.stress.filter((x) => x.portfolio_return != null);
       chart = stressChart(shown);
       const bt = eng.core.backtest?.CA?.stats?.find((x) => x.strategy === 'robokit' && x.level === Math.round(p.risk.level));
-      side = `<h3>Today's mix in past crises</h3><p>Each bar holds today's mix through a past crisis, over the dates shown.</p>${bt && !st.custom ? `<p>If Penguru's rules had been applied each month at level ${bt.level} from ${esc(bt.from.slice(0, 7))} to ${esc(bt.to.slice(0, 7))}, the mix would have returned about ${pct(bt.ann_return, 1)} a year, with a worst fall of ${pct(bt.max_drawdown, 1)}. This is a hypothetical result: no one actually earned it.</p>` : ''}<p class="small muted">Funds younger than a crisis use a similar older fund for those months. ${KB.PAST_PERFORMANCE} ${esc(eng.core.disclosure.en)}</p>`;
+      side = `<h3>Today's mix in past crises</h3><p>Each bar holds today's mix through a past crisis, over the dates shown.</p>${bt && !st.custom ? `<p>In a back-test of Penguru's earlier rules (version 2, September 2026), applied each month at level ${bt.level} from ${esc(bt.from.slice(0, 7))} to ${esc(bt.to.slice(0, 7))}, the mix would have returned about ${pct(bt.ann_return, 1)} a year, with a worst fall of ${pct(bt.max_drawdown, 1)}. Those rules re-estimated once a year from the last 60 months; today's look back up to 15 years. This is a hypothetical result: no one actually earned it.</p>` : ''}<p class="small muted">Funds younger than a crisis use a similar older fund for those months. ${KB.PAST_PERFORMANCE} ${esc(eng.core.disclosure.en)}</p>`;
     }
   } else {
     // E3/X5: news comes from approved sources, linked rather than copied; the issuer's own page for the fund's holdings
@@ -1274,7 +1279,7 @@ async function onSideText(text) {
     const where = st.dialog === 'lm' ? 'lm' : st.screen, list = st.qa[where] || (st.qa[where] = []);
     list.push({ who: 'me', text }); renderQA();
     const cmd = C.parseCommand(text, { symbols: symbolMap() });
-    if (cmd && where !== 'lm') { if (cmd.type === 'level') { chooseLevel(cmd.level); return; } if (cmd.type === 'add') { show('chat'); addPicks(cmd.tickers); return; } if (cmd.type === 'remove') { for (const t of cmd.tickers) removeFund(t); list.push({ who: 'bot', text: 'Removed. Rebuilding the mix.' }); liveRebuild(`you removed ${cmd.tickers.map(sym).join(', ')}`); return; } if (cmd.type === 'restart') { restart(); return; } }
+    if (cmd && where !== 'lm') { if (cmd.type === 'level') { chooseLevel(cmd.level); return; } if (cmd.type === 'add') { show('chat'); addPicks(cmd.tickers, cmd.unknown || []); return; } if (cmd.type === 'remove') { const held = new Set((viewP()?.holdings || []).map((h) => h.ticker).concat(st.picks)), gone = cmd.tickers.filter((t) => held.has(t)); for (const t of gone) removeFund(t); for (const u of [...cmd.unknown || [], ...cmd.tickers.filter((t) => !held.has(t)).map(sym)]) list.push({ who: 'bot', text: `${u} is not in your mix.` }); if (!gone.length) { renderQA(); return; } list.push({ who: 'bot', text: 'Removed. Rebuilding the mix.' }); liveRebuild(`you removed ${gone.map(sym).join(', ')}`); return; } if (cmd.type === 'restart') { restart(); return; } }
     if (where !== 'lm' && !C.isQuestionText(text) && !C.isAdvice(text)) {
       const r0 = C.readTurn(text, { pending: null, options: optsMap(), answers: st.answers, symbols: symbolMap(), year: new Date().getFullYear() });
       if (cmd?.type === 'change' || Object.keys(r0.facts).length || r0.changes.length) { show('chat'); st.busy = false; await onChatText(text, { cue: true }); return; }
@@ -1384,7 +1389,7 @@ document.addEventListener('click', (e) => {
     case 'adjust': openAdjust(); break;
     case 'adj-cancel': show('mix'); break;
     case 'adj-reset': { const p0 = st.base; st.draftOrder = p0.holdings.map((h) => h.ticker); setDraft(Object.fromEntries(p0.holdings.map((h) => [h.ticker, h.weight])), null); break; }
-    case 'adj-save': if (st.draftP) { st.custom = { ...st.draft }; st.customP = st.draftP; st.prevBase = null; event(`Adjusted the weights to ${Object.entries(st.custom).filter(([, v]) => v >= 0.005).map(([t, v]) => `${sym(t)} ${pct(v)}`).join(', ')}: behaves like level ${roundHalfUp(st.draftP.risk.level, 1)}, volatility ${pct(st.draftP.stats.volatility, 1)}${st.draftAck ? ', extra risk acknowledged' : ''}`); show('mix'); } break;
+    case 'adj-save': if (st.draftP) { st.custom = { ...st.draft }; st.customP = st.draftP; st.prevBase = null; event(`Adjusted the weights to ${((wp) => st.customP.holdings.filter((h) => wp[h.ticker] > 0).map((h) => `${h.symbol} ${wp[h.ticker]}%`).join(', '))(wholePcts(st.customP.holdings))}: behaves like level ${roundHalfUp(st.draftP.risk.level, 1)}, volatility ${pct(st.draftP.stats.volatility, 1)}${st.draftAck ? ', extra risk acknowledged' : ''}`); show('mix'); } break;
     case 'hide-changed': st.prevBase = null; render(); break;
     case 'reset-custom': st.custom = null; st.customP = null; event('Back to the calculated mix'); render(); break;
     case 'export': openExport(); break;

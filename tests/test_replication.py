@@ -1,9 +1,12 @@
 """The replication kit (scripts/replicate.py, data/replication/, REPRODUCE.md): the archived data is intact, and the
 engine reproduces the optimizer tables exactly as our reports print them."""
 
+import argparse
 import importlib.util
 import json
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("replicate", ROOT / "scripts" / "replicate.py")
@@ -39,3 +42,13 @@ def test_a_jump_cases_lambda_is_not_compared_but_its_mix_is():
     assert not R.compare(a, b)["mismatches"]
     a["reference_cases"][12]["weights"]["CASH.TO"] = 0.2  # a different mix still fails
     assert R.compare(a, b)["mismatches"]
+
+
+def test_full_with_a_zip_folder_refuses_before_unpacking_anything(tmp_path):
+    """The registered script records its git commit (git rev-parse HEAD), so --full cannot run from a ZIP's folder."""
+    code = tmp_path / "zip"
+    code.mkdir()
+    args = argparse.Namespace(full=True, code=str(code), workdir=str(tmp_path / "w"), keep=False, workers=0)
+    with pytest.raises(SystemExit, match="git checkout"):
+        R.cmd_evaluation(args)
+    assert not (tmp_path / "w").exists()

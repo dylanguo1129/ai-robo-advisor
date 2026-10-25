@@ -39,7 +39,7 @@ protocol with 500 simulated histories per world (one re-run for a disclosed bug 
 | Question | Result |
 |---|---|
 | Does each level deliver its stated volatility? | Canada 2010-2026: realised over target 1.04, 1.03, 0.99 at levels 2-4 (registered reading "inconclusive": two intervals reach just past 1.25). US 2019-2026: 1.38, 1.38, 1.34 ("missed"). |
-| Does it beat simple alternatives on risk-adjusted return? | Not detected. No Sharpe-ratio difference survived Holm adjustment in either market; against a static mix in Canada, not worse by more than 0.10 at levels 3 and 4. |
+| Does it beat simple alternatives on risk-adjusted return? | Not detected. No Sharpe-ratio difference survived Holm adjustment in either market; against a static mix in Canada, not worse by more than 0.10 at level 3, and at level 4 in the registered run only (with VALT's corrected currency label the level-4 reading is "inconclusive", docs/RESEARCH_LOG.md section 13). |
 | How close is it to the true optimum (simulation)? | Within 0.2 bp a year when the model is right; about 24 bp a year when expected returns follow planning assumptions, where a static mix lost about 3 bp less. |
 | Does resampling help? | No measurable effect either way; kept by the registered rule. |
 | Is the calibration exact? | Every walk-forward calibration ended within tolerance or at a proven bound; none at the evaluation limit. |
@@ -63,6 +63,8 @@ no proven edge over a static mix; crisis replays start in 2008; for BNDX holders
 | Shipped defaults | any difference from the registered run's locked defaults | tests/test_v3_locked_defaults.py |
 
 ## Versions
+
+v3.3.2 (October 2026): fixes from a review of the whole repository. The guided page reads months, emergency savings, student loans and "... for me" answers correctly; the tools describe the reference shelf's score and the back-test's engine accurately; no default mix or reported number changes.
 
 v3.3.1 (October 2026): fixes from rehearsing the two demo personas. The self-rating "High" counts as level 5, so level 5 can be suggested when every comfort answer is at its top and the horizon is long and spread over time. Conditional questions are answered rather than recorded; typed option labels, "Yes, No", ranges and replies that open with "Actually" are read; the emergency-fund and debt limits are shown on the mix; the whole percents agree everywhere.
 

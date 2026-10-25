@@ -7,7 +7,7 @@
     {
       "name": "robo-kit",
       "displayName": "Robo-Kit ETF portfolio lab",
-      "version": "3.3.1",
+      "version": "3.3.2",
       "description": "Build and understand a diversified ETF portfolio (Canada or US) with deterministic tools and a plain-language guide.",
       "source": "./",
       "category": "finance",

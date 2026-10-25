@@ -1,8 +1,9 @@
 # Data
 
-Robo-Kit never ships raw vendor data in git. Every dataset is fetched by code on your own machine, cached under
-`data/v2/` (ignored by git), and turned into one small, dated **snapshot** that *is* committed:
-`web/data/{core,ca,us}.json`. The web page, the MCP server and a fresh clone all run from that snapshot.
+Robo-Kit fetches every dataset by code on your own machine, caches it under `data/v2/` (ignored by git), and turns
+it into one small, dated **snapshot** that *is* committed: `web/data/{core,ca,us}.json`. The web page, the MCP server
+and a fresh clone all run from that snapshot. The cache behind that snapshot is also committed once, as the archived
+data of record (`data/replication/`, see below), so that readers can reproduce our results.
 
 ```
 python -m robokit refresh   # network: fetch every source into data/v2/ (15-30 min; news is rate-limited)
@@ -35,8 +36,10 @@ All v2 sources are fetched by `robokit/data/` (`listings.py`, `prices.py`, `cont
 | Written into code | FP Canada 2026 planning assumptions (`robokit/cma.py`), the policy anchor (`robokit/shelf.py`), crisis windows (`robokit/stress.py`), proxy tickers (`robokit/history.py`) | – | Own work |
 
 "Personal use" means the source's terms allow fetching for your own non-commercial use but not redistribution.
-Raw payloads stay out of git. The repository is public for the course and includes only the derived snapshot (monthly
-returns and summary fields), for non-commercial, educational use. A commercial product would need licensed data
+Raw payloads (`data/v2/raw/`) stay out of git. The repository is public for the course and includes the derived
+snapshot (monthly returns and summary fields) and the archived data of record (month-end prices and volume of every
+candidate ETF, the classified fund list, market-context series and the v1 daily prices), for non-commercial,
+educational use and so that readers can reproduce our results. A commercial product would need licensed data
 (see `docs/research/gap-public-data-licensing.md`).
 
 **Archived data of record.** The local-cache files every published number was computed from (snapshot `00a560f4a6d3`,
@@ -52,8 +55,10 @@ into `data/v2/`; the other commands of `scripts/replicate.py` read them directly
 | `web/test_profiles.json` | yes | 400 self-check answer sets scored by Python; the browser engine must reproduce them (`web/test_robokit.mjs`). Written by the bundle step. |
 | `output/v2/backtest_v2_summary.json` | yes | Pre-registered back-test results embedded in the snapshot (`scripts/run_backtest_v2.py`). |
 | `data/universe.csv`, `data/etf_info_yf.csv` | yes | v1 inputs: the hand-curated 20-ETF shortlist and its fund facts (used by `scripts/run_prototype.py`, `run_robustness.py`, `try_it.py`). |
+| `data/issuer_mer.csv`, `data/fund_holdings.json` | yes | The reference funds' MERs and top holdings from the issuers' own pages, each with its URL, quote and as-of date (see Known limitations). |
+| `data/replication/` | yes | The archived data of record (snapshot `00a560f4a6d3`, prices through 31 Aug 2026): the local-cache files every published number was computed from, in one `.tar.xz` (4.3 MB) with SHA-256 checksums in `MANIFEST.json`, and the reports' tables in `report_tables.json`. `python scripts/replicate.py data` unpacks it into `data/v2/`. |
 | `data/v2/` | no | Local cache from `refresh`: raw payloads (`raw/`), price chunks, pickles (`close_monthly.pkl`, `universe.pkl`, ...), logs, the `universe.csv` dictionary (see `docs/DATA.md`). About 110 MB. |
-| `data/prices_daily_adjclose.csv` | no | v1 daily prices for the 20 ETFs. Recreate with `python scripts/run_prototype.py --refresh`. |
+| `data/prices_daily_adjclose.csv` | no | v1 daily prices for the 20 ETFs. Restore the archived copy with `python scripts/replicate.py data`, or download it again with `python scripts/run_prototype.py --refresh`. |
 
 ## Snapshot currently committed
 
@@ -82,4 +87,5 @@ into `data/v2/`; the other commands of `scripts/replicate.py` read them directly
 - **News:** GDELT rate-limits aggressively; when a refresh gets nothing, the previous snapshot's headlines are kept
   and labelled with their fetch date.
 - **Rebuild only on a machine with the local cache:** running `bundle` without `data/v2/` (snapshot mode) re-reads
-  the snapshot itself and drops the newest month of interest rates. Always `refresh` first.
+  the snapshot itself and drops the newest month of interest rates. Restore the cache first: `python scripts/replicate.py
+  data` for the archived data behind the committed snapshot, or `refresh` for new data.

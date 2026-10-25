@@ -1,6 +1,6 @@
-# Verification record (28 Sep - 9 Oct 2026)
+# Verification record (28 Sep - 25 Oct 2026)
 
-> Historical log of the checks run on 28 Sep - 1 Oct 2026. Test counts are as of each round; the current counts are in README.md.
+> Historical log of the checks run from 28 Sep to 25 Oct 2026. Test counts are as of each round; the current counts are in README.md.
 
 What was checked, how, and what it found. Deterministic checks come first because they have no hallucination floor. Model-based reviews come after, and every finding was adjudicated against the code.
 
@@ -371,7 +371,7 @@ raw pages).
 
 Not tested: Gemini CLI and Codex themselves (not installed here), and any tool on a Free account.
 
-## 8. v3 (7-9 Oct 2026)
+## 8. v3 (7-25 Oct 2026)
 
 ### 8.1 Evidence for every decision
 
@@ -566,3 +566,22 @@ The data every published number was computed from is now committed (`data/replic
 | `optimizer/README.md` (new) | Every one of its 213 numbers found verbatim in the optimizer report, the code or the paper, or as a value of `output/v3/results.json` (script check); E1 and E3 figures taken from `results.json` by script. Cross-family review (Gemini 3.8 Flash High; both Cursor pools out of usage): no issue raised on the note or on the replication kit |
 | CI on Linux (first run) | `tables` passed as on Windows (99 of 99 exact on the archived data). `snapshot` rebuilt `ca.json`, `us.json` and `test_profiles.json` byte for byte, but in `core.json` one regression case (20% minimum and 30% maximum per fund, calibration outcome "jump") reported lambda 1.2456 against 1.6878, for the same weights, volatility and bracket: in a jump every lambda on the kept side gives the same mix, and the search path differs in the last bits across operating systems. The check now compares jump cases on their outcome, weights and volatility, not that lambda, as `web/test_robokit.mjs` already did (test: `tests/test_replication.py`); the other differences on Linux were within one part in a billion. The "Reproduce" job runs `tables`, `snapshot` and the quick evaluation on every push |
 
+
+### 8.15 A review of the whole repository (25 Oct 2026, v3.3.2)
+
+Six review lanes read the repository by area (documentation, links and commands, the Python engine and tools, the web page, scripts and CI, data and outputs). Every finding was then reproduced or refuted by running the code (five lanes; scripts and outputs kept outside the repository), and checked blind by a reviewer from another model family (Gemini 3.8 Flash High; both Cursor pools were out of usage). Each fix has a test that fails on the code before it. CHANGELOG 3.3.2 lists the fixes; docs/DECISIONS.md section 18 records the two choices.
+
+| Check | Result |
+|---|---|
+| Review, six lanes | 46 reports, 33 distinct issues after merging duplicates |
+| Reproduction, five lanes | 31 confirmed and 2 partly: the assessment's shares did not add to 100 but the level window shows only the stock share (one place, not two); the small-fund reason contradicted itself but the thinly-traded one did not |
+| Cross-family check of the findings (two blind lanes) | 29 confirmed and 3 partly of the 32 it could read (the back-test's provenance needs the data and was checked by reproduction only): the checklist line is in the PR template as well as CONTRIBUTING.md; it could not measure the page code's size; the level window as above |
+| New tests, run against the code before the fixes | `tests/test_v332_review.py`: 15 of 15 fail on `main`. `web/test_converse.mjs`: 54 new checks, 35 fail on `main` (the others pin behaviour that must not change, such as "in 6 months" and "I'm a student"). `tests/ui/test_guided.py`: 4 new tests, 4 fail on `main`. `tests/test_replication.py`: one new test of the `--full --code` refusal |
+| Cross-family review of the change (blind; code and documentation lanes) | Documentation: no issue. Code: 5 findings, all reproduced. Two were regressions the change had introduced ("Please tell me the portfolio that is right for me" no longer reached the advice redirect; "A car, 18 months" lost the horizon), and three were gaps also present on `main` ("less than 3 months" and "zero months" read as an emergency fund; "student credit card" read as no income; "remove" for a fund not in the mix claimed a removal). All fixed with tests. Before this review, a probe of request phrasings had already found the change letting "pick something good for me" through; fixed first |
+| Second blind review, of those fixes | 3 findings, all present on `main` as well and all fixed with tests: "what is the right mix for me?" and "which level is good for my situation?" never reached the advice redirect, and spelled-out months ("eighteen months") were not read as a horizon |
+| `python -m pytest -q` | 681 passed with the local data cache (28 min); a fresh clone of the branch without the cache: 593 passed and 88 skipped |
+| `python -m pytest -m ui tests/ui` | 147 passed (77 on the guided page, 70 on `web/classic.html`); the 77 guided tests again on the final code: 77 passed |
+| Node suites | `test_converse` 624 checks, `test_robokit` (28 reference cases and 6 resampled, 400 random answer sets with 0 differing), `test_safety`, `test_parse`, `test_assistant`, `test_engine`: all pass; every module passes the syntax check |
+| `replicate.py tables` and `snapshot` | 99 of 99 printed values exact on the archived data; 83 exact and 16 weights within 0.02 points on the committed snapshot; `web/data/` rebuilt from the archived data identical (`core.json` apart from its build time) |
+| `python -m robokit bundle` for the new version | `core.json` differs from 3.3.1 only in `engine_version` and its build time; `ca.json`, `us.json` and `test_profiles.json` unchanged |
+| `ruff check`, `ruff format --check`, `python scripts/check_publish.py` | clean |

@@ -27,12 +27,15 @@ commands listed in the Makefile by hand.
   see must come from `robokit/` (Python) and its port `web/robokit.js`, never from a prompt.
 - **Python is the reference; the browser engine must match it.** If you change `robokit/engine.py`, `profile.py`,
   `shelf.py`, `stress.py` or `projection.py`, mirror the change in `web/robokit.js`, then regenerate the reference cases and `web/test_profiles.json` with
-  `python -m robokit bundle` and make `node web/test_robokit.mjs` pass. `bundle` needs the local data cache
-  (`python -m robokit refresh` first, about 15-30 min); it refuses to run on a bare clone. If you cannot refresh,
-  ask the owner to regenerate.
+  `python -m robokit bundle` and make `node web/test_robokit.mjs` pass. `bundle` needs the local data cache and
+  refuses to run on a bare clone. Restore the archived cache with `python scripts/replicate.py data` (offline; it is
+  the data behind the committed snapshot, so only your engine change moves the numbers). Run `python -m robokit
+  refresh` only when you mean to update the data: it downloads today's prices and changes every number.
 - **The page's assistant rules are a copy.** `AGENT.md` is read by the MCP server, the plugin and the terminal agent;
-  the web page sends a condensed copy (`RULES` in `web/assistant.js`). Change both together.
-- **Data never goes in git** except the dated snapshot in `web/data/`. See `data/README.md`.
+  the published page sends its own condensed copy (`RULES` in `web/guide.js`), and the earlier classic page has
+  another (`RULES` in `web/assistant.js`). Change them together.
+- **Data never goes in git** except the dated snapshot in `web/data/`, the small inputs listed in `data/README.md`
+  and the archived data of record in `data/replication/` (changed only together with its `MANIFEST.json`).
 - **Pinned environment.** `requirements.txt` / `requirements-dev.txt` are generated from `pyproject.toml` with
   `make lock` (uv). Change a dependency in `pyproject.toml`, re-lock, and run `make check`.
 - **Versioning.** Semantic versioning in `robokit/__init__.py` (`__version__`); `pyproject.toml` reads it. Bump

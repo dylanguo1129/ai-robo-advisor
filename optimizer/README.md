@@ -18,7 +18,7 @@ share of the stock market's volatility, and weights averaged over 200 resampled 
 The longer write-ups are the optimizer report (*Robo-Kit Portfolio Optimizer*, Team Summerhill, October 2026),
 the research paper in [docs/paper](../docs/paper), and every design decision with its source or test in
 [docs/DECISIONS.md](../docs/DECISIONS.md). The numbers below are those of our reports, for data snapshot
-`00a560f4a6d3` (prices to August 31, 2026); version 3.3.1 reproduces them exactly (the optimizer's code has not
+`00a560f4a6d3` (prices to August 31, 2026); version 3.3.2 reproduces them exactly (the optimizer's code has not
 changed since 3.0.1).
 
 ## 1. The pipeline
@@ -207,7 +207,8 @@ Weights by level (%) (optimizer report Table 7; team report Table A7):
 ## 11. Why this method: what we tested
 
 Version 3 was tested by an evaluation written down before any of it ran (docs/RESEARCH_LOG.md, sections 9 to 11),
-examined in eighteen rounds by AI reviewers from other model families, and run once from committed code. Every
+examined in eighteen rounds by AI reviewers from other model families, and run from committed code (the first run
+exposed a bug; the results are from the second run, after the disclosed fix: docs/RESEARCH_LOG.md section 11). Every
 result is in [output/v3/results.json](../output/v3/results.json). Three defaults could change only by rules written
 in advance; none of them was tuned on a back-test.
 
@@ -246,7 +247,8 @@ January 2010 to August 2026 (200 months), after fees and a 10 basis point tradin
 Realized volatility came within a few percent of each target, but the registered reading is "inconclusive": the
 simultaneous 90% intervals reach just past the 0.80 to 1.25 band. Against the four benchmarks no Sharpe difference
 survived the Holm adjustment for twelve comparisons; Robo-Kit was "not worse by more than 0.10" than the static mix
-at levels 3 and 4. In the shorter US sample (92 months, exploratory) volatility ran about a third above target
+at level 3, and at level 4 in the registered run; with the gold fund VALT's currency label corrected, the level-4
+reading becomes "inconclusive" (adjusted p 0.059; docs/RESEARCH_LOG.md section 13). In the shorter US sample (92 months, exploratory) volatility ran about a third above target
 (1.38, 1.38 and 1.34).
 
 **The honest reading.** The method delivers the risk it states in Canada, stays close to the best portfolio its
