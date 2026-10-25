@@ -12,11 +12,14 @@ record. The engine, the data and every published number are unchanged: `web/data
     emergency-fund question and "hold for 6 months" the drop question; neither sets the horizon to "less than 2 years"
     any more, which could lower the suggestion from 5 to 2. "In 6 months" still means less than 2 years.
   - An emergency fund below the question's 3-month bar ("I have 2 months of expenses", "less than 3 months") is
-    "partly", not "yes", and "zero months" is "no". A bare "18 months" after the goal still answers the horizon.
+    "partly", not "yes", and "zero months" is "no". A bare "18 months" after the goal still answers the horizon,
+    spelled-out months ("eighteen months") are read, and 24 months or more counts as two years or more.
   - A student loan or student credit card is debt: it no longer records "no regular income"; "I'm a student" still
     does.
-  - Answers that end in "... for me" ("medium is ok for me") are recorded. Asked as a question ("is level 5 too risky
-    for me?") they still get the advice redirect.
+  - Answers that end in "... for me" ("medium is ok for me") are recorded. Asked or requested ("is level 5 too risky
+    for me?", "tell me the mix that is right for me") they still get the advice redirect, and so do three phrasings
+    that never did: "what is the right mix for me?", "which level is good for my situation?" and "the best level for
+    someone like me".
   - A number of years the person typed ("in about 25 years") is repeated later only while it matches the recorded
     horizon, not after a tap or a change.
   - With the assessment waiting and its window closed, a reply that is neither a question nor an answer opens the

@@ -382,6 +382,8 @@ eq('a correction naming both checks changes both', C.readTurn("Actually I don't 
   eq('"I need it in about 18 months" is still less than 2 years', RO('I need it in about 18 months').facts.B1, 'lt2');
   eq('a bare "18 months" after the goal is still the horizon', RO('A car, 18 months', 'A1').facts, { A1: 'home', B1: 'lt2' });
   eq('a bare "6 months" on the basics is the emergency fund', RO('6 months', 'BASICS').facts, { A2: 'yes' });
+  eq('"eighteen months" is less than 2 years', H('eighteen months'), { value: 'lt2', sure: true });
+  eq('"24 months" is two years', H('24 months'), { value: '2to4', sure: true });
   // T: a student loan is debt, not "no income"
   eq('a student loan says nothing about income', C.parseIncome('I have a student loan'), null);
   eq('"no credit card debt, just student loans" answers only the debt', RT('no credit card debt, just student loans', 'BASICS').facts, { A3: 'no' });
@@ -390,7 +392,7 @@ eq('a correction naming both checks changes both', C.readTurn("Actually I don't 
   eq('"I am a student" is still no regular income', C.parseIncome('I am a student'), 'none');
   // V: "... for me" said as an answer is an answer; asked, it is advice
   for (const t of ['medium is ok for me', 'I would hold, selling is not right for me', '10k is a lot for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
-  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?', 'pick something good for me', 'choose a level that is right for me', 'give me something safe for me', 'I need something good for me', 'set the level that is best for me', 'make it right for me', 'Please tell me the portfolio that is right for me', 'I need to know the mix that is right for me', 'the portfolio that is right for me']) ok(`advice: ${t}`, C.isAdvice(t));
+  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?', 'pick something good for me', 'choose a level that is right for me', 'give me something safe for me', 'I need something good for me', 'set the level that is best for me', 'make it right for me', 'Please tell me the portfolio that is right for me', 'I need to know the mix that is right for me', 'the portfolio that is right for me', 'What is the right mix for me?', 'Tell me the right mix for me', 'Which level is good for my situation?', 'the best level for someone like me']) ok(`advice: ${t}`, C.isAdvice(t));
   for (const t of ['that is too risky for me', 'level 4 feels right for me', 'Medium sounds right for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
   eq('"medium is ok for me" answers the self-rating', RO('medium is ok for me', 'C0').facts, { C0: 'medium' });
   // Z: a month count is compared with the 3-month bar

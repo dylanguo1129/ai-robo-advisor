@@ -28,7 +28,7 @@ const ADVICE = [
   /\brecommend\b/, /\b(?:top|your|best) picks?\b/, /\bpick (?:one |a fund |an etf )?for me\b/, /\b(?:choose|decide) for me\b/, /\bhelp me (?:decide|choose|pick)\b/,
   /\bwhich (?:fund|etf|one) would you\b/, /\bgood (?:etf|fund)s? to buy\b/, /\bwhere (?:do|should) i put\b/, /\bwhich (?:fund|etf|one) (?:to|do i|should i) buy\b/,
   /\bis [a-z.]{2,8} a buy\b/, /\bwill [a-z.]{2,8} go (?:up|down)\b/, /\bshould i start with\b/, /\bwhat (?:etf|fund)s? should\b/,
-  /\bbest (?:etf|fund|one|option|mix|portfolio)s? for me\b/, /\bwill (?:this|it|they|my (?:mix|portfolio)) (?:make|earn|lose) (?:me )?money\b/, /\bhow much will i (?:make|earn|have)\b/,
+  /\bbest (?:etf|fund|one|option|mix|portfolio)s? for me\b/, /\b(?:right|best|good|suitable|appropriate|ideal) (?:risk )?(?:level|mix|portfolio|fund|etf|one|option|investment|choice|allocation)s? for (?:me|someone like me|my situation|my age|my goals?)\b/, /\bwill (?:this|it|they|my (?:mix|portfolio)) (?:make|earn|lose) (?:me )?money\b/, /\bhow much will i (?:make|earn|have)\b/,
   // levels and weights asked about as a personal decision ("should I go to level 5?", "is level 5 too risky for me?")
   /\bshould i (?:go|stay|stick|move|switch|jump|bump|drop) (?:up |down |back )?(?:to|at|with|on) (?:a |the )?(?:level|risk level|lvl|[1-5]\b)/,
   /\bshould i (?:cut|raise|lower|increase|reduce|trim|boost|bump|drop|sell off|add to|top up|change) (?:\w+ ){0,3}(?:to|by) (?:\$?\d|level|zero|nothing)/,
@@ -39,7 +39,7 @@ const ADVICE = [
 const FOR_ME_SAID = /\b(?:is|are|'s|was|sounds?|feels?|seems?|looks?|would be)\s+(?:not\s+|really\s+|probably\s+|just\s+|definitely\s+)?(?:right|best|good|suitable|appropriate|ok|okay|too \w+|a lot|enough|risky|safe) for (?:me|someone like me|my situation)\b/;
 const FOR_ME_ASKS = /\b(?:which|what|whether|if|wondering|pick|choose|find|give|suggest|select|decide|build|tell|show|know|help)\b|\b(?:want|need) (?:something|a|an|the|one|some)\b|\bset (?:the|a|my) (?:level|mix|portfolio|risk)\b|\bmake (?:it|one|something|a mix|a portfolio)\b|\b(?:level|mix|portfolio|fund|etf|one|option|something|anything|investment|plan|choice)s? (?:that|which)(?:'s|\s+(?:is|are|would be|will be))\b/;
 const FOR_ME = [
-  /\b(?:right|best|good|suitable|appropriate|ok|okay) for me\b/,
+  /\b(?:right|best|good|suitable|appropriate|ok|okay) for (?:me|someone like me|my situation)\b/,
   /\b(?:too (?:risky|safe|aggressive|conservative|much|little|high|low)|a lot|enough|right|risky|safe) for (?:me|someone like me|my situation)\b/,
 ];
 export const isAdvice = (t) => {
@@ -107,8 +107,11 @@ export function parseHorizon(t, { year = new Date().getFullYear() } = {}) {
   const age = s.match(/\b(?:i'?m|i am|age(?:d)?|at) (\d{2})\b(?! years? (?:from|until|till))/), retireAt = s.match(/\bretir\w* (?:at|by|around) (\d{2})\b/);
   if (age && retireAt && Number(retireAt[1]) > Number(age[1])) return { value: bucket(Number(retireAt[1]) - Number(age[1])), sure: true };
   const yr = s.match(/\b(?:in|by|around|until) (20[2-9]\d)\b/); if (yr) return { value: bucket(Number(yr[1]) - year), sure: true };
-  const months = s.match(/(\d+(?:\.\d+)?|a few|a couple of|six|three)\s*months?\b/);
-  if (months) return { value: 'lt2', sure: true };
+  const months = s.match(/\b(\d+(?:\.\d+)?|a few|a couple of|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|eighteen|twenty[- ]four|thirty[- ]six)\s*months?\b/);
+  if (months) {
+    const n = Number(months[1]) || { ...WORDNUM, 'a few': 3, 'a couple of': 2, eleven: 11, twelve: 12, eighteen: 18, 'twenty-four': 24, 'twenty four': 24, 'thirty-six': 36, 'thirty six': 36 }[months[1]] || 1;
+    return { value: bucket(n / 12), sure: true };
+  }
   const m = s.match(/(?:(within|under|less than|fewer than|before|up to|in|over|more than|after|at least)\s+)?(?:the next\s+)?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|a couple of|a few)(?:\s*(?:-|to|or)\s*(\d+))?\s*(?:\+\s*)?(years?|yrs?|decades?)\b/);
   if (m) {
     let y = Number(m[2]) || WORDNUM[m[2].replace(/^a (?:couple of|few)$/, (x) => (x.includes('couple') ? 'couple' : 'few'))] || 0;
