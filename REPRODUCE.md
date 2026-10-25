@@ -10,7 +10,7 @@ and nothing depends on today's market prices.
 | The data snapshot behind the web page | `python scripts/replicate.py snapshot` | 5 minutes | about 320,000 values identical |
 | The registered evaluation, quick part | `python scripts/replicate.py evaluation` | a few minutes | 60 statistics and 3 monthly paths identical |
 | The registered evaluation, in full | `python scripts/replicate.py evaluation --full` | hours | every value in `output/v3/results.json` |
-| The test suite on the full data | `python scripts/replicate.py data`, then `python -m pytest -q` | 20 minutes | 664 passed |
+| The test suite on the full data | `python scripts/replicate.py data`, then `python -m pytest -q` | 20 to 40 minutes | 664 passed |
 
 Each command prints `PASS` or `FAIL` for every check and ends with "All checks passed." The same checks run on Linux
 in GitHub Actions on every push (the "Reproduce" job in [.github/workflows/ci.yml](.github/workflows/ci.yml)).
@@ -86,8 +86,10 @@ The script checks out commit `ea426ad` in a temporary git worktree and deletes i
   run length, worker count) and every monthly path file. The registered run took 2 hours 19 minutes on 28 worker
   processes; on a laptop expect most of a day.
 
-On October 25, 2026 we ran both on a clean checkout. The quick part matched value for value. The full run's
-result is recorded in [docs/VERIFICATION.md](docs/VERIFICATION.md) (section 8.14).
+On October 24 and 25, 2026 we ran both on clean checkouts, and both matched exactly. The quick part gave 60
+identical statistics and 3 identical monthly paths. The full run took 10,050 seconds on 28 worker processes and gave
+all 7,540 values of `results.json` and all 100 monthly path files identical (record: [docs/VERIFICATION.md](docs/VERIFICATION.md),
+section 8.14).
 
 The paper's numbers are filled in from `results.json`: after `python scripts/replicate.py data` (step 4),
 `python scripts/paper/derive.py` writes every number the paper places to `docs/paper/build/paper_numbers.json` (a folder
