@@ -52,7 +52,7 @@ export const DOCK = {
 // Why each step is asked: one or two plain sentences, shown under the question for beginners and on "Why we ask".
 export const WHY = {
   EXP: 'This only sets how much I explain along the way. It never changes the suggestion or the math.',
-  A1: 'Your goal shapes the examples I use. It does not change the math by itself.',
+  A1: 'Your goal sets how the money is likely to come out (all at once for a home, bit by bit for retirement or education), and that feeds how much risk your situation can take. You can change that assumption.',
   B1: 'Time is the biggest factor in how many ups and downs your money can absorb: money needed soon has less time to recover from a drop.',
   B2: 'Taking money out a bit at a time leaves the rest invested for longer, so it can carry a little more risk than money you need all at once.',
   BASICS: 'These are the "basics before investing" checks. Without an emergency fund, or with expensive debt, a market drop could force you to sell at a bad time, so Penguru keeps the suggestion on the careful side until they are in place.',

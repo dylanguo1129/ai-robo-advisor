@@ -370,7 +370,8 @@ def registered_code(commit: str, work: Path, code: str | None) -> tuple[Path, bo
     if subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=ROOT, capture_output=True).returncode:
         sys.exit(
             f"commit {commit[:10]} is not in this clone. Use a full clone (not --depth 1, not a ZIP download), or download "
-            f"https://github.com/dylanguo1129/ai-robo-advisor/archive/{commit}.zip, unzip it and pass --code <folder>."
+            f"https://github.com/dylanguo1129/ai-robo-advisor/archive/{commit}.zip, unzip it and pass --code <folder> (this "
+            "covers the quick part; --full needs a full clone)."
         )
     wt = work / "registered_code"
     subprocess.run(["git", "worktree", "add", "--detach", str(wt), commit], cwd=ROOT, check=True, capture_output=True)
@@ -381,6 +382,17 @@ def cmd_evaluation(args) -> bool:
     ref = json.loads(RESULTS.read_text(encoding="utf-8"))
     prov = ref["provenance"]
     commit = prov["commit"]
+    if args.full and args.code:  # the registered script records its own git commit, so --full needs a checkout of it
+        try:
+            head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=args.code, capture_output=True, text=True).stdout.strip()
+        except (FileNotFoundError, NotADirectoryError):
+            head = ""
+        if head != commit:
+            sys.exit(
+                f"--full runs the registered script, which records its git commit, so it needs a git checkout of "
+                f"{commit[:10]} (--code {args.code} is {'at ' + head[:10] if head else 'not a git checkout'}). Use a full "
+                "clone; a ZIP passed with --code covers the quick part only."
+            )
     work = Path(args.workdir).resolve() if args.workdir else Path(tempfile.mkdtemp(prefix="robokit_eval_"))
     work.mkdir(parents=True, exist_ok=True)
     print(f"Re-running the registered evaluation's code (commit {commit[:10]}, run {prov['started']}) on the archived data")
@@ -511,7 +523,10 @@ def main() -> None:
     e = sub.add_parser("evaluation", help="re-run the registered evaluation (quick part by default) and compare")
     e.add_argument("--full", action="store_true", help="the whole evaluation (hours)")
     e.add_argument("--workers", type=int, default=0, help="worker processes for the quick part (default: as the registered script)")
-    e.add_argument("--code", help="a folder with the registered commit's code, when this is not a git clone")
+    e.add_argument(
+        "--code",
+        help="a folder with the registered commit's code, when this is not a git clone (quick part only: --full needs a git checkout of that commit)",
+    )
     e.add_argument("--workdir", help="keep the work in this folder")
     e.add_argument("--keep", action="store_true", help="keep the temporary worktree and outputs")
     d = sub.add_parser("data", help="unpack the archived data into data/v2/")

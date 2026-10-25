@@ -26,12 +26,14 @@ format:  ## auto-fix lint findings and format the Python code
 test:  ## Python tests
 	$(PY) -m pytest -q
 
-test-web:  ## browser-engine tests (node)
+test-web:  ## browser-engine and conversation tests (node), as CI runs them
+	for f in web/*.js; do node --input-type=module --check < "$$f" || exit 1; done
 	node web/test_parse.mjs
 	node web/test_assistant.mjs
 	node web/test_engine.mjs
 	node web/test_robokit.mjs
 	node web/test_safety.mjs
+	node web/test_converse.mjs
 
 test-ui:  ## browser regression tests (Playwright; needs a Chromium-based browser: python -m playwright install chromium)
 	$(PY) -m pytest -m ui -q tests/ui

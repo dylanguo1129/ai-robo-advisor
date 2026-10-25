@@ -1126,3 +1126,63 @@ def test_v331_a_bare_range_answers_the_share_of_savings(guide):
     assert g.pending_step() == "B4"
     g.say("10-25")
     assert g.js("window.robokitGuide.st.answers.B4") == "10to25"
+
+
+# ------------------------------------------------------------------ v3.3.2: found by the whole-repository review
+def test_v332_a_reply_with_the_assessment_closed_reopens_it(guide):
+    g = guide()
+    g.to_assessment()
+    g.pg.click('#assess [data-act="change-answers"]')
+    for text in ("ok", "hmm", "I don't know"):
+        g.say(text)
+        assert g.js("window.robokitGuide.st.dialog") == "assess", text
+        assert g.js("document.querySelectorAll('#thread .step-card[data-step=ASSESS]').length") == 0, text
+        g.pg.click('#assess [data-act="change-answers"]')
+
+
+def test_v332_tickers_typed_on_the_mix_that_are_not_there_get_an_answer(guide):
+    g = guide()
+    g.to_mix()
+    before = g.js("[...document.querySelectorAll('.fund .w')].map(w => w.textContent)")
+    g.pg.fill("#chat-in", "remove SPY")
+    g.pg.press("#chat-in", "Enter")
+    g.pg.wait_for_function("document.querySelector('#qa-mix').innerText.includes('SPY is not on your shortlist')", timeout=10000)
+    assert not any(e.startswith("Rebuilt because") for e in g.js("window.robokitGuide.st.events"))
+    assert g.js("[...document.querySelectorAll('.fund .w')].map(w => w.textContent)") == before
+    g.pg.fill("#chat-in", "add SPY")
+    g.pg.press("#chat-in", "Enter")
+    g.pg.wait_for_function("window.robokitGuide.st.events.some(e => e === 'Ticker SPY not in the data')", timeout=10000)
+    assert "SPY" in " ".join(g.last(2))
+
+
+def test_v332_the_assessment_and_the_session_log_use_the_mixes_whole_percents(guide):
+    g = guide()
+    g.to_assessment()
+    import re
+
+    means = g.js("document.querySelector('#assess .means p').innerText")
+    shares = [int(x) for x in re.findall(r"(\d+)% (?:stocks|bonds|cash|in real estate)", means)]
+    assert sum(shares) == 100, means
+    g.pg.check("#ack")
+    g.pg.click('[data-act="assess-ok"]')
+    g.pg.locator('[data-skip="PREFS"]').last.click()
+    g.pg.locator('[data-skip="TICKER"]').last.click()
+    g.pg.wait_for_selector(".fund", timeout=30000)
+    rows = g.js(
+        "Object.fromEntries([...document.querySelectorAll('.fund')].map(f => [f.querySelector('b').textContent, parseInt(f.querySelector('.w').textContent)]))"
+    )
+    built = g.js("window.robokitGuide.st.events.find(e => e.startsWith('Built level'))")
+    logged = {s.split(" ")[0]: int(s.split(" ")[1].rstrip("%")) for s in built.split(": ", 1)[1].split(", ")}
+    assert logged == rows, (logged, rows)
+
+
+def test_v332_the_backtest_sentence_names_the_earlier_rules(guide):
+    g = guide()
+    g.to_mix()
+    g.pg.click('[data-act="explore"]')
+    g.pg.click('[data-tab="hist"]')
+    g.pg.wait_for_function(
+        "document.querySelector('#lm .side') && document.querySelector('#lm .side').innerText.includes('back-test')", timeout=30000
+    )
+    side = g.js("document.querySelector('#lm .side').innerText")
+    assert "earlier rules (version 2, September 2026)" in side and "60 months" in side

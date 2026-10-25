@@ -10,6 +10,7 @@ status         data dates and sources
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 
@@ -29,8 +30,6 @@ def main() -> None:
 
         serve()
     elif cmd == "build":
-        import argparse
-
         from .tools import build_portfolio_tool
 
         ap = argparse.ArgumentParser(prog="robokit build")
@@ -41,20 +40,31 @@ def main() -> None:
         a = ap.parse_args(rest)
         print(json.dumps(build_portfolio_tool(a.market, a.level, satellites=a.satellites, amount=a.amount), indent=1, ensure_ascii=False))
     elif cmd == "refresh":
+        # every command parses its arguments first, so --help (or a typo) never starts a download or a rewrite
+        argparse.ArgumentParser(
+            prog="robokit refresh",
+            description="Download listings, prices, macro, geopolitics and news and rebuild the universe (15-30 min). "
+            "It replaces the local data cache with today's data, which changes every number.",
+        ).parse_args(rest)
         from .refresh import refresh
 
         refresh()
     elif cmd == "bundle":
+        argparse.ArgumentParser(
+            prog="robokit bundle", description="Export the web data bundle (rewrites web/data/ and web/test_profiles.json)."
+        ).parse_args(rest)
         from .bundle import export_bundle
         from .engine import data_source
 
         if data_source() != "local":
             sys.exit(
-                "bundle needs the local data cache in data/v2/ (run `python -m robokit refresh` first). "
+                "bundle needs the local data cache in data/v2/ (`python scripts/replicate.py data` restores the archived "
+                "one; `python -m robokit refresh` downloads new data). "
                 "Without it, it would rebuild web/data/ from the committed snapshot itself and drop the newest month of rates."
             )
         print(json.dumps(export_bundle(), indent=1))
     elif cmd == "status":
+        argparse.ArgumentParser(prog="robokit status", description="Data dates and sources.").parse_args(rest)
         from .tools import data_status
 
         print(json.dumps(data_status(), indent=1))

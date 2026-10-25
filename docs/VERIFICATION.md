@@ -1,6 +1,6 @@
-# Verification record (28 Sep - 9 Oct 2026)
+# Verification record (28 Sep - 25 Oct 2026)
 
-> Historical log of the checks run on 28 Sep - 1 Oct 2026. Test counts are as of each round; the current counts are in README.md.
+> Historical log of the checks run from 28 Sep to 25 Oct 2026. Test counts are as of each round; the current counts are in README.md.
 
 What was checked, how, and what it found. Deterministic checks come first because they have no hallucination floor. Model-based reviews come after, and every finding was adjudicated against the code.
 
@@ -371,7 +371,7 @@ raw pages).
 
 Not tested: Gemini CLI and Codex themselves (not installed here), and any tool on a Free account.
 
-## 8. v3 (7-9 Oct 2026)
+## 8. v3 (7-25 Oct 2026)
 
 ### 8.1 Evidence for every decision
 

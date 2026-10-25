@@ -3,7 +3,7 @@
 [![CI](https://github.com/dylanguo1129/ai-robo-advisor/actions/workflows/ci.yml/badge.svg)](https://github.com/dylanguo1129/ai-robo-advisor/actions/workflows/ci.yml)
 
 Robo-Kit is a do-it-yourself ETF portfolio lab built for the MMAI 823 (AI in Finance, Smith School of Business)
-"AI Robo-Advisor Kit" team project. The web page (3.3.1, named **Penguru**, in the team's brand kit) is a guided conversation from the team's wireframes and
+"AI Robo-Advisor Kit" team project. The web page (3.3.2, named **Penguru**, in the team's brand kit) is a guided conversation from the team's wireframes and
 conversation script: it reads whatever you type (several answers at once, in any order) and says back what it
 understood, asks a short self-check, explains each step at the depth you choose or that it infers (more numbers for
 experienced investors, plain words and examples for beginners), answers questions at any point (with Claude if you connect it, else from its own notes), lets you name tickers and preferences, and builds
@@ -22,7 +22,7 @@ reply from Claude that contains a number or a ticker no tool produced.
 - **Universe:** every ETF you can buy in Canadian dollars in Canada (TSX, Cboe Canada) and every US-listed ETF:
   7,957 listings, of which 637 Canadian and 1,998 US pass the eligibility rules.
 - **Data snapshot:** prices through 31 Aug 2026, listings and market context fetched 28 Sep 2026 (`web/data/`).
-- **Engine:** v3.3.1. English only. The web page offers Canadian-listed ETFs; the other surfaces both markets.
+- **Engine:** v3.3.2. English only. The web page offers Canadian-listed ETFs; the other surfaces both markets.
 - **How the optimizer works:** [optimizer/README.md](optimizer/README.md). **Reproduce our results:**
   [REPRODUCE.md](REPRODUCE.md) (offline; every published number is checked automatically).
 
@@ -127,7 +127,7 @@ claude                       # or open this folder in the Code tab of the Claude
 
 Then type `/publish-robo-kit`. Claude runs `python scripts/check_publish.py`, which checks the files listed in
 `web/publish.json` against what the page loads, scans every value in the data files and summarises them. Claude then
-reads the page code, publishes it and gives you your link. Publishing takes some of your Claude Code usage (Claude reads about 400 KB of page code), and
+reads the page code, publishes it and gives you your link. Publishing takes some of your Claude Code usage (Claude reads about 500 KB of page code), and
 the assistant's replies count against your plan, never the owner's.
 
 - **Updating:** `git pull`, then `/publish-robo-kit update` (same link). A copy never updates by itself.
@@ -335,7 +335,8 @@ docs/                    METHOD, PRODUCT_SPEC, DATA, RESEARCH_LOG, VERIFICATION,
                          research/ (sourced research lanes), qa/ (persona tests and market research),
                          design/ (product and design system), archive/ (superseded plans)
 AGENT.md                 how the assistant talks and what it may do (loaded by the MCP server, plugin and terminal
-                         agent; the web page carries a condensed copy in web/assistant.js)
+                         agent; the published page carries a condensed copy in web/guide.js, the classic page
+                         another in web/assistant.js)
 .claude-plugin/ skills/ hooks/ .mcp.json    Claude Code plugin packaging
 .claude/skills/publish-robo-kit/             /publish-robo-kit: publish your own copy of the web page
 .github/                 CI workflow and pull-request template
@@ -356,10 +357,10 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 665 passed with the local data cache (`python scripts/replicate.py data` unpacks it from the repository); on a fresh clone and in CI 578 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
-| Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 143 tests in headless Chromium: 73 on the guided page (the conversation script, typed answers, the advice redirect, Claude connected through a stand-in, the edge cases of the Requirements Plan, the team's second feedback round, the demo rehearsal) and 70 on `web/classic.html` (with and without the assistant, the self-check, the mix, layout and accessibility). Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
+| Python tests | `python -m pytest -q` | 681 passed with the local data cache (`python scripts/replicate.py data` unpacks it from the repository); on a fresh clone and in CI 593 pass and the 88 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
+| Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 147 tests in headless Chromium: 77 on the guided page (the conversation script, typed answers, the advice redirect, Claude connected through a stand-in, the edge cases of the Requirements Plan, the team's second feedback round, the demo rehearsal, the whole-repository review) and 70 on `web/classic.html` (with and without the assistant, the self-check, the mix, layout and accessibility). Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
-| Guided conversation | `node web/test_converse.mjs` | 570 checks: advice phrasings, the whole-message reader and its recording gate, depth (self-identified and inferred), the wording at three depths, the scoring rule against the engine, tickers, answers without AI, number provenance, the checks on Claude's replies |
+| Guided conversation | `node web/test_converse.mjs` | 599 checks: advice phrasings, the whole-message reader and its recording gate, depth (self-identified and inferred), the wording at three depths, the scoring rule against the engine, tickers, answers without AI, number provenance, the checks on Claude's replies |
 | Input parser and no-AI router | `node web/test_parse.mjs` | 144 cases: amounts, first messages, and how a typed message is routed without the assistant |
 | Chat layer | `node web/test_assistant.mjs` | 7 cases, with a scripted model: each card appears once per turn, including across the rewrite pass |
 | v1 browser engine | `node web/test_engine.mjs` | 9 checks |
@@ -371,7 +372,8 @@ Engineering conventions:
 
 - **Reproducible environment:** loose ranges in `pyproject.toml`; exact, tested pins in `requirements.txt`
   (runtime) and `requirements-dev.txt` (dev), generated with `uv`.
-- **Data out of git:** only the dated snapshot `web/data/`, two small v1 inputs and the archived data of record
+- **Data out of git:** only the dated snapshot `web/data/`, two small v1 inputs, the issuers' MERs and top holdings
+  of the reference funds (`data/issuer_mer.csv`, `data/fund_holdings.json`) and the archived data of record
   (`data/replication/`, for reproducing our results) are tracked; a pre-commit hook blocks raw vendor data in
   `data/v2/` and `data/raw/`.
 - **Determinism:** fixed seeds for resampling (Python seed 0) and projections (seed 7); the data snapshot id

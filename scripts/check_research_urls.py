@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures as cf
+import datetime
 import json
 import re
 from collections import Counter
@@ -46,7 +47,9 @@ def main() -> None:
     print(Counter(str(s) for s in bad.values()).most_common())
     dead = [{"url": u, "status": s, "cited_in": sorted(urls[u])} for u, s in bad.items() if s in (404, 410)]
     print(json.dumps(dead, indent=1)[:5000])
-    (ROOT / "docs" / "research" / "_url_check.json").write_text(json.dumps({"checked": "2026-09-28", "status": res}, indent=0))
+    (ROOT / "docs" / "research" / "_url_check.json").write_text(
+        json.dumps({"checked": datetime.date.today().isoformat(), "status": res}, indent=0)
+    )
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ const has = (re, t) => re.test(norm(t));
 const ADVICE = [
   /\bshould i (?:\w+ ){0,2}(?:buy|sell|invest|put|get|pick|choose|go with|hold|move|switch|use)\b/, /\bwhat (?:should|do|would|could|can|must) i (?:\w+ ){0,2}(?:do|buy|invest|pick|choose|get|put|hold|sell)\b/,
   /\btell me what i (?:should|ought to|need to) (?:\w+ ){0,2}(?:do|buy|invest|pick|choose)\b/, /\bwhat(?:'s|s| is) (?:the )?(?:right|smart|best) (?:thing|move|choice)\b/,
-  /\bwhat do you think i should\b/, /\b(?:right|best|good|suitable|appropriate|ok|okay) for me\b/, /\bis (?:this|it|that|my|the) (?:a )?good (?:portfolio|mix|idea|investment|choice|plan|level|fund|etf)\b/,
+  /\bwhat do you think i should\b/, /\bis (?:this|it|that|my|the) (?:a )?good (?:portfolio|mix|idea|investment|choice|plan|level|fund|etf)\b/,
   /\bis [a-z.]{2,8} better than [a-z.]{2,8}\b/, /\bwhich (?:one )?is better\b/,
   /\b(?:do|would) you think i should\b/, /\bcan you (?:advise|suggest|recommend)\b/, /\badvi[cs]e me\b/, /\bgive me (?:some )?(?:advice|a recommendation)\b/,
   /\bis it (?:smart|wise|a good idea|worth it) to (?:buy|sell|invest|put)\b/, /\bworth (?:buying|investing in|it)\b/, /\bwould you (?:invest|buy|put)\b/,
@@ -32,9 +32,17 @@ const ADVICE = [
   // levels and weights asked about as a personal decision ("should I go to level 5?", "is level 5 too risky for me?")
   /\bshould i (?:go|stay|stick|move|switch|jump|bump|drop) (?:up |down |back )?(?:to|at|with|on) (?:a |the )?(?:level|risk level|lvl|[1-5]\b)/,
   /\bshould i (?:cut|raise|lower|increase|reduce|trim|boost|bump|drop|sell off|add to|top up|change) (?:\w+ ){0,3}(?:to|by) (?:\$?\d|level|zero|nothing)/,
+];
+// "... for me" is advice only when it is asked ("is level 5 too risky for me?", "which level is right for me"); said as a
+// statement it answers the open question ("medium is ok for me", "10k is a lot for me")
+const FOR_ME = [
+  /\b(?:right|best|good|suitable|appropriate|ok|okay) for me\b/,
   /\b(?:too (?:risky|safe|aggressive|conservative|much|little|high|low)|a lot|enough|right|risky|safe) for (?:me|someone like me|my situation)\b/,
 ];
-export const isAdvice = (t) => ADVICE.some((re) => re.test(norm(t)));
+export const isAdvice = (t) => {
+  const s = norm(t);
+  return ADVICE.some((re) => re.test(s)) || (FOR_ME.some((re) => re.test(s)) && (isQuestionText(s) || /\b(?:which|what|whether|if|wondering)\b/.test(s)));
+};
 export const isCrisis = (t) => has(/\b(?:kill myself|suicid\w*|end my life|self[- ]harm|hurt myself|want to die)\b/, t);
 export const isMoneyStress = (t) => has(/\b(?:lost my job|laid off|can'?t pay|cannot pay|unpaid bills|eviction|bankrupt\w*|collections? agenc\w*|gambling|in debt up to|drowning in debt)\b/, t);
 export const isDontKnow = (t) => has(/^(?:i )?(?:don'?t|do not|dunno|honestly don'?t) know\b|^not sure\b|^no idea\b|^idk\b|^unsure\b|^no clue\b|^(?:i'?m|i am) not sure\b/, t);
@@ -132,7 +140,9 @@ export function parseEmergency(t) {
   if (/\b(?:partly|partial|some|a bit|kind of|sort of|working on it|half|not enough|a little)\b/.test(s)) return 'partly';
   if (NOT_HAVE.test(s) && /\b(?:much|a lot|enough|a big)\b/.test(s)) return 'partly';  // I don't have much saved: partly
   if (/^(?:no|nope|nah|not yet|none)\b|\bno (?:savings|emergency)\b/.test(s) || NOT_HAVE.test(s)) return 'no';
-  if (/^(?:yes|yeah|yep|yup|i do|i have|sure|definitely|of course|absolutely)\b|\b\d+ months\b/.test(s)) return 'yes';
+  const mo = s.match(/\b(\d+(?:\.\d+)?|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a couple(?: of)?)\s+months?\b/);  // the bar is 3 months of expenses
+  if (mo) return (Number(mo[1]) || { ...WORDNUM, eleven: 11, twelve: 12, 'a couple': 2, 'a couple of': 2 }[mo[1]]) >= 3 ? 'yes' : 'partly';
+  if (/^(?:yes|yeah|yep|yup|i do|i have|sure|definitely|of course|absolutely)\b/.test(s)) return 'yes';
   return null;
 }
 export function parseDebt(t) {
@@ -146,7 +156,7 @@ export function parseDebt(t) {
 export function parseIncome(t) {
   const s = norm(t);
   if (/\bretired\b|\bpension\b|\bretirement income\b/.test(s) && !/\bretir(?:e|ing) (?:in|at|by)\b/.test(s)) return 'pension';  // saving for retirement is a goal, not a pension
-  if (/\b(?:no (?:regular )?income|unemployed|student|not working|between jobs|no job|out of work)\b/.test(s)) return 'none';
+  if (/\b(?:no (?:regular )?income|unemployed|student(?!s?\s+(?:loans?|debts?|line of credit))|not working|between jobs|no job|out of work)\b/.test(s)) return 'none';  // a student loan is debt
   if (/\b(?:varies|varied|irregular|freelanc\w*|self[- ]employed|commission|gig|seasonal|contract\w*|part[- ]time|uneven|unpredictable|up and down)\b/.test(s)) return 'varies';
   if (/\bmostly\b|\bfairly\b|\busually\b/.test(s)) return 'mostly';
   if (/\b(?:very steady|steady|stable|salary|salaried|full[- ]time|permanent|fixed|guaranteed|government job)\b/.test(s)) return 'very';
@@ -641,12 +651,14 @@ export const TOPIC = {
   A2: /\b(?:emergenc\w*|rainy[- ]day|cushion|safety net|savings?|set aside|months? of expenses)\b/,
   A3: /\b(?:debts?|credit[- ]?cards?|loans?|owe|line of credit|payday)\b/,
   MONEY: /\$\s?\d|\b\d[\d,.]*\s?(?:k|grand|thousand|dollars|bucks)\b|\b(?!(?:19|20)\d\d\b)\d{3,}\b|\b(?:a|per|each|every) month\b|\bmonthly\b/,
-  B5: /\b(?:income|salary|salaried|paycheque|paycheck|job|work(?:ing)?|freelanc\w*|self[- ]employed|contract\w*|commission|pension|retired|unemployed|student|full[- ]time|part[- ]time|employ\w*)\b/,
+  B5: /\b(?:income|salary|salaried|paycheque|paycheck|job|work(?:ing)?|freelanc\w*|self[- ]employed|contract\w*|commission|pension|retired|unemployed|student(?!s?\s+(?:loans?|debts?|line of credit))|full[- ]time|part[- ]time|employ\w*)\b/,
   C0: /\b(?:risk|comfort\w*|cautious|conservative|aggressive|swings|volatil\w*)\b/,
   C2: /\b(?:drops?|dropped|dip|crash\w*|falls?|fell|plunge\w*|downturn)\b|\b(?:sell everything|sell some|hold on|ride it out|buy (?:more|the dip)|panic\w*)\b/,
   C4: /\b(?:worr\w*|regret\w*|missing out|miss out|fomo|afraid of losing|bother\w*)\b/,
 };
 const START_CUE = /\b(?:in|by|within|until|retir\w*|start\w*|need|from now|away|when|next|this|soon|right away)\b|\b20[2-9]\d\b/;
+const MONTHS_AHEAD = /\b(?:in|within|by|until|next|under|less than)\s+(?:\w+\s+){0,3}months?\b|\bmonths?\s+(?:from now|away)\b/;
+const OTHER_WHEN = /\b(?:years?|yrs?|decades?|20[2-9]\d|next year|this year|right away|asap|soon)\b/;
 export const CORRECTION = /\b(?:actually|i meant|sorry|correction|change (?:that|it)|make (?:that|it)|instead|scratch that)\b|^no,/;
 const VAGUE_B1 = [[/\blong[- ]term\b|\ba long time\b|\bdecades\b|\bwhen i'?m old\b/, 'long term', ['10to19', '20plus']], [/\bshort[- ]term\b/, 'short term', ['lt2', '2to4']], [/\b(?:medium|mid)[- ]term\b/, 'medium term', ['5to9', '10to19']]];
 /** One step's answer from a clause: {value} | {candidates, word} | null. Option values only. */
@@ -719,6 +731,7 @@ export function readTurn(text, ctx = {}) {
     const topics = Object.keys(TOPIC).filter((k) => TOPIC[k].test(n));
     const t = new Set(topics);
     if (EXPERIENCE_YEARS.test(n)) t.delete('B1');
+    if (t.has('B1') && /\bmonths?\b/.test(n) && !OTHER_WHEN.test(n) && !MONTHS_AHEAD.test(n)) { t.delete('B1'); topics.splice(topics.indexOf('B1'), 1); }  // "6 months of expenses", "hold for 6 months": not when
     if (t.has('C2')) t.delete('B1');                                           // "in three months" inside the drop story
     if (t.has('B2') && !START_CUE.test(n.replace(/\bover\b.*$/, ''))) t.delete('B1');  // "over 3 years" is how long, not when
     if (t.has('B1') && pending === 'B2' && !/\b(?:in|by|within|until|start\w*|from now|away)\b|\bretir/.test(n)) { t.delete('B1'); t.add('B2'); }
@@ -785,14 +798,15 @@ export function yearsSaid(text) { const s = norm(text); if (EXPERIENCE_YEARS.tes
 export function slotsFrom(st) {
   const a = st.answers || {}, own = a.A1 != null && st.words?.goal?.goal === a.A1 ? st.words.goal.np : null;  // their own words, only for the goal they belong to
   const m = (v) => `$${Math.round(v).toLocaleString('en-CA')}`;
+  const y0 = st.words?.years, years = y0 != null && a.B1 && (y0 < 2 ? 'lt2' : y0 < 5 ? '2to4' : y0 < 10 ? '5to9' : y0 < 20 ? '10to19' : '20plus') === a.B1 ? y0 : null;  // a later tap or change outdates them
   return {
     goal: own && a.A1 !== 'retirement' ? `saving for ${own}` : KB.PHRASE.A1[a.A1], goal_np: own || KB.GOAL_NP[a.A1] || 'this money',
-    when: st.words?.years != null && a.B1 ? `in about ${st.words.years} years` : KB.PHRASE.B1[a.B1],
+    when: years != null ? `in about ${years} years` : KB.PHRASE.B1[a.B1],
     how: a.B2 && a.A1 !== 'wealth' && a.A1 !== 'learning' ? `, ${KB.PHRASE.B2[a.B2]}${st.auto?.has?.('B2') ? ' (assumed from your goal)' : ''}` : '',
     ef: KB.PHRASE.A2[a.A2], debt: KB.PHRASE.A3[a.A3], income: KB.PHRASE.B5[a.B5],
     amount: st.amountSet ? m(st.amount) : null, after: st.amountSet ? m(st.amount * 0.8) : null,
     monthly: st.monthly ? ` plus ${m(st.monthly)} a month` : '',
-    c0: KB.PHRASE.C0[a.C0], c2: KB.PHRASE.C2[a.C2], c0w: a.C0, years: st.words?.years,
+    c0: KB.PHRASE.C0[a.C0], c2: KB.PHRASE.C2[a.C2], c0w: a.C0, years,
   };
 }
 /** The words for one step at one depth: {q, options: [{value, text, ex}], why, whyDeep}. Values and order are the

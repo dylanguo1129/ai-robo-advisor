@@ -174,6 +174,13 @@ generated inputs): web/test_robokit.mjs, web/test_engine.mjs, web/test_safety.mj
 | P10 | A limit from the emergency-fund or debt check is shown on the mix, and the levels above it are greyed out but still tappable, with the reason | `aria-disabled` buttons; notices above the mix and in the summary | Demo rehearsal: the limit was only stated in the assessment, and the disabled buttons gave no reason when tapped | done |
 | P11 | Money for a home taken out all at once keeps its capacity cap; the flow is not changed for the demo | at most 4 (20+ years), 3 (10 to 19 years) | The team's choice: keep the flow and say so in the click-flow notes | kept |
 
+## 18. Repository review fixes (3.3.2)
+
+| # | Decision | Value | Evidence | Status |
+|---|---|---|---|---|
+| P12 | The back-test the page and `backtest_summary` show stays the v2 engine's September 2026 run, labelled as such | label only; no number changes | Taking it from the registered v3 walk-forward (E1) instead would change `core.json` and the page's figures (Canada, level 3: 8.3% a year and a worst fall of 13.8% would become 8.1% and 14.0%), and E1 itself predates the 3.0.2 label fix. The registered v3 result is E1 in `output/v3/results.json` | done |
+| P13 | `reference_shelf` keeps the published score as its default order; `sort_by="cost"` now sorts by fee | default `score` | The first fund is the reference fund the mix uses, so the default order cannot change. The tool's text called it the lowest-cost fund, which it is not in 11 of 14 Canadian and 7 of 14 US classes (the cheapest of the five listed is another fund) | done |
+
 ## Examination record
 
 Two outside examiners from different model families (cross-family, so neither shares the author's blind spots) were

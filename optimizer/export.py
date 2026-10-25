@@ -35,9 +35,11 @@ def export_web_spec(opt: RoboKitOptimizer, path: str, test_cases: list[dict] | N
         "sigma": [[float(v) for v in row] for row in opt.sigma.to_numpy()],
         "solver": {
             "objective": "minimize (lam/2) w'Sigma w - mu' w  s.t. sum w = 1, 0 <= w <= cap (cap = 1 for the cash ticker)",
-            "algorithm": "accelerated projected gradient (FISTA); projection onto the capped simplex by bisection on tau with w = clip(v - tau, 0, cap)",
-            "step_size": "1 / (lam * largest eigenvalue of Sigma)",
-            "stop": "max |w_k+1 - w_k| < 1e-10 or 20000 iterations",
+            "algorithm": "accelerated projected gradient (FISTA with adaptive restart) in the preconditioned space "
+            "v = D w, D = diag(sqrt(diag(Sigma))); exact projection onto the weighted capped simplex (sorted breakpoints)",
+            "step_size": "1 / (lam * largest eigenvalue of the correlation matrix D^-1 Sigma D^-1)",
+            "stop": "max |w_k+1 - w_k| < 1e-10, or 10000 iterations with a projected-gradient residual below 1e-6 "
+            "(otherwise SolverNotConverged)",
             "lam": "profile multiplier x delta",
         },
         "test_cases": test_cases or [],

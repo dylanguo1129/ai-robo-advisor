@@ -35,7 +35,9 @@ DISCLOSURE = {
 
 
 def _clean(o: Any) -> Any:
-    """JSON-safe: NaN -> None, numpy -> python, timestamps -> ISO strings."""
+    """JSON-safe: NaN and NaT -> None, numpy -> python, timestamps -> ISO strings."""
+    if o is pd.NaT or (isinstance(o, np.datetime64) and np.isnat(o)):
+        return None
     if isinstance(o, dict):
         return {str(k): _clean(v) for k, v in o.items()}
     if isinstance(o, (list, tuple)):
@@ -111,7 +113,8 @@ def get_questions() -> dict:
         "items": items,
         "note": "Ask these with the exact wording, one at a time. You may explain a question, but not reword or score it. "
         "Skip an item when its skip_if matches an earlier answer (B2 is not asked when the goal is building wealth). "
-        "Items marked optional (the two knowledge checks) come after the result, only if the person wants them.",
+        "C0 (the self-rating) is asked with the tolerance questions, before C2: it is scored, and with C2 it can raise "
+        "the F_self_vs_drop flag. The two knowledge checks (D1, D2) come after the result, only if the person wants them.",
         "levels": {k: {"en": v} for k, v in prof.LEVELS.items()},
     }
 
@@ -170,7 +173,8 @@ def risk_ladder(market: str = "CA", amount: float = 10_000.0) -> dict:
             "market": market,
             "levels": rows,
             "as_of": _as_of(),
-            "note": "Illustrations of what each risk level has meant, built from the lowest-cost broad funds. Not a recommendation.",
+            "note": "Illustrations of what each risk level has meant, built from each asset class's first fund on the reference "
+            "shelf (a written score in which low fees weigh most). Not a recommendation.",
         }
     )
 
@@ -299,33 +303,38 @@ def compare_etfs(tickers: list[str]) -> dict:
     rows, keys = [], []
     for t in tickers[:6]:
         p = etf_profile(t)
-        if p.get("found"):
+        if p.get("found") and p["ticker"] not in keys:  # two spellings of one fund are compared once
             rows.append(p)
             keys.append(p["ticker"])
+    have = [k for k in keys if k in R.columns]  # a listed fund without a price series has no correlation
     corr = None
-    if len(keys) >= 2:
-        C = R[keys].dropna().tail(60).corr()
-        corr = {a: {b: round(float(C.at[a, b]), 3) for b in keys} for a in keys}
+    if len(have) >= 2:
+        C = R[have].dropna().tail(60).corr()
+        corr = {a: {b: round(float(C.at[a, b]), 3) for b in have} for a in have}
     return _clean(
         {
             "funds": rows,
             "correlation_60m": corr,
             "as_of": _as_of(),
-            "note": "Facts only. Which fits depends on the rest of the portfolio and the person.",
+            "note": "Facts only. Which fits depends on the rest of the portfolio and the person. Funds without a price "
+            "series are left out of the correlation table.",
         }
     )
 
 
-def reference_shelf(market: str = "CA", prefer_esg: bool = False, sort_by: str = "cost") -> dict:
-    """For each asset class: the lowest-cost broad funds that fit its written rule, with the rule and runners-up."""
+def reference_shelf(market: str = "CA", prefer_esg: bool = False, sort_by: str = "score") -> dict:
+    """For each asset class: the broad funds that fit its written rule, best first by the published score (low fee weighs
+    most, then size, trading and history), with the rule and runners-up. The first fund is the one the reference mix uses."""
     market = market_code(market)
-    if sort_by not in ("cost", "size", "history"):
-        raise RoboKitInputError(f"sort_by must be one of cost, size, history; got {sort_by!r}.", {"field": "sort_by"})
+    if sort_by not in ("score", "cost", "size", "history"):
+        raise RoboKitInputError(f"sort_by must be one of score, cost, size, history; got {sort_by!r}.", {"field": "sort_by"})
     U, _, _, _ = _load()
     out = []
     for s in sleeves_for(market):
         c = candidates(U, s, prefer_esg=prefer_esg)
-        if sort_by == "size":
+        if sort_by == "cost":  # stable, so funds with the same fee keep the score's order
+            c = c.sort_values("mer", kind="stable", na_position="last")
+        elif sort_by == "size":
             c = c.sort_values("aum", ascending=False)
         elif sort_by == "history":
             c = c.sort_values("history_months", ascending=False)
@@ -455,7 +464,8 @@ def explain_term(term: str) -> dict:
 
 
 def backtest_summary(market: str = "CA", level: int = 3) -> dict:
-    """The pre-registered walk-forward back-test at one level, after costs. Hypothetical."""
+    """The v2 engine's pre-registered walk-forward back-test (September 2026) at one level, after costs. Hypothetical,
+    and not a test of the current engine (its registered walk-forward is E1 in output/v3/results.json)."""
     from .config import OUTPUT_DIR
 
     market = market_code(market)
@@ -467,11 +477,14 @@ def backtest_summary(market: str = "CA", level: int = 3) -> dict:
         "available": True,
         "market": market,
         "level": level,
-        "label": "Hypothetical back-test",
+        "label": "Hypothetical back-test of the v2 engine (Robo-Kit 2.2.0, run in September 2026), not of the current engine",
         "stats": [r for r in s["stats"] if r["level"] == level],
         "subperiods": [r for r in s["subperiods"] if r["level"] == level],
         "paired": [r for r in s["paired"] if r["level"] == level],
-        "method": "60-month rolling window, yearly re-estimation, monthly rebalancing, 10 bps trading cost, fees in fund returns",
+        "method": "v2 engine: 60-month rolling window, 50 resampling draws, risk aversion set on a single solve, yearly "
+        "re-estimation, monthly rebalancing, 10 bps trading cost, fees in fund returns. The current engine looks back up to "
+        "180 months, uses 200 draws and calibrates on the final mix; its registered walk-forward is E1 in "
+        "output/v3/results.json (docs/paper, section 6).",
         "caveats": "Funds chosen with today's information; young funds extended with proxies; no delisted funds. Not a track record.",
     }
 
