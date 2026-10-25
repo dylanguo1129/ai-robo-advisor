@@ -39,6 +39,11 @@ Raw payloads stay out of git. The repository is public for the course and includ
 returns and summary fields), for non-commercial, educational use. A commercial product would need licensed data
 (see `docs/research/gap-public-data-licensing.md`).
 
+**Archived data of record.** The local-cache files every published number was computed from (snapshot `00a560f4a6d3`,
+prices through August 31, 2026) are committed as `data/replication/robokit-data-00a560f4a6d3.tar.xz` (4.3 MB; SHA-256
+of the archive and of each file in `data/replication/MANIFEST.json`). `python scripts/replicate.py data` unpacks them
+into `data/v2/`; the other commands of `scripts/replicate.py` read them directly. See [REPRODUCE.md](../REPRODUCE.md).
+
 ## What is in git and what is not
 
 | Path | Tracked | What it is |

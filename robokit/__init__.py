@@ -1,4 +1,4 @@
-"""Robo-Kit v2: a transparent, do-it-yourself ETF robo-advisor engine.
+"""Robo-Kit: a transparent, do-it-yourself ETF robo-advisor engine.
 
 Layers
 ------

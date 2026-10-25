@@ -1,0 +1,79 @@
+{
+ "about": "The data every published Robo-Kit number was computed from (snapshot 00a560f4a6d3, prices through 2026-08-31). Unpack with: python scripts/replicate.py data",
+ "data_snapshot": "00a560f4a6d3",
+ "prices_through": "2026-08-31",
+ "archive": {
+  "file": "robokit-data-00a560f4a6d3.tar.xz",
+  "bytes": 4304876,
+  "sha256": "e8fc6bc2f245119a46c93223cc1d0be899400828580c9d29d82f02d906306a9c"
+ },
+ "files": {
+  "v2/close_monthly.pkl": {
+   "path": "data/v2/close_monthly.pkl",
+   "bytes": 30298103,
+   "sha256": "3e3ec163a88b6a06573c713a3dc8c0a90472da9e6152d1fbeb5481f14b447f06",
+   "what": "month-end total-return prices (dividends reinvested) of every candidate ETF, Yahoo Finance"
+  },
+  "v2/volume_monthly.pkl": {
+   "path": "data/v2/volume_monthly.pkl",
+   "bytes": 30298103,
+   "sha256": "a0a4f55625a4bc2d9bb7655cfabe4be7d63910491291251c9dfe169f3f7ad93f",
+   "what": "monthly traded volume of every candidate ETF, Yahoo Finance"
+  },
+  "v2/usdcad_monthly.pkl": {
+   "path": "data/v2/usdcad_monthly.pkl",
+   "bytes": 7602,
+   "sha256": "13a7c1e7ebbea983aedc0132f8ec321157f177b3054368b4b3070348895e1716",
+   "what": "USD/CAD month-end exchange rate (CAD=X), Yahoo Finance"
+  },
+  "v2/context_monthly.pkl": {
+   "path": "data/v2/context_monthly.pkl",
+   "bytes": 244608,
+   "sha256": "684301ca96eb95e0f9b65a3b2f3dbb12807ea393540f64e35d92ebcee4f038dc",
+   "what": "market-context series (rates, VIX, credit spread, GPR, EPU), monthly"
+  },
+  "v2/context_meta.json": {
+   "path": "data/v2/context_meta.json",
+   "bytes": 1838,
+   "sha256": "5e788ad7200378c691224f07aa16e3f71249fe2385984e1a4e586db6c7f0d9f5",
+   "what": "sources and as-of dates of the context series"
+  },
+  "v2/news.pkl": {
+   "path": "data/v2/news.pkl",
+   "bytes": 574,
+   "sha256": "632258872fb0c5e3166348c89c186211831da4617c12a5861040a68c582fb9ba",
+   "what": "news-tone summary (GDELT), context only"
+  },
+  "v2/universe.pkl": {
+   "path": "data/v2/universe.pkl",
+   "bytes": 3548489,
+   "sha256": "4058772aec7ae41e09fa88d5714b8bb848a6eab047a47a50c305d4c5bc21e4b7",
+   "what": "the classified ETF universe the current engine ships with (3.0.3 labels)"
+  },
+  "v2/universe_summary.json": {
+   "path": "data/v2/universe_summary.json",
+   "bytes": 181,
+   "sha256": "9f40a464544940324643151889225d46dad7d6ecde1254e29803d1676f3c9d29",
+   "what": "counts of the universe"
+  },
+  "v2/universe_v3_evaluated.pkl": {
+   "path": "data/v2/universe_v3_evaluated.pkl",
+   "bytes": 3032793,
+   "sha256": "ad624a3a5db758dbbbe78aff203eacac135a0593958847780bb58d376daea05f",
+   "what": "the universe the registered v3 evaluation used (before the 3.0.2/3.0.3 relabelling)"
+  },
+  "v2/prices_manifest_universe.json": {
+   "path": "data/v2/prices_manifest_universe.json",
+   "bytes": 2248,
+   "sha256": "916a29a565944f117de7204683ba022ece016dff373db0a3eb07df7bd2ae7a57",
+   "what": "what the price download covered"
+  },
+  "v1/prices_daily_adjclose.csv": {
+   "path": "data/prices_daily_adjclose.csv",
+   "bytes": 1294236,
+   "sha256": "fc51254bd4855702b0b2d03cecc2387a68341d663f907ceb8c81936d55729cb8",
+   "what": "daily adjusted closes of the 20 ETFs of the v1 prototype"
+  }
+ },
+ "terms": "Fetched from public sources (Yahoo Finance, TMX, Nasdaq Trader, Bank of Canada, FRED, GPR, EPU, GDELT) whose terms cover personal, non-commercial use; included so that a course reader can reproduce our results. See data/README.md."
+}

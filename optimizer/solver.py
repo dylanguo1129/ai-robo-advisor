@@ -11,17 +11,19 @@ Two solvers are provided on purpose:
   restart) in a diagonally preconditioned space, with an exact projection
   onto the (weighted) capped simplex. No dependencies beyond NumPy, about
   sixty lines, deterministic, and easy to port to JavaScript for the browser
-  prototype. Handles box + budget constraints.
+  prototype. Handles box + budget constraints and one upper-bounded group
+  (the cap on the client's own picks).
 
   Why the preconditioning: a cash-like ETF has 0.3% volatility next to
   equity ETFs at 15%, so Sigma's condition number is in the thousands and
   plain projected gradient crawls. Working in v = D w with D = diag(sqrt of
   the variances) turns Sigma into a correlation matrix (condition number in
   the tens) and turns the simplex into {a'v = 1, 0 <= v <= D ub} with
-  a = 1/diag(D), which is still a one-dimensional bisection to project onto.
+  a = 1/diag(D), onto which the projection is exact (sorted breakpoints).
 
 * ``solve_qp_slsqp`` - SciPy's SLSQP. The reference in the tests and the
-  fallback whenever group constraints are present.
+  fallback for any group bounds other than one upper cap (the product never
+  needs it).
 
 ``solve_qp`` picks the right one.
 """

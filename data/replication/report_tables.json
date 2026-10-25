@@ -1,0 +1,166 @@
+{
+ "about": "The optimizer tables as printed in our reports, for `python scripts/replicate.py tables` to recompute. Canada, the 10 default ETFs, data snapshot 00a560f4a6d3 (prices through 2026-08-31), $10,000.",
+ "sources": {
+  "settings": "Robo-Kit Portfolio Optimizer (Team Summerhill, Oct 2026), Table 1; Penguru team report, Table A1",
+  "levels": "Robo-Kit Portfolio Optimizer, Table 4; Penguru team report, Table A2",
+  "weights_pct": "Robo-Kit Portfolio Optimizer, Table 7; Penguru team report, Table A7"
+ },
+ "settings": {
+  "low": {
+   "level": 4,
+   "lambda": 2.08,
+   "volatility_pct": 8.6,
+   "stocks_bonds_cash_realestate_gold_pct": [
+    70.7,
+    20.8,
+    0.0,
+    8.5
+   ],
+   "typical_year_pct": 6.1,
+   "bad_year_pct": -11.7,
+   "replay_2008_pct": -27.5,
+   "fees_per_10000": 12.0,
+   "rating": "Low to medium"
+  },
+  "mid": {
+   "level": 3,
+   "lambda": 2.88,
+   "volatility_pct": 6.4,
+   "stocks_bonds_cash_realestate_gold_pct": [
+    52.5,
+    34.1,
+    11.1,
+    2.3
+   ],
+   "typical_year_pct": 5.2,
+   "bad_year_pct": -7.3,
+   "replay_2008_pct": -18.5,
+   "fees_per_10000": 11.0,
+   "rating": "Low to medium"
+  },
+  "high": {
+   "level": 2,
+   "lambda": 4.37,
+   "volatility_pct": 4.3,
+   "stocks_bonds_cash_realestate_gold_pct": [
+    35.6,
+    34.4,
+    30.0,
+    0.0
+   ],
+   "typical_year_pct": 4.3,
+   "bad_year_pct": -4.0,
+   "replay_2008_pct": -10.1,
+   "fees_per_10000": 10.0,
+   "rating": "Low"
+  }
+ },
+ "levels": {
+  "1": {
+   "name": "Conservative",
+   "target_share_pct": 20.0,
+   "target_pct": 2.14,
+   "lambda": 8.78,
+   "reached_pct": 2.14
+  },
+  "2": {
+   "name": "Cautious",
+   "target_share_pct": 40.0,
+   "target_pct": 4.28,
+   "lambda": 4.37,
+   "reached_pct": 4.28
+  },
+  "3": {
+   "name": "Balanced",
+   "target_share_pct": 60.0,
+   "target_pct": 6.42,
+   "lambda": 2.88,
+   "reached_pct": 6.42
+  },
+  "4": {
+   "name": "Growth",
+   "target_share_pct": 80.0,
+   "target_pct": 8.56,
+   "lambda": 2.08,
+   "reached_pct": 8.56
+  },
+  "5": {
+   "name": "Aggressive growth",
+   "target_share_pct": 100.0,
+   "target_pct": 10.7,
+   "lambda": 0.05,
+   "reached_pct": 10.45
+  }
+ },
+ "weights_pct": {
+  "1": {
+   "XIC.TO": 6.15,
+   "VFV.TO": 7.52,
+   "FLUR.NE": 3.68,
+   "ZAG.TO": 6.47,
+   "XSB.TO": 2.09,
+   "VBU.NE": 3.49,
+   "CASH.TO": 70.6
+  },
+  "2": {
+   "XIC.TO": 11.88,
+   "VFV.TO": 14.86,
+   "FLUR.NE": 6.2,
+   "VEE.TO": 2.67,
+   "ZAG.TO": 10.55,
+   "XSB.TO": 18.18,
+   "VBU.NE": 5.66,
+   "CASH.TO": 30.0
+  },
+  "3": {
+   "XIC.TO": 16.49,
+   "VFV.TO": 22.57,
+   "FLUR.NE": 9.33,
+   "VEE.TO": 4.08,
+   "ZAG.TO": 19.47,
+   "XSB.TO": 7.5,
+   "VBU.NE": 7.13,
+   "XRE.TO": 2.31,
+   "CASH.TO": 11.12
+  },
+  "4": {
+   "XIC.TO": 20.29,
+   "VFV.TO": 32.46,
+   "FLUR.NE": 13.1,
+   "VEE.TO": 4.87,
+   "ZAG.TO": 20.81,
+   "XRE.TO": 5.52,
+   "VALT.TO": 2.97
+  },
+  "5": {
+   "XIC.TO": 26.91,
+   "VFV.TO": 42.42,
+   "FLUR.NE": 23.87,
+   "VEE.TO": 2.21,
+   "XRE.TO": 4.58
+  }
+ },
+ "level_rows": {
+  "lambda": {
+   "1": 8.78,
+   "2": 4.37,
+   "3": 2.88,
+   "4": 2.08,
+   "5": 0.05
+  },
+  "volatility_pct": {
+   "1": 2.14,
+   "2": 4.28,
+   "3": 6.42,
+   "4": 8.56,
+   "5": 10.45
+  },
+  "effective_holdings": {
+   "1": 1.94,
+   "2": 5.61,
+   "3": 6.67,
+   "4": 4.69,
+   "5": 3.21
+  }
+ }
+}

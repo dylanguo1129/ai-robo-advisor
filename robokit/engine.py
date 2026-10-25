@@ -2,8 +2,8 @@
 
 Pipeline (each step deterministic and reported back):
 
-1. Funds: the reference shelf (the lowest-cost broad fund per asset class,
-   ``robokit.shelf``) with any swaps the user made, plus the user's own picks
+1. Funds: the reference shelf (one broad fund per asset class, chosen by a
+   written score in which low fees weigh most, ``robokit.shelf``) with any swaps the user made, plus the user's own picks
    as satellites. In the product the user confirms or edits this list; the
    engine never adds a fund on its own.
 2. Data: monthly total returns over the longest common window (up to 15
@@ -11,10 +11,11 @@ Pipeline (each step deterministic and reported back):
    young satellites are back-filled by regression (``robokit.history``). A
    US-listed fund in a Canadian portfolio is converted to Canadian dollars.
 3. Estimates: shrunk covariance and equilibrium expected returns anchored on
-   the written policy prior (docs/METHOD.md); optional Black-Litterman views
+   the written policy prior (optimizer/README.md); optional Black-Litterman views
    with Idzorek-style 0-100% confidence, bounded by a tracking-error budget.
 4. Risk: the chosen level (1-5) sets a share of the stock market's
-   volatility; the risk-aversion parameter is found by bisection to hit it.
+   volatility; the risk-aversion parameter is calibrated on the final,
+   resampled mix to hit it (a bracket, then the Illinois method).
 5. Weights: constrained mean-variance with guardrails (cap per fund, per
    sleeve, cash cap and satellite cap by level), averaged over resampled
    histories, then tiny positions removed.
