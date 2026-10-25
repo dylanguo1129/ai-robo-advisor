@@ -310,7 +310,9 @@ def cmd_snapshot(args) -> bool:
                 note = f" (build time {b['meta'].pop('generated', None)} -> {a['meta'].pop('generated', None)} ignored"
                 jumps = drop_jump_lambdas(a, b)
                 narrow = jumps["narrow"]
-                note += f"; lambda of the {jumps['n']} 'jump' regression cases not compared, as in web/test_robokit.mjs)" if jumps["n"] else ")"
+                note += (
+                    f"; lambda of the {jumps['n']} 'jump' regression cases not compared, as in web/test_robokit.mjs)" if jumps["n"] else ")"
+                )
             c = compare(a, b)
             same_bytes = new.read_bytes() == (ROOT / rel).read_bytes()
             ok &= report(
