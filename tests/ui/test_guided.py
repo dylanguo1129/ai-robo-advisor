@@ -1146,7 +1146,10 @@ def test_v332_tickers_typed_on_the_mix_that_are_not_there_get_an_answer(guide):
     before = g.js("[...document.querySelectorAll('.fund .w')].map(w => w.textContent)")
     g.pg.fill("#chat-in", "remove SPY")
     g.pg.press("#chat-in", "Enter")
-    g.pg.wait_for_function("document.querySelector('#qa-mix').innerText.includes('SPY is not on your shortlist')", timeout=10000)
+    g.pg.wait_for_function("document.querySelector('#qa-mix').innerText.includes('SPY is not in your mix')", timeout=10000)
+    g.pg.fill("#chat-in", "remove XUS")  # in the data, but not in this mix
+    g.pg.press("#chat-in", "Enter")
+    g.pg.wait_for_function("document.querySelector('#qa-mix').innerText.includes('XUS is not in your mix')", timeout=10000)
     assert not any(e.startswith("Rebuilt because") for e in g.js("window.robokitGuide.st.events"))
     assert g.js("[...document.querySelectorAll('.fund .w')].map(w => w.textContent)") == before
     g.pg.fill("#chat-in", "add SPY")

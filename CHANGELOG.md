@@ -11,16 +11,18 @@ record. The engine, the data and every published number are unchanged: `web/data
   - Months count as the horizon only when they say when the money is needed. "6 months of expenses" answers the
     emergency-fund question and "hold for 6 months" the drop question; neither sets the horizon to "less than 2 years"
     any more, which could lower the suggestion from 5 to 2. "In 6 months" still means less than 2 years.
-  - An emergency fund below the question's 3-month bar ("I have 2 months of expenses") is "partly", not "yes".
-  - A student loan is debt: "student loan" no longer records "no regular income"; "I'm a student" still does.
+  - An emergency fund below the question's 3-month bar ("I have 2 months of expenses", "less than 3 months") is
+    "partly", not "yes", and "zero months" is "no". A bare "18 months" after the goal still answers the horizon.
+  - A student loan or student credit card is debt: it no longer records "no regular income"; "I'm a student" still
+    does.
   - Answers that end in "... for me" ("medium is ok for me") are recorded. Asked as a question ("is level 5 too risky
     for me?") they still get the advice redirect.
   - A number of years the person typed ("in about 25 years") is repeated later only while it matches the recorded
     horizon, not after a tap or a change.
   - With the assessment waiting and its window closed, a reply that is neither a question nor an answer opens the
     assessment again; before, it showed an empty question card.
-  - On the mix, "remove SPY" for a fund that is not in it says so instead of claiming a removal, and "add SPY" explains
-    why the fund is not available.
+  - On the mix, "remove XUS" for a fund that is not in it says so instead of claiming a removal and rebuilding, and
+    "add SPY" explains why the fund is not available.
   - The assessment's asset-class shares and the session log use the fund rows' whole percents, so each adds to 100.
   - "Why we ask" about the goal now says the goal sets how the money is likely to come out, which feeds the risk
     capacity (it said the goal did not change the math).

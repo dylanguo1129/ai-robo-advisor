@@ -380,17 +380,22 @@ eq('a correction naming both checks changes both', C.readTurn("Actually I don't 
   eq('"250 monthly for 6 months" is money, not the horizon', RO('10k now, then 250 monthly for 6 months', 'MONEY', { B1: '20plus' }).changes, []);
   eq('"about 6 months" on the horizon question is still less than 2 years', RO('about 6 months', 'B1').facts.B1, 'lt2');
   eq('"I need it in about 18 months" is still less than 2 years', RO('I need it in about 18 months').facts.B1, 'lt2');
+  eq('a bare "18 months" after the goal is still the horizon', RO('A car, 18 months', 'A1').facts, { A1: 'home', B1: 'lt2' });
+  eq('a bare "6 months" on the basics is the emergency fund', RO('6 months', 'BASICS').facts, { A2: 'yes' });
   // T: a student loan is debt, not "no income"
   eq('a student loan says nothing about income', C.parseIncome('I have a student loan'), null);
   eq('"no credit card debt, just student loans" answers only the debt', RT('no credit card debt, just student loans', 'BASICS').facts, { A3: 'no' });
   eq('a student loan on the debt card does not record income', RT('I have a student loan', 'A3').facts.B5, undefined);
+  eq('nor does a student credit card', RT('just a student credit card', 'A3').facts.B5, undefined);
   eq('"I am a student" is still no regular income', C.parseIncome('I am a student'), 'none');
   // V: "... for me" said as an answer is an answer; asked, it is advice
   for (const t of ['medium is ok for me', 'I would hold, selling is not right for me', '10k is a lot for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
-  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?', 'pick something good for me', 'choose a level that is right for me', 'give me something safe for me', 'I need something good for me', 'set the level that is best for me', 'make it right for me']) ok(`advice: ${t}`, C.isAdvice(t));
+  for (const t of ['I want to know which level is right for me', 'Is level 4 right for me?', 'is level 5 too risky for me?', 'pick something good for me', 'choose a level that is right for me', 'give me something safe for me', 'I need something good for me', 'set the level that is best for me', 'make it right for me', 'Please tell me the portfolio that is right for me', 'I need to know the mix that is right for me', 'the portfolio that is right for me']) ok(`advice: ${t}`, C.isAdvice(t));
+  for (const t of ['that is too risky for me', 'level 4 feels right for me', 'Medium sounds right for me']) ok(`not advice: ${t}`, !C.isAdvice(t));
   eq('"medium is ok for me" answers the self-rating', RO('medium is ok for me', 'C0').facts, { C0: 'medium' });
   // Z: a month count is compared with the 3-month bar
-  for (const t of ['I have 2 months of expenses', 'only 2 months', 'I have a month of expenses', 'a couple of months']) eq(`emergency fund: ${t}`, C.parseEmergency(t), 'partly');
+  for (const t of ['I have 2 months of expenses', 'only 2 months', 'I have a month of expenses', 'a couple of months', 'less than 3 months of expenses', 'under 3 months', 'almost 3 months']) eq(`emergency fund: ${t}`, C.parseEmergency(t), 'partly');
+  eq('emergency fund: zero months is none', C.parseEmergency('I have zero months of expenses'), 'no');
   for (const t of ['I have 6 months of expenses', 'I have 3 months', 'twelve months']) eq(`emergency fund: ${t}`, C.parseEmergency(t), 'yes');
   eq('"I have 2 months saved" on the basics is partly', RO('I have 2 months saved', 'BASICS', { B1: '20plus' }).facts, { A2: 'partly' });
   eq('a typed change to 2 months is partly', C.parseCommand('actually my emergency fund is only 2 months', { symbols })?.value, 'partly');
