@@ -1,5 +1,10 @@
 """The Robo-Kit allocation engine.
 
+In the product, ``robokit.engine`` fits this class on the chosen funds only and passes its own
+limits and a numeric lam calibrated to the level's volatility target; the class defaults below
+(rf, w_max 35%, 500 draws, ``RiskProfiles``) are those of the v1 prototype. How the product uses
+it: optimizer/README.md.
+
 Usage sketch
 ------------
     panel = to_monthly_returns(load_prices("data/prices_daily_adjclose.csv"))

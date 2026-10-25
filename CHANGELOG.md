@@ -1,5 +1,14 @@
 # Changelog
 
+## Reproducibility kit (October 2026; no change to the engine or its numbers)
+
+- **The data of record is in the repository.** `data/replication/` holds the local-cache files every published number was computed from (snapshot `00a560f4a6d3`, 4.3 MB as `.tar.xz`), with SHA-256 hashes in `MANIFEST.json`, and the optimizer tables as printed in our reports (`report_tables.json`).
+- **`scripts/replicate.py`** re-runs our results offline and checks them value by value: `tables` (the reports' Tables 1, 4 and 7: 99 printed values), `snapshot` (`web/data/` rebuilt from the archived data), `evaluation` (the registered evaluation re-run with its own commit's code in a temporary worktree: a quick part, or `--full`), and `data` (unpacks the archive into `data/v2/` for the full test suite).
+- **[REPRODUCE.md](REPRODUCE.md)** gives the steps, the times, what "the same" means and where each published number comes from; the README links it from the top and has a short "Reproduce our results" section.
+- **[optimizer/README.md](optimizer/README.md)** explains how the optimizer works, from the fund list to the calibrated λ and the resampled weights, why we chose this method over the alternatives we tested, and what our evaluation does and does not show.
+- **CI** runs the reproduction checks on Linux on every push (the "Reproduce" job); `tests/test_replication.py` checks the archive against its manifest and the engine against the reports' tables.
+- Docstrings in `optimizer/` and `robokit/engine.py` that still described earlier versions (a bisection for λ, a 35% cap, "the lowest-cost fund") now match the code; the README's layout no longer calls the engine "v2", and its evidence paragraph says the reviewers were AI models.
+
 ## 3.3.1 (October 2026)
 
 Fixes found by rehearsing the team's two demo personas ("Presentation click flow") on the published page, and one scoring change so the top level can be reached.

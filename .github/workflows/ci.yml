@@ -85,3 +85,26 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Browser tests (the page and the AI stand-in, served from web/)
         run: python -m pytest -m ui -q -rs tests/ui
+
+  reproduce:
+    name: Reproduce the published numbers (scripts/replicate.py)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the evaluation re-runs at the commit it was registered on
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install (pinned)
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e . --no-deps
+      - name: The optimizer tables of both reports
+        run: python scripts/replicate.py tables
+      - name: The web data snapshot, rebuilt from the archived data
+        run: python scripts/replicate.py snapshot
+      - name: The registered evaluation, quick part (E1 Canada, levels 2-4, at its own commit)
+        run: python scripts/replicate.py evaluation

@@ -23,22 +23,25 @@ reply from Claude that contains a number or a ticker no tool produced.
   7,957 listings, of which 637 Canadian and 1,998 US pass the eligibility rules.
 - **Data snapshot:** prices through 31 Aug 2026, listings and market context fetched 28 Sep 2026 (`web/data/`).
 - **Engine:** v3.3.1. English only. The web page offers Canadian-listed ETFs; the other surfaces both markets.
+- **How the optimizer works:** [optimizer/README.md](optimizer/README.md). **Reproduce our results:**
+  [REPRODUCE.md](REPRODUCE.md) (offline; every published number is checked automatically).
 
 ---
 
 ## Contents
 
 1. [Quick start](#quick-start)
-2. [Ways to use it](#ways-to-use-it)
-3. [Your own copy of the web page](#your-own-copy-of-the-web-page)
-4. [Other AI tools and free Claude accounts](#other-ai-tools-and-free-claude-accounts)
-5. [Sharing the web page: who gets the AI assistant](#sharing-the-web-page-who-gets-the-ai-assistant)
-6. [How it works](#how-it-works)
-7. [Repository layout](#repository-layout)
-8. [Development](#development)
-9. [Known limitations](#known-limitations)
-10. [How this was built: the prompts](#how-this-was-built-the-prompts)
-11. [Course context, AI use and licence](#course-context-ai-use-and-licence)
+2. [Reproduce our results](#reproduce-our-results)
+3. [Ways to use it](#ways-to-use-it)
+4. [Your own copy of the web page](#your-own-copy-of-the-web-page)
+5. [Other AI tools and free Claude accounts](#other-ai-tools-and-free-claude-accounts)
+6. [Sharing the web page: who gets the AI assistant](#sharing-the-web-page-who-gets-the-ai-assistant)
+7. [How it works](#how-it-works)
+8. [Repository layout](#repository-layout)
+9. [Development](#development)
+10. [Known limitations](#known-limitations)
+11. [How this was built: the prompts](#how-this-was-built-the-prompts)
+12. [Course context, AI use and licence](#course-context-ai-use-and-licence)
 
 ---
 
@@ -66,6 +69,22 @@ python scripts/serve_dev.py           # http://127.0.0.1:8765/index.html: the gu
 python scripts/make_mock_page.py      # optional: web/mock.html, a test harness where you play Claude from the
                                       # devtools console (window.__mock.view(), .call(name, args), .finish(text))
 ```
+
+## Reproduce our results
+
+The data every published number came from is committed (`data/replication/`), so the results can be re-run offline
+and are checked against what we published, value by value. After the quick start:
+
+```bash
+python scripts/replicate.py tables       # 2 minutes: the optimizer tables of both reports (99 printed values)
+python scripts/replicate.py snapshot     # 5 minutes: web/data/ rebuilt from the archived data, compared
+python scripts/replicate.py evaluation   # a few minutes: part of the registered evaluation, at its own commit
+```
+
+`python scripts/replicate.py evaluation --full` re-runs the whole registered evaluation (hours). Use a full `git
+clone` (the evaluation checks out the commit it ran on). [REPRODUCE.md](REPRODUCE.md) explains each check, what
+"the same" means and where every published number comes from; the same checks run in CI on Linux. How the optimizer
+reaches its numbers: [optimizer/README.md](optimizer/README.md).
 
 ## Ways to use it
 
@@ -280,33 +299,38 @@ Full catalogue, licences and limits: [data/README.md](data/README.md); field dic
    opt-in; the level policy is unchanged.
 
 **Evidence.** Version 3 was evaluated under a plan written before any of it ran, examined in eighteen rounds by
-outside reviewers, and run from a committed protocol (one re-run for a disclosed bug fix). In Canada each level's
+AI reviewers from other model families, and run from a committed protocol (one re-run for a disclosed bug fix). In Canada each level's
 realised volatility over 2010-2026 was within a few percent of its target; in the US over 2019-2026 it was about a
 third above. No Sharpe-ratio difference from the benchmarks was detected, and in simulation a static mix did slightly
 better when the model's expected returns were wrong: the honest read is "close to its stated risk in Canada (the registered
-reading is inconclusive), and fails safely", not "beats the market". The paper ([docs/paper](docs/paper)), every design decision with its source or test
+reading is inconclusive), and fails safely", not "beats the market". How the optimizer works and why we chose it:
+[optimizer/README.md](optimizer/README.md). The paper ([docs/paper](docs/paper)), every design decision with its source or test
 ([docs/DECISIONS.md](docs/DECISIONS.md)), the plan ([docs/RESEARCH_LOG.md](docs/RESEARCH_LOG.md) sections 9-11) and
 the results ([output/v3/results.json](output/v3/results.json)) are in the repository.
 
 ## Repository layout
 
 ```
-robokit/                 v2 engine (Python reference implementation)
+robokit/                 the engine (Python reference implementation)
   data/                  fetchers: listings.py, prices.py, context.py (macro, geopolitics, news)
   classify.py universe.py shelf.py history.py profile.py engine.py views.py cma.py
   projection.py stress.py signals.py explain.py glossary.py validate.py
   tools.py               the tool contract shared by every surface
   mcp_server.py agent.py bundle.py refresh.py backtest.py __main__.py (CLI)
-optimizer/               v1 numerical core still used by v2: shrinkage estimators, equilibrium returns, solvers
+optimizer/               the numerical core: shrinkage estimators, equilibrium returns, solver, resampling;
+                         README.md: how the optimizer works, and why this method
 web/                     the published page (files listed in web/publish.json): index.html, guide.js (screens and
                          flow), converse.js (typed text, answers without AI), kb.js (fixed wording), robokit.js
                          (engine port), engine.js, parse.js, validate.js, worker2.js, data/ (snapshot)
                          classic.html, app.js, strings.js, assistant.js, icons.js: the earlier page, kept for reference
                          dev only: dev_mock.js, test_*.mjs, test_profiles.json
 tests/                   pytest suite; tests/ui: browser regression tests (opt-in: -m ui)
-scripts/                 data fetch, back-tests, v1 prototype, dev server, mock page, publish check
-data/                    README.md (data catalogue) + v1 inputs; the local cache data/v2/ is git-ignored
-output/                  results of record: v1 and v2 back-tests (output/v2/backtest_v2_summary.json is used at runtime)
+scripts/                 data fetch, back-tests, the registered evaluation, replicate.py (re-run and check our
+                         results), v1 prototype, dev server, mock page, publish check
+data/                    README.md (data catalogue) + v1 inputs; replication/: the archived data of record (see
+                         REPRODUCE.md); the local cache data/v2/ is git-ignored
+output/                  results of record: the registered v3 evaluation (output/v3/results.json), v1 and v2
+                         back-tests (output/v2/backtest_v2_summary.json is used at runtime)
 docs/                    METHOD, PRODUCT_SPEC, DATA, RESEARCH_LOG, VERIFICATION, AI_USE_LOG,
                          research/ (sourced research lanes), qa/ (persona tests and market research),
                          design/ (product and design system), archive/ (superseded plans)
@@ -332,7 +356,7 @@ Without `make` (Windows), run the commands listed in the [Makefile](Makefile) di
 
 | Check | Command | Result today |
 |---|---|---|
-| Python tests | `python -m pytest -q` | 662 passed with the local data cache; on a fresh clone and in CI 575 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
+| Python tests | `python -m pytest -q` | 665 passed with the local data cache (`python scripts/replicate.py data` unpacks it from the repository); on a fresh clone and in CI 578 pass and the 87 that need `data/v2/` (or the v1 price file) are skipped. The browser tests below are opt-in and deselected here |
 | Browser regression tests | `python -m pytest -m ui tests/ui` (or `make test-ui`) | 143 tests in headless Chromium: 73 on the guided page (the conversation script, typed answers, the advice redirect, Claude connected through a stand-in, the edge cases of the Requirements Plan, the team's second feedback round, the demo rehearsal) and 70 on `web/classic.html` (with and without the assistant, the self-check, the mix, layout and accessibility). Needs Playwright and a Chromium-based browser (`python -m playwright install chromium`, or Edge or Chrome installed) |
 | Browser engine vs Python | `node web/test_robokit.mjs` | 28 reference portfolios and 6 resampled cases (weights, calibration outcome, notes and checks), 400 self-check answer sets and the one-fund checks all match |
 | Guided conversation | `node web/test_converse.mjs` | 570 checks: advice phrasings, the whole-message reader and its recording gate, depth (self-identified and inferred), the wording at three depths, the scoring rule against the engine, tickers, answers without AI, number provenance, the checks on Claude's replies |
@@ -347,8 +371,9 @@ Engineering conventions:
 
 - **Reproducible environment:** loose ranges in `pyproject.toml`; exact, tested pins in `requirements.txt`
   (runtime) and `requirements-dev.txt` (dev), generated with `uv`.
-- **Data out of git:** only the dated snapshot `web/data/` and two small v1 inputs are tracked; a pre-commit hook
-  blocks raw vendor data.
+- **Data out of git:** only the dated snapshot `web/data/`, two small v1 inputs and the archived data of record
+  (`data/replication/`, for reproducing our results) are tracked; a pre-commit hook blocks raw vendor data in
+  `data/v2/` and `data/raw/`.
 - **Determinism:** fixed seeds for resampling (Python seed 0) and projections (seed 7); the data snapshot id
   (`00a560f4a6d3`, the same on the page, the CLI and the MCP server) and the engine version are written into every
   result. `python -m robokit bundle` refuses to run without the local data cache.

@@ -2,8 +2,8 @@
 
 Design stance (see docs/METHOD.md for the evidence):
 
-* The covariance matrix is the *estimable* input. We never use the raw sample
-  covariance in the optimizer; it is shrunk with Ledoit-Wolf linear shrinkage
+* The covariance matrix is the *estimable* input. The product never uses the
+  raw sample covariance (it is kept for the evaluation's comparisons); it is shrunk with Ledoit-Wolf linear shrinkage
   (2003/2004) when the universe is small relative to the history, and with
   quadratic-inverse (nonlinear) shrinkage (Ledoit & Wolf, Bernoulli 2022)
   when the number of ETFs is large relative to the number of months.
