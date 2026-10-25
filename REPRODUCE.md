@@ -10,7 +10,7 @@ and nothing depends on today's market prices.
 | The data snapshot behind the web page | `python scripts/replicate.py snapshot` | 5 minutes | about 320,000 values identical |
 | The registered evaluation, quick part | `python scripts/replicate.py evaluation` | a few minutes | 60 statistics and 3 monthly paths identical |
 | The registered evaluation, in full | `python scripts/replicate.py evaluation --full` | hours | every value in `output/v3/results.json` |
-| The test suite on the full data | `python scripts/replicate.py data`, then `python -m pytest -q` | 20 to 40 minutes | 664 passed |
+| The test suite on the full data | `python scripts/replicate.py data`, then `python -m pytest -q` | 20 to 40 minutes | 665 passed |
 
 Each command prints `PASS` or `FAIL` for every check and ends with "All checks passed." The same checks run on Linux
 in GitHub Actions on every push (the "Reproduce" job in [.github/workflows/ci.yml](.github/workflows/ci.yml)).
@@ -61,7 +61,8 @@ python scripts/replicate.py snapshot
 
 This rebuilds `web/data/` (the snapshot the web page, the command line and the MCP server use) from the archived data
 in a temporary folder, then compares it with the committed files. `ca.json`, `us.json` and `test_profiles.json` come
-out byte for byte; `core.json` differs only in its build time. Your working copy is not changed.
+out byte for byte; `core.json` differs only in its build time (on Linux, some of its values also differ in their last
+digits, well within the one-in-a-billion tolerance below). Your working copy is not changed.
 
 ## 3. The registered evaluation
 
@@ -98,9 +99,9 @@ git ignores), checking that the data is the snapshot the run used.
 ## 4. The test suite
 
 ```bash
-python -m pytest -q                    # a fresh clone: 577 pass, 87 skipped (they need the full data)
+python -m pytest -q                    # a fresh clone: 578 pass, 87 skipped (they need the full data)
 python scripts/replicate.py data       # unpack the archived data into data/v2/ (git-ignored)
-python -m pytest -q                    # now 664 pass
+python -m pytest -q                    # now 665 pass
 python -m pytest -m ui -q tests/ui     # optional: the 143 browser tests (needs: python -m playwright install chromium)
 node web/test_robokit.mjs              # optional: the web page's engine reproduces Python (needs Node 18+)
 ```
@@ -118,7 +119,12 @@ status` reports `local` and `00a560f4a6d3`).
   tolerance of one part in a billion, in case another operating system rounds the last bits of a float differently;
   the checks report how many values were identical.
 - **What may differ:** the time stamps (the snapshot's build time, the evaluation's run times) and, for the full
-  evaluation, its provenance (commit, start time, worker count).
+  evaluation, its provenance (commit, start time, worker count). Also one number per case in three deliberately extreme
+  regression cases of `core.json` (for example a 20% minimum and a 30% maximum per fund): their calibration ends in a
+  "jump", where the mix's volatility steps between two λ values less than 0.001% apart and every λ on the kept side gives
+  the same weights. The λ the search reports there depends on its path, which the last bits of floating-point arithmetic
+  can change from one operating system to another (on Linux, one case reports 1.25 instead of 1.69 for the same mix).
+  The check compares those cases on their weights, volatility and outcome instead, as `web/test_robokit.mjs` does.
 - **What will not reproduce:** `python -m robokit refresh` (or `make data`) downloads today's prices, which changes every
   number by design. Do not run it if you want to reproduce our results; if you did, `python scripts/replicate.py data
   --force` puts the archived data back.

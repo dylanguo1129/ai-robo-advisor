@@ -25,3 +25,17 @@ def test_the_engine_reproduces_the_reports_tables(capsys):
     got = R.build_tables()
     slack = R.WEIGHT_SLACK if E.data_source() == "snapshot" else 0.0
     assert R.check_tables(got, want, f"tables ({E.data_source()})", slack), capsys.readouterr().out
+
+
+def test_a_jump_cases_lambda_is_not_compared_but_its_mix_is():
+    """On Linux the snapshot rebuild gave reference case 12 (min 20%, max 30% per fund; outcome 'jump') lambda 1.2456
+    against the committed 1.6878: the same weights and volatility, a different point on the same side of the jump."""
+    core = json.loads((ROOT / "web" / "data" / "core.json").read_text(encoding="utf-8"))
+    a, b = json.loads(json.dumps(core)), json.loads(json.dumps(core))
+    a["reference_cases"][12]["lambda"] = 1.2456
+    a["reference_cases"][12]["calibration"]["evaluations"] += 1
+    jumps = R.drop_jump_lambdas(a, b)
+    assert jumps == {"n": 3, "narrow": True}
+    assert not R.compare(a, b)["mismatches"]
+    a["reference_cases"][12]["weights"]["CASH.TO"] = 0.2  # a different mix still fails
+    assert R.compare(a, b)["mismatches"]

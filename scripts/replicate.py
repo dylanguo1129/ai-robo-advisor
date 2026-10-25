@@ -273,6 +273,25 @@ def child_snapshot(out: str) -> None:
     B.export_bundle(with_reference=True)
 
 
+def drop_jump_lambdas(a: dict, b: dict) -> dict:
+    """In a regression case whose calibration ends in a 'jump' (the mix's volatility steps between two lambdas less than
+    1e-5 apart in log terms), every lambda on the kept side gives the same weights, so the lambda the search reports
+    depends on its path, which the last bits of floating-point arithmetic can change across operating systems. As in
+    web/test_robokit.mjs, such a case is compared on its outcome, weights and volatility, not on that lambda, the
+    number of evaluations or where the bracket landed; both brackets must still be narrower than 1e-5."""
+    n, narrow = 0, True
+    for ca, cb in zip(a.get("reference_cases", []), b.get("reference_cases", [])):
+        ka, kb = ca.get("calibration") or {}, cb.get("calibration") or {}
+        if ka.get("outcome") == "jump" and kb.get("outcome") == "jump":
+            n += 1
+            for case, cal in ((ca, ka), (cb, kb)):
+                narrow &= (cal.get("evidence") or {}).get("log_width", 1.0) < 1e-5
+                case.pop("lambda", None)
+                for k in ("evaluations", "evidence"):
+                    cal.pop(k, None)
+    return {"n": n, "narrow": narrow}
+
+
 def cmd_snapshot(args) -> bool:
     print("Rebuilding the web data snapshot from the archived data (about 5 minutes)")
     with tempfile.TemporaryDirectory(prefix="robokit_snapshot_") as tmp:
@@ -286,14 +305,17 @@ def cmd_snapshot(args) -> bool:
         for rel in ("web/data/ca.json", "web/data/us.json", "web/data/core.json", "web/test_profiles.json"):
             new = Path(tmp) / "data" / Path(rel).name if rel.startswith("web/data/") else Path(tmp) / Path(rel).name
             a, b = json.loads(new.read_text(encoding="utf-8")), json.loads((ROOT / rel).read_text(encoding="utf-8"))
-            note = ""
+            note, narrow = "", True
             if rel.endswith("core.json"):  # the build time is the one field that is meant to change
-                note = f" (build time {b['meta'].pop('generated', None)} -> {a['meta'].pop('generated', None)} ignored)"
+                note = f" (build time {b['meta'].pop('generated', None)} -> {a['meta'].pop('generated', None)} ignored"
+                jumps = drop_jump_lambdas(a, b)
+                narrow = jumps["narrow"]
+                note += f"; lambda of the {jumps['n']} 'jump' regression cases not compared, as in web/test_robokit.mjs)" if jumps["n"] else ")"
             c = compare(a, b)
             same_bytes = new.read_bytes() == (ROOT / rel).read_bytes()
             ok &= report(
                 rel,
-                not c["mismatches"],
+                not c["mismatches"] and narrow,
                 f"{c['values']:,} values, {c['exact']:,} identical" + (", byte for byte" if same_bytes else "") + note,
             )
             for m in c["mismatches"][:10]:
