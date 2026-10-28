@@ -122,6 +122,28 @@ How to start each one:
 6. `python -m robokit chat --tier default` (or `--model <id>`).
 7. `python -m robokit build --market CA --level 3 --amount 25000`.
 
+### No Claude account?
+
+Only options 2 and 3 need a claude.ai plan. Everything else works with what you already have:
+
+| What you have | Use | What you get |
+|---|---|---|
+| Nothing (no AI account) | Option 1 | The whole web page; questions are answered from the page's own notes |
+| A free Google account | Option 5 with **Antigravity CLI** (`agy`) | The conversation and all 15 tools on Google's free quota. Google moved unpaid users from Gemini CLI to Antigravity CLI on 18 June 2026 |
+| Google AI Pro or Ultra | Option 5 with Antigravity CLI | The same, on that plan's quota. Gemini CLI stopped serving these plans on 18 June 2026 |
+| ChatGPT Plus or above | Option 5 with **Codex** (CLI, IDE extension or the ChatGPT desktop app), signed in with ChatGPT | The same, with OpenAI's models |
+| ChatGPT Free | Option 1, or option 5 through a free Google account | OpenAI's pricing page includes Codex in the Free plan but lists only the desktop app for it, "subject to rollout"; the CLI is not listed |
+| An Anthropic API key only | Option 6 (`python -m robokit chat`), or option 4 (Claude Code accepts an API key) | The conversation with every reply's numbers checked; billed to the API account |
+| An OpenAI API key only | Option 5 with Codex CLI, signed in with the key | The tools in Codex; billed at API rates |
+| A Gemini API key only | Option 5 with Gemini CLI and `GEMINI_API_KEY` set | The tools in Gemini CLI; a free key allows 250 requests a day, Flash models only |
+
+Two limits apply to all of these. Web chat sites (chatgpt.com, gemini.google.com, claude.ai chat) cannot start a
+program on your computer, so they cannot use the tools. And only the web page with Claude (options 2 and 3), the plugin (4) and the terminal agent
+(6) check the numbers in the model's replies automatically; in the other tools, trust the tool results over the model's wording. `robokit chat` (option 6)
+runs Claude models only. Vendor plans as of 27 Oct 2026 ([Codex pricing](https://learn.chatgpt.com/docs/pricing),
+[Gemini CLI quotas](https://geminicli.com/docs/resources/quota-and-pricing/),
+[Gemini deprecations](https://developers.google.com/gemini-code-assist/docs/deprecations)).
+
 The plugin bundles the MCP server, the guide skill (`skills/robo-kit/`) and a Stop hook (`hooks/check_reply.py`)
 that re-checks every reply's numbers against the tool results. The MCP server exposes 15 read-only tools
 (`get_questions`, `score_profile`, `scenario_cards`, `risk_ladder`, `reference_shelf`, `search_etfs`,
@@ -186,9 +208,9 @@ starts in under a second, and building a mix takes about 10 seconds.
 |---|---|---|
 | Claude Desktop | Local servers run on every Claude plan (Anthropic: "Desktop extensions are available to all users"); the config file below was not tried on a Free account | Settings > Developer > Edit Config opens `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS); JSON below |
 | Cursor (editor or CLI) | Cursor's pricing page lists MCP under the paid plans, not under the free Hobby plan | `~/.cursor/mcp.json`, or `.cursor/mcp.json` in this folder, JSON below; approve the server when Cursor asks |
-| Gemini CLI | Free with a personal Google account (1,000 requests a day), or Google AI Pro / Ultra | `~/.gemini/settings.json`, JSON below; the folder must be trusted (`gemini trust`) |
+| Gemini CLI | A Gemini API key (`GEMINI_API_KEY`; free keys: 250 requests a day, Flash models only). Since 18 June 2026 Gemini CLI no longer serves unpaid, Google AI Pro or Ultra sign-ins; those accounts use Antigravity CLI | `~/.gemini/settings.json`, JSON below; the folder must be trusted (`gemini trust`) |
 | Antigravity (Google) | Every plan, free included (weekly quota) | `agy mcp add robokit -- <python> -m robokit.mcp_server` |
-| Codex CLI, Codex IDE extension, ChatGPT desktop app | ChatGPT sign-in (OpenAI's pricing page lists every plan from Free up; the Codex README lists paid plans) or an API key | `codex mcp add robokit -- <python> -m robokit.mcp_server`, then add `tool_timeout_sec = 120` under `[mcp_servers.robokit]` in `~/.codex/config.toml` |
+| Codex CLI, Codex IDE extension, ChatGPT desktop app | ChatGPT sign-in (OpenAI's pricing page includes Codex in every plan from Free up, but for Free names only the desktop app, "subject to rollout") or an OpenAI API key (billed at API rates) | `codex mcp add robokit -- <python> -m robokit.mcp_server`, then add `tool_timeout_sec = 120` under `[mcp_servers.robokit]` in `~/.codex/config.toml` |
 
 The JSON for Claude Desktop, Cursor and Gemini CLI, with your own path (merge it into the file if it already lists
 servers). Windows:
@@ -276,6 +298,16 @@ flowchart LR
     W --> L
 ```
 
+How to read it: the diagram is a Mermaid flowchart (text that GitHub draws). Read it from left to right. The Python
+engine has two incoming arrows because it reads the local cache when one exists and the committed snapshot otherwise,
+which is why a fresh clone works with no downloads; the browser port only ever reads the snapshot. The diagram
+simplifies three things:
+- Claude is optional: the page and the engine work without any model.
+- "Validator checks every number" holds on the page, in `robokit chat`, and in the plugin (for turns that used
+  Robo-Kit tools, after the reply is shown), but not in the bare MCP server.
+- It leaves out the fund-universe build at the end of `refresh`, the replication archive (`data/replication/`) and the
+  parity test, in which the browser engine must reproduce the Python reference portfolios stored in `core.json`.
+
 ### Data layer
 
 All data is fetched by scripts (`robokit/data/`), never typed in or downloaded by hand: ETF lists from Nasdaq Trader
@@ -288,6 +320,19 @@ a fresh clone all use.
 **Nothing refreshes automatically.** There is no scheduler, and the published page cannot fetch data (its sandbox
 blocks outside requests). Updating means: `refresh` → `bundle` → `make check` → commit → republish the artifact.
 Full catalogue, licences and limits: [data/README.md](data/README.md); field dictionary: [docs/DATA.md](docs/DATA.md).
+
+- **Which funds are eligible.** Written regex rules classify every listing (asset class, region, currency hedging,
+  leverage, issuer). A fund needs at least 36 months of prices up to the latest month, at least C$20M in assets in
+  Canada or US$50M in the US, and about $50K a day of trading in Canada or $250K in the US. Leveraged, inverse and
+  single-stock funds, CDRs and the US-dollar units of Canadian funds are excluded, and an integrity screen drops a fund
+  whose return doubled or halved in a month when similar funds did not. Every exclusion records its reason.
+- **Returns.** Monthly total returns come from dividend-adjusted closes; missing months stay missing. A fund in the
+  other currency is converted with the exchange rate. A young core fund is extended backwards with a written stand-in
+  fund (at least 24 overlapping months, correlation at least 0.8).
+- **The snapshot files.** `ca.json` and `us.json` hold the fund table and each eligible fund's monthly returns since
+  2000, stored as 16-bit integers in half-basis-point steps. `core.json` holds the settings, questionnaire, glossary,
+  rates, crisis scenarios and reference portfolios from the Python engine. The snapshot ID (`00a560f4a6d3`) is carried
+  by every result, and the exact cache behind the published numbers is archived in `data/replication/`.
 
 ### Portfolio engine
 
@@ -323,6 +368,20 @@ Full catalogue, licences and limits: [data/README.md](data/README.md); field dic
    bands of min(2 points, 25% of target) traded back to 7/8 of the band, a minimum order of $50, and orders above 1% of
    a fund's daily traded value flagged. Every mix shows its NI 81-102 Appendix F risk rating. Suitability checks are
    opt-in; the level policy is unchanged.
+
+**From the questions to the optimizer (web page).** The questions only set one number, the risk level; the level and
+the preferences are the optimizer's inputs.
+
+| Question | Feeds | Effect in the optimizer |
+|---|---|---|
+| When the money is needed, how it comes out (the goal fills in an assumption you can change) | Capacity points | Through the level |
+| Emergency fund, high-interest debt | Gates: none or a lot of debt caps it at level 2 (and all the money within 2 years means level 1, no stock mix); a partial emergency fund is a cushion | Through the level |
+| Income stability, share of savings | Cushions that lower capacity by up to two steps | Through the level |
+| Self-rating, reaction to a drop, the one-year and ten-year range cards, the bigger worry | Tolerance (the average, rounded down) | Through the level |
+| The level you confirm (suggested = lowest of capacity, tolerance and the gate) | `risk_level` | Volatility target L × 20% of the stock market's; cash cap 100% at level 1, 30% at level 2, 15% above; own picks together 10% at levels 1-2, 20% at 3, 30% at 4-5 |
+| Preferences (avoid, ESG, hedged US stocks, a like-for-like swap) | `exclude`, `preferEsg`, `hedgeUsEquity`, `swaps` | Which fund fills each slot; excluded funds are left out |
+| Tickers you add | `satellites` | Your own picks, at most 10% each (crypto 5%), each with a small minimum so it stays in |
+| Amount, monthly addition, years | `amount`, `monthly`, `years` | None on the weights: they turn the results into dollars (projections, the bad year, fees) |
 
 **Evidence.** Version 3 was evaluated under a plan written before any of it ran, examined in eighteen rounds by
 AI reviewers from other model families, and run from a committed protocol (one re-run for a disclosed bug fix). In Canada each level's

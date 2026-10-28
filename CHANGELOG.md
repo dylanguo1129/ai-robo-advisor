@@ -9,6 +9,10 @@
   (if any) in the page state as context, and the number checker still applies. Without Claude nothing changes. The
   buying answer now needs something to buy ("how do I buy an ETF", "how can I invest in index funds").
   Tests: web/test_converse.mjs and tests/ui/test_guided.py, which fails on the old code.
+- **README: no Claude account.** A table of what to use with no AI account, a free Google account, Google AI Pro,
+  ChatGPT Free or Plus, or only an Anthropic, OpenAI or Gemini API key. The Gemini CLI and Codex plan notes are
+  corrected (since 18 June 2026 Gemini CLI serves only API keys among personal routes; unpaid, Google AI Pro and Ultra accounts use Antigravity CLI). "How it works" now explains the diagram,
+  the eligibility rules and snapshot files, and how each question reaches the optimizer.
 - **README: setup options.** "Ways to use it" now lists all seven ways in, each with its prerequisites, what you get
   and what you do not, and how to start it.
 
