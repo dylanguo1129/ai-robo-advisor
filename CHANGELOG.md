@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **With Claude connected, typed questions reach Claude.** The guided page answered a question from its own notes
+  (FAQ, glossary, fund facts) whenever one matched, even with Claude connected, and some FAQ patterns were loose:
+  "how do I get rich" matched "how do I get [an ETF]" and got the fixed answer about brokerage accounts. Now, with
+  Claude on, only advice requests keep the fixed redirect; every other question goes to Claude, with the matching note
+  (if any) in the page state as context, and the number checker still applies. Without Claude nothing changes. The
+  buying answer now needs something to buy ("how do I buy an ETF", "how can I invest in index funds").
+  Tests: web/test_converse.mjs and tests/ui/test_guided.py, which fails on the old code.
+- **README: setup options.** "Ways to use it" now lists all seven ways in, each with its prerequisites, what you get
+  and what you do not, and how to start it.
+
 ## 3.3.2 (October 2026)
 
 Fixes from a review of the whole repository in six lanes (documentation, links and commands, the Python engine and

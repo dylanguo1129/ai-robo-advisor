@@ -359,6 +359,7 @@ RULES
 10. Penguru covers investing with Canadian-listed ETFs only. If a question is not about investing, say: "${KB.SCOPE}" If it compares ETFs with stocks, bonds, GICs, mutual funds or another product, say Penguru only covers ETFs at this time; you may still define the other product.
 11. Never describe or label the person's knowledge, experience or risk type.
 12. Until PAGE STATE has "assessed": true, never mention a risk level, a score, or what the answers suggest.
+13. If PAGE STATE has "page_note", it is the page's own reviewed answer to a similar question. Use it when it fits and answer what was actually asked; ignore it when it is about something else.
 VOICE: follow EXPLANATIONS in PAGE STATE. "step by step": plain words and no jargon; define any needed term in a few words; one everyday example; at most four short sentences. "standard": brief; define a term only if asked; at most four sentences. "brief and technical": concise and precise; technical terms are fine; quote the relevant figures from PAGE STATE (risk shares, volatility against its target, assumptions, constraints, method); up to six sentences. Always: no exclamation marks, Canadian spelling, English.`;
 
 function pageState(extra = {}) {
@@ -385,15 +386,17 @@ const TOOLS = () => [
 const symbolMap = () => { if (symbolMap.m || !M()) return symbolMap.m; const m = new Map(); for (const r of M().rows) { m.set(r.symbol.toUpperCase(), r.yahoo); m.set(r.yahoo.toUpperCase(), r.yahoo); } return (symbolMap.m = m); };
 function universe() { const s = new Set(); for (const r of M()?.rows || []) { s.add(r.yahoo); s.add(r.symbol); } return s; }
 
-/** One answer to a typed question: the advice redirect, then the page's own notes, then Claude when connected. */
+/** One answer to a typed question: the advice redirect always; then Claude when connected, given the page's own note
+ * (glossary, FAQ, fund facts) as context; else that note. The note is matched by patterns, so with Claude on it never
+ * answers in Claude's place: a loose match would put a fixed answer to another question on screen. */
 async function answerQuestion(text, push, ctx = {}) {
   if (C.isAdvice(text)) { push({ text: KB.ADVICE_REDIRECT, kind: 'advice' }); push({ text: eng.core.disclosure.en }); event('Advice request redirected to the disclosure'); return; }
   const local = C.localAnswer(text, { step: ctx.step, glossary: eng.core.glossary, M: M(), symbols: symbolMap(), fund: ctx.fund, plainFor, depth: st.depth, figs: C.figures(viewP(), st.ack ? st.profile : null) });
   const s = ai === 'on' ? await useSample() : null;
-  if (local && (!s || ['term', 'why', 'fund', 'faq', 'scope', 'etf_only', 'advice'].includes(local.kind))) { push({ text: local.text }); if (local.kind === 'advice') push({ text: eng.core.disclosure.en }); learnedFrom(local); return; }
+  if (local && (!s || local.kind === 'advice')) { push({ text: local.text }); if (local.kind === 'advice') push({ text: eng.core.disclosure.en }); learnedFrom(local); return; }
   if (!s) { push({ text: local?.text || `${KB.FALLBACK.chat}${ai === 'available' ? ` ${KB.FALLBACK.claude}` : ''}` }); return; }
   const thinking = push({ thinking: true });
-  const state = pageState(ctx.fund ? { fund_shown: fundFacts(ctx.fund) } : {}), results = [];
+  const state = pageState({ ...(ctx.fund ? { fund_shown: fundFacts(ctx.fund) } : {}), ...(local ? { page_note: local.text } : {}) }), results = [];
   const tools = sampleCaps?.tools ? TOOLS().map((t) => ({ ...t, execute: (i) => { const r = t.execute(i); results.push(r); return r; } })) : undefined;
   const base = [{ role: 'user', content: `${RULES}\n\nPAGE STATE (JSON):\n${JSON.stringify(state).slice(0, 24000)}` }, ...st.turns.slice(-6)];
   const typed = st.log.filter((m) => m.who === 'me').map((m) => m.text).concat(text);

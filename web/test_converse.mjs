@@ -86,6 +86,9 @@ const zag = C.localAnswer('Whats an example of a stock in this ETF?', { ...ctx, 
 ok('a bond fund holds no stocks (review item)', /holds no stocks/.test(zag?.text || '') && /Government/.test(zag.text));
 ok('faq: is this real', C.localAnswer('is any of this invested?', ctx)?.kind === 'faq');
 ok('why we ask', C.localAnswer('why do you ask?', { ...ctx, step: 'B5' })?.text === KB.WHY.B5);
+// "how do I get rich" is not "how do I buy an ETF": the buying answer needs something to buy
+for (const t of ['how do i get rich', 'How do I get rich quickly?', 'how do i get started', 'how do i get better returns']) ok(`no fixed answer for "${t}"`, C.localAnswer(t, ctx)?.kind !== 'faq');
+for (const t of ['how do i buy an ETF', 'how can i invest in index funds', 'how can I invest in a low cost index fund', 'how do i buy a diversified all in one portfolio', 'how do i actually buy this mix', 'how do i get these ETFs', 'where can i buy one']) ok(`buying answer for "${t}"`, /brokerage account/.test(C.localAnswer(t, ctx)?.text || ''));
 ok('learn more on the open step', C.localAnswer('I want to learn more', { ...ctx, step: 'C1' })?.text === KB.LEARN.C1);
 ok('weather gets the scope (E4)', C.localAnswer('what is the weather like', ctx)?.kind === 'scope');
 
