@@ -88,13 +88,39 @@ reaches its numbers: [optimizer/README.md](optimizer/README.md).
 
 ## Ways to use it
 
-| Way | Who runs Claude | What you need | Start |
-|---|---|---|---|
-| **Web page, your own copy** (a claude.ai Artifact) | Your own Claude plan: you own the copy | Pro, Max, Team or Enterprise; Claude Code; access to this repo | Clone, open in Claude Code, type `/publish-robo-kit` ([next section](#your-own-copy-of-the-web-page)) |
-| **Web page, the owner's copy** | The viewer's own account, but the assistant only for the owner's Team / Enterprise organization ([sharing](#sharing-the-web-page-who-gets-the-ai-assistant)) | A Claude account and an invitation | [Robo-Kit artifact](https://claude.ai/artifact/8BA8T78qH17LF1v7Ss4qgu) (private; the owner shares it) |
-| **Claude Code plugin** | Your own Claude Code session and model | Claude Code, Python deps installed, access to this repo | `/plugin marketplace add dylanguo1129/ai-robo-advisor` then `/plugin install robo-kit@robo-kit` |
-| **MCP server** | Your own AI tool: Claude Desktop (any plan, Free included), Claude Code, Cursor, Gemini CLI, Antigravity, Codex | This repo, installed as above | `claude mcp add robokit -- python -m robokit.mcp_server` (run from the repo folder); other tools: [below](#other-ai-tools-and-free-claude-accounts) |
-| **Terminal agent** | Your own `ANTHROPIC_API_KEY` | An API key | `python -m robokit chat --tier default` (`quick` = Haiku 4.5, `default` = Sonnet 5.5, `complex` = Opus 5.5, or `--model <id>`) |
+There are seven ways in. All of them use the same engine and data snapshot, so the same answers give the same
+portfolio. They differ in what you need installed, whether a language model takes part, and whose plan pays for it.
+Every option starts from a clone of this repository (`git clone https://github.com/dylanguo1129/ai-robo-advisor.git`,
+or download the ZIP from GitHub), except option 3.
+
+**For a quick look, use option 1** (about two minutes, no account, no installs beyond Python). **To see the page with
+Claude answering questions, use option 2.**
+
+| # | Option | Prerequisites | What you get | What you do not get |
+|---|---|---|---|---|
+| 1 | **Web page on your own computer, no AI** | Python 3 (any recent version; the server uses the standard library only, so no `pip install`) and a browser | The whole Penguru page: the guided conversation, typed answers, the self-check, the assessment, the mix with reasons, stress tests, projections, adjustments and the summary. Typed questions are answered from the page's own notes: the glossary, a fixed FAQ and fund facts | Answers in Claude's words. A question the notes do not cover gets a short general reply |
+| 2 | **Web page with Claude: your own published copy** | A claude.ai **Pro, Max, Team or Enterprise** plan; **Claude Code** (the `claude` CLI, or the Code tab of the Claude desktop app) signed in with `/login`, not an API key; Python 3 | Everything in option 1, as a private page in your own claude.ai account. After you tap **Connect Claude for reasoning**, every typed question is answered by Claude, with the page's numbers and its own notes as context; a checker hides any reply with a number or ticker the page did not produce. Advice requests ("should I buy …") always get the fixed redirect | A public link: pages that use Claude cannot be shared with "anyone with the link" |
+| 3 | **Web page: the owner's copy** | A Claude account and an email invitation from the owner | The page without installing anything. The Claude assistant works only for the owner and members of the owner's Team or Enterprise organization | For everyone else, the assistant: they get option 1's answers ([why](#sharing-the-web-page-who-gets-the-ai-assistant)) |
+| 4 | **Claude Code plugin** | Claude Code (a Pro, Max, Team or Enterprise plan, or an API key); Python 3.10+ with `pip install -r requirements.txt`, installed in the `python` that is on your PATH when Claude Code starts (activate the virtual environment first if you use one) | A conversation in Claude Code: the 15 Robo-Kit tools, the guide skill, and a hook that re-checks every number in Claude's replies. Covers **Canadian and US** ETFs | The web page: results come back as text and tables |
+| 5 | **MCP server in another AI tool** (Claude Desktop on any plan, Cursor, Gemini CLI, Antigravity, Codex) | Python 3.10+ with the dependencies (see [below](#other-ai-tools-and-free-claude-accounts)); one of those tools | The same 15 tools and numbers, with that tool's own model and plan, including free plans for some tools. Canadian and US ETFs | The web page, and the automatic number check: trust the tool results over the model's own wording |
+| 6 | **Terminal agent** | Python 3.10+ with the dependencies; an `ANTHROPIC_API_KEY` (billed to that API account) | A chat in the terminal with the same tools; replies are checked for numbers and tickers before you see them. Choose the model with `--tier quick` (Haiku 4.5), `default` (Sonnet 5.5) or `complex` (Opus 5.5) | The web page |
+| 7 | **Command line, no AI** | Python 3.10+ with the dependencies ([Quick start](#quick-start)) | One portfolio report from flags you set (`--market`, `--level`, `--amount`), with no conversation and no model | The self-check conversation and explanations |
+
+How to start each one:
+
+1. `python scripts/serve_dev.py` in the repository folder, then open http://127.0.0.1:8765/index.html. Stop it with
+   Ctrl+C.
+2. Open the repository folder in Claude Code (`claude`, or the Code tab of the desktop app) and type
+   `/publish-robo-kit`. Claude checks the files, publishes the page and gives you its link (details in the
+   [next section](#your-own-copy-of-the-web-page)). On the page, start the conversation and tap **Connect Claude for
+   reasoning**; claude.ai asks once for permission to use your plan.
+3. Open the [Penguru artifact](https://claude.ai/artifact/8BA8T78qH17LF1v7Ss4qgu) once the owner has invited you.
+4. In Claude Code: `/plugin marketplace add dylanguo1129/ai-robo-advisor`, then `/plugin install robo-kit@robo-kit`.
+   Opening this repository folder in Claude Code also offers the same server through `.mcp.json`.
+5. Add the server to the tool as shown [below](#other-ai-tools-and-free-claude-accounts), then ask, for example,
+   *"Use the robokit tools and follow the Robo-Kit guide rules. I want to build an ETF mix: retirement, about 50k."*
+6. `python -m robokit chat --tier default` (or `--model <id>`).
+7. `python -m robokit build --market CA --level 3 --amount 25000`.
 
 The plugin bundles the MCP server, the guide skill (`skills/robo-kit/`) and a Stop hook (`hooks/check_reply.py`)
 that re-checks every reply's numbers against the tool results. The MCP server exposes 15 read-only tools

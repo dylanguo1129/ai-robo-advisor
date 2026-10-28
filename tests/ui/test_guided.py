@@ -293,6 +293,25 @@ def test_claude_can_be_connected_and_answers_then_offers_the_way_back(guide):
     assert any(ADVICE in m for m in g.last(4))  # the redirect never goes to Claude
 
 
+def test_with_claude_connected_questions_reach_claude_not_a_fixed_answer(guide):
+    """Yasmin's demo: "how do I get rich" got the fixed "how to buy an ETF" answer although Claude was connected. With
+    Claude on, only advice keeps fixed words; questions the page has a note for still go to Claude, with the note."""
+    g = guide(init=FAKE_CLAUDE)
+    g.pg.wait_for_selector('#home-connect [data-act="connect"]', timeout=10000)
+    g.pg.click('[data-prompt="1"]')
+    g.pg.locator('[data-act="connect"]').last.click()
+    g.pg.wait_for_function("window.robokitGuide.ai === 'on'", timeout=10000)
+    g.tap("EXP", "some")
+    for t in ("how do I get rich?", "what is an ETF?", "can I lose all my money?", "tell me a joke"):
+        asked = g.js("window.__asked.length")
+        g.say(t)
+        assert g.js("window.__asked.length") == asked + 1, t
+        assert any("short explanation" in m for m in g.last(3)), t
+        assert not any("brokerage account" in m for m in g.last(3)), t
+    note = g.js("JSON.stringify(window.__asked.at(-2))")  # "can I lose all my money?" carried the page's own note
+    assert "page_note" in note and "nothing here is guaranteed" in note
+
+
 def test_phone_width_has_no_sideways_scroll(guide):
     g = guide(viewport={"width": 375, "height": 812})
     g.to_mix()
